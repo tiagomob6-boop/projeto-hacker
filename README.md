@@ -24,6 +24,7 @@ Protótipo funcional de um jogo 3D em terceira pessoa de infiltração e hacking
 | `C` | Hackear / alternar entre **Câmeras de Segurança** e voltar ao agente |
 | `R` | Sobrecarregar e desativar por `15s` a câmera controlada no momento |
 | `E` | Hackear Portão / Firewall, sobrecarregar Caixa Elétrica ou baixar Servidor |
+| `M` | Ligar / silenciar (Mudo) o áudio procedural e a trilha sonora |
 | `ESC` | Cancelar terminal de hack / liberar cursor do mouse |
 
 ---
