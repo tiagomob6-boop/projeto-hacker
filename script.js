@@ -27,6 +27,67 @@ const WEAPON_TYPE = {
 const TASER_COOLDOWN = 2.5;
 const EMP_COOLDOWN = 15.0;
 
+const MAPS_CONFIG = {
+  COMPLEXO_CTOS: {
+    key: 'COMPLEXO_CTOS',
+    label: 'COMPLEXO ctOS',
+    playerStart: [0, 0, 14],
+    extractPos: [0, 0.04, 25],
+    serverPos: [0, 1.65, -21.5],
+    gates: [
+      { x: 0, y: 2.2, z: 6, w: 6, h: 4.4, d: 0.6, panelPos: [4.2, 0.75, 6.9], openX: -6.1 }
+    ],
+    cameras: [
+      { name: 'CAM_01 // PÁTIO_OESTE', pos: [-14.6, 4.3, -1], baseYaw: -2.15, basePitch: -0.35 },
+      { name: 'CAM_02 // SETOR_SERVIDOR', pos: [14.6, 4.3, -17], baseYaw: 1.95, basePitch: -0.32 }
+    ],
+    electricBoxes: [
+      { name: 'CAIXA_ELETRICA_01', pos: [-11.5, 0.85, -1.5] },
+      { name: 'CAIXA_ELETRICA_02', pos: [11.5, 0.85, -12.5] }
+    ],
+    guards: [
+      { waypoints: [[-11, 0, -3.5], [11, 0, -3.5]], speed: 2.8, visionRange: 9.5 },
+      { waypoints: [[10, 0, -14], [-10, 0, -14]], speed: 3.1, visionRange: 9.5 }
+    ],
+    cars: [
+      { x: -6.5, z: 18.5, yaw: Math.PI / 2, color: 0x111827, neon: 0x00f0ff, isDedsec: true },
+      { x: -12, z: 10.5, yaw: Math.PI / 2, color: 0x26314a, neon: 0xffaa00, isDedsec: false },
+      { x: 11.5, z: 24.5, yaw: -Math.PI / 2, color: 0x2b1d38, neon: 0xff0055, isDedsec: false },
+      { x: -16, z: 27, yaw: 0, color: 0x1e2b3a, neon: 0x38bdf8, isDedsec: false }
+    ]
+  },
+  DOCAS_BAIA_SF: {
+    key: 'DOCAS_BAIA_SF',
+    label: 'DOCAS DA BAÍA SF',
+    playerStart: [0, 0, 22],
+    extractPos: [0, 0.04, 30],
+    serverPos: [0, 1.65, -22.5],
+    gates: [
+      { x: 0, y: 2.2, z: 10, w: 6, h: 4.4, d: 0.6, panelPos: [4.2, 0.75, 10.9], openX: -6.1 },
+      { x: 0, y: 2.2, z: -12, w: 6, h: 4.4, d: 0.6, panelPos: [-4.2, 0.75, -11.1], openX: 6.1 }
+    ],
+    cameras: [
+      { name: 'CAM_01 // ENTRADA_DOCA', pos: [-16.5, 4.5, 6], baseYaw: -2.0, basePitch: -0.35 },
+      { name: 'CAM_02 // CORREDOR_CARGA', pos: [16.5, 4.5, -2], baseYaw: 2.1, basePitch: -0.35 },
+      { name: 'CAM_03 // CONVÉS_BLUME', pos: [-12.5, 4.8, -16], baseYaw: -2.35, basePitch: -0.32 }
+    ],
+    electricBoxes: [
+      { name: 'CAIXA_DOCA_01', pos: [-12, 0.85, 2] },
+      { name: 'CAIXA_DOCA_02', pos: [12, 0.85, -7] }
+    ],
+    guards: [
+      { waypoints: [[-11, 0, 4], [11, 0, 4]], speed: 2.7, visionRange: 9.5 },
+      { waypoints: [[11, 0, -5], [-11, 0, -5]], speed: 3.0, visionRange: 9.5 },
+      { waypoints: [[-8, 0, -17], [8, 0, -17]], speed: 3.2, visionRange: 9.5 }
+    ],
+    cars: [
+      { x: -7, z: 24, yaw: Math.PI / 2, color: 0x111827, neon: 0x00f0ff, isDedsec: true },
+      { x: 13, z: 17, yaw: -Math.PI / 2, color: 0x26314a, neon: 0xffaa00, isDedsec: false },
+      { x: -13, z: 15, yaw: Math.PI / 2, color: 0x1e2b3a, neon: 0x38bdf8, isDedsec: false }
+    ]
+  }
+};
+
 const HACK_CODES = [
   'OVERRIDE_GATE_77',
   'BYPASS_CTOS_404',
@@ -111,7 +172,9 @@ const dom = {
   finalTime: document.getElementById('final-time'),
   finalDetection: document.getElementById('final-detection'),
   finalHacks: document.getElementById('final-hacks'),
+  finalMap: document.getElementById('final-map'),
   finalDifficulty: document.getElementById('final-difficulty'),
+  mapButtons: document.querySelectorAll('.map-btn'),
   diffButtons: document.querySelectorAll('.diff-btn'),
   btnStart: document.getElementById('btn-start'),
   btnRetryGameover: document.getElementById('btn-retry-gameover'),
@@ -119,15 +182,15 @@ const dom = {
 };
 
 // Variáveis Three.js
-let scene, camera, renderer, clock;
+let scene, camera, renderer, clock, worldGroup;
 let ambientLight, dirLight;
 let playerGroup, playerParts = {};
 let gateMesh, gatePanelMesh, serverMesh, serverCoreMesh, extractionZoneGroup, extractionRing, extractionBeam;
-let networkLinesGroup, serverParticles;
+let networkLinesGroup, serverParticles, waterMesh;
 const serverParticleData = [];
 
 // Listas de mundo e gameplay
-const colliders = [];   // { box: THREE.Box3, mesh, isGate?: boolean }
+const colliders = [];   // { box: THREE.Box3, mesh, isGate?: boolean, gateIndex?: number }
 const occluders = [];   // Meshes que bloqueiam visão dos guardas
 const structureMeshes = []; // Meshes afetados pelo wireframe NetHack
 const hackableMeshes = [];  // Dispositivos destacáveis no NetHack
@@ -136,6 +199,8 @@ const guards = [];          // { mesh, waypoints, currentTarget, speed, visionRa
 const electricBoxes = [];   // { id, name, mesh, cooldown, sparkTimer, sparkPoints, sparkData }
 const radarCrates = [];     // { x, z, w, d } para planta baixa do radar
 const radarBuildings = [];  // { x, z, w, d } para quarteirões laterais no radar
+const radarWalls = [];      // { x1, z1, x2, z2 } para paredes no radar
+const gates = [];           // { gateMesh, panelMesh, unlocked, openProgress, initialX, openX }
 const cars = [];            // { mesh, colliderObj, initialPos, initialYaw, isDedsec, speed, hackedTimer, hackedUsed, headlight }
 const projectiles = [];     // { mesh, line, origin, pos, dir, speed, life }
 const empWaves = [];        // { mesh, mat, radius, maxRadius }
@@ -145,7 +210,9 @@ let dedsecCar = null;
 // Estado do jogo
 const gameState = {
   mission: MISSION_STATE.IDLE,
+  selectedMap: 'COMPLEXO_CTOS',
   difficulty: 'INICIANTE',
+  activeGateIndex: 0,
   elapsedTime: 0,
   netHackActive: false,
   activeCamIndex: -1, // -1 = câmera 3ª pessoa do jogador
@@ -458,18 +525,51 @@ function initThree() {
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   clock = new THREE.Clock();
+  worldGroup = new THREE.Group();
+  scene.add(worldGroup);
 
   setupLighting();
-  buildEnvironment();
-  buildCars();
   buildPlayer();
-  buildSecurityCameras();
-  buildElectricBoxes();
-  buildGuards();
-  buildNetworkLines();
-  buildNetHackLabels();
+  buildMap(gameState.selectedMap);
 
   window.addEventListener('resize', onWindowResize);
+}
+
+function buildMap(mapKey) {
+  const cfg = MAPS_CONFIG[mapKey] || MAPS_CONFIG.COMPLEXO_CTOS;
+  gameState.selectedMap = cfg.key;
+
+  while (worldGroup.children.length > 0) {
+    worldGroup.remove(worldGroup.children[0]);
+  }
+
+  colliders.length = 0;
+  occluders.length = 0;
+  structureMeshes.length = 0;
+  hackableMeshes.length = 0;
+  securityCameras.length = 0;
+  electricBoxes.length = 0;
+  guards.length = 0;
+  cars.length = 0;
+  gates.length = 0;
+  radarCrates.length = 0;
+  radarBuildings.length = 0;
+  radarWalls.length = 0;
+  serverParticleData.length = 0;
+  waterMesh = null;
+  dedsecCar = null;
+
+  if (cfg.key === 'DOCAS_BAIA_SF') {
+    buildDocksEnvironment(cfg);
+  } else {
+    buildEnvironment(cfg);
+  }
+  buildCars(cfg);
+  buildSecurityCameras(cfg);
+  buildElectricBoxes(cfg);
+  buildGuards(cfg);
+  buildNetworkLines();
+  buildNetHackLabels();
 }
 
 function setupLighting() {
@@ -537,7 +637,7 @@ function addStaticBox(w, h, d, x, y, z, color, options = {}) {
   mesh.position.set(x, y, z);
   mesh.castShadow = options.castShadow ?? true;
   mesh.receiveShadow = options.receiveShadow ?? true;
-  scene.add(mesh);
+  worldGroup.add(mesh);
 
   if (options.edgesColor !== undefined) {
     const edgesGeo = new THREE.EdgesGeometry(mesh.geometry);
@@ -566,7 +666,12 @@ function addStaticBox(w, h, d, x, y, z, color, options = {}) {
   if (options.collide !== false) {
     mesh.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(mesh);
-    colliders.push({ box, mesh, isGate: !!options.isGate });
+    colliders.push({
+      box,
+      mesh,
+      isGate: !!options.isGate,
+      gateIndex: options.gateIndex ?? -1
+    });
   }
 
   if (options.occlude !== false) {
@@ -576,7 +681,7 @@ function addStaticBox(w, h, d, x, y, z, color, options = {}) {
   return mesh;
 }
 
-function buildEnvironment() {
+function buildEnvironment(cfg) {
   // Chão principal ampliado (cobre X: -36..36 e Z: -35..45)
   const groundMat = new THREE.MeshStandardMaterial({
     color: 0x101422,
@@ -587,14 +692,14 @@ function buildEnvironment() {
   ground.rotation.x = -Math.PI / 2;
   ground.position.set(0, 0, 5);
   ground.receiveShadow = true;
-  scene.add(ground);
+  worldGroup.add(ground);
 
   // Grade neon sutil no chão
   const grid = new THREE.GridHelper(92, 46, 0x00f0ff, 0x162442);
   grid.position.set(0, 0.015, 5);
   grid.material.opacity = 0.22;
   grid.material.transparent = true;
-  scene.add(grid);
+  worldGroup.add(grid);
 
   // Calçadas elevadas com meio-fio (Oeste, Leste, Sul e frente do complexo)
   const sidewalkOpts = { collide: false, occlude: false, edgesColor: 0x26324d, edgesOpacity: 0.55 };
@@ -611,7 +716,7 @@ function buildEnvironment() {
       new THREE.MeshBasicMaterial({ color: 0x2f436e })
     );
     stripe.position.set(x, 0.02, 20);
-    scene.add(stripe);
+    worldGroup.add(stripe);
   }
 
   // Faixas de pedestres
@@ -622,7 +727,7 @@ function buildEnvironment() {
         new THREE.MeshBasicMaterial({ color: 0x4b6584 })
       );
       zebra.position.set(cx, 0.02, z);
-      scene.add(zebra);
+      worldGroup.add(zebra);
     }
   });
 
@@ -658,7 +763,7 @@ function buildEnvironment() {
     );
     panel.position.set(bb.x, 5.2, bb.z);
     panel.rotation.y = bb.rotY;
-    scene.add(panel);
+    worldGroup.add(panel);
   });
 
   // Prédios laterais acessíveis pela rua com fachadas iluminadas
@@ -691,7 +796,7 @@ function buildEnvironment() {
       new THREE.MeshBasicMaterial({ color: px < 0 ? 0x00f0ff : 0xff0055 })
     );
     lamp.position.set(px + (px < 0 ? 0.3 : -0.3), 5.5, 16);
-    scene.add(lamp);
+    worldGroup.add(lamp);
   });
 
   // Silhuetas de prédios de São Francisco ao fundo (fora da área jogável)
@@ -730,7 +835,7 @@ function buildEnvironment() {
       );
       const faceZ = z < 0 ? z + d / 2 + 0.08 : z - d / 2 - 0.08;
       winBand.position.set(x, r * 3.6, faceZ);
-      scene.add(winBand);
+      worldGroup.add(winBand);
     }
   });
 
@@ -738,29 +843,25 @@ function buildEnvironment() {
   buildGoldenGateBridge();
 
   // Muros do Complexo Protegido (X: -16 a +16, Z: -26 a +6)
-  // Muro frontal esquerdo e direito (deixando vão central de X=-3 a +3 para o portão)
   addStaticBox(13, 5, 1, -9.5, 2.5, 6, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.45 });
   addStaticBox(13, 5, 1, 9.5, 2.5, 6, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.45 });
-  // Muros laterais
   addStaticBox(1, 5, 32, -16, 2.5, -10, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.42 });
   addStaticBox(1, 5, 32, 16, 2.5, -10, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.42 });
-  // Muro dos fundos
   addStaticBox(33, 5, 1, 0, 2.5, -26, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.42 });
+
+  radarWalls.push(
+    { x1: -3, z1: 6, x2: -16, z2: 6 },
+    { x1: -16, z1: 6, x2: -16, z2: -26 },
+    { x1: -16, z1: -26, x2: 16, z2: -26 },
+    { x1: 16, z1: -26, x2: 16, z2: 6 },
+    { x1: 16, z1: 6, x2: 3, z2: 6 }
+  );
 
   // Luzes de destaque e letreiros emissivos na fachada da entrada e muros do complexo
   buildComplexNeonAccents();
 
-  // Portão Eletrônico (desliza para o lado ao ser hackeado)
-  gateMesh = addStaticBox(6, 4.4, 0.6, 0, 2.2, 6, 0x26314a, {
-    isGate: true,
-    emissive: 0xff0055,
-    emissiveIntensity: 0.45,
-    edgesColor: 0xff0055,
-    edgesOpacity: 0.8
-  });
-
-  // Painel do Portão (Hackeável)
-  gatePanelMesh = createHackableDevice(0.7, 1.5, 0.5, 4.2, 0.75, 6.9, 0x00f0ff, 'PAINEL_PORTAO');
+  // Portão Eletrônico
+  buildMapGates(cfg);
 
   // Caixas de Cobertura (Stealth) dentro do complexo
   const crates = [
@@ -782,24 +883,63 @@ function buildEnvironment() {
     });
   });
 
-  // Servidor Central ctOS (Fundo do complexo)
-  addStaticBox(4.4, 0.3, 3.6, 0, 0.15, -21.5, 0x182238, { occlude: false, collide: false });
-  serverMesh = createHackableDevice(2.0, 3.0, 1.4, 0, 1.65, -21.5, 0xff0055, 'SERVIDOR_CTOS');
+  buildServerUnit(cfg.serverPos[0], cfg.serverPos[2]);
+  buildExtractionZone(cfg.extractPos[0], cfg.extractPos[2]);
+}
 
-  // Núcleo holográfico giratório acima do servidor
+function buildMapGates(cfg) {
+  cfg.gates.forEach((gCfg, idx) => {
+    const gMesh = addStaticBox(gCfg.w, gCfg.h, gCfg.d, gCfg.x, gCfg.y, gCfg.z, 0x26314a, {
+      isGate: true,
+      gateIndex: idx,
+      emissive: 0xff0055,
+      emissiveIntensity: 0.45,
+      edgesColor: 0xff0055,
+      edgesOpacity: 0.8
+    });
+    const pMesh = createHackableDevice(
+      0.7,
+      1.5,
+      0.5,
+      gCfg.panelPos[0],
+      gCfg.panelPos[1],
+      gCfg.panelPos[2],
+      0x00f0ff,
+      `PAINEL_PORTAO_${idx + 1}`
+    );
+    gates.push({
+      index: idx,
+      gateMesh: gMesh,
+      panelMesh: pMesh,
+      unlocked: false,
+      openProgress: 0,
+      initialX: gCfg.x,
+      openX: gCfg.openX
+    });
+    if (idx === 0) {
+      gateMesh = gMesh;
+      gatePanelMesh = pMesh;
+    }
+  });
+}
+
+function buildServerUnit(sx, sz) {
+  addStaticBox(4.4, 0.3, 3.6, sx, 0.15, sz, 0x182238, { occlude: false, collide: false });
+  serverMesh = createHackableDevice(2.0, 3.0, 1.4, sx, 1.65, sz, 0xff0055, 'SERVIDOR_CTOS');
+
   serverCoreMesh = new THREE.Mesh(
     new THREE.OctahedronGeometry(0.55, 0),
     new THREE.MeshBasicMaterial({ color: 0x00f0ff, wireframe: true })
   );
-  serverCoreMesh.position.set(0, 3.9, -21.5);
-  scene.add(serverCoreMesh);
+  serverCoreMesh.position.set(sx, 3.9, sz);
+  worldGroup.add(serverCoreMesh);
 
-  // Sistema de partículas flutuantes subindo do servidor
-  buildServerParticles();
+  buildServerParticles(sx, sz);
+}
 
-  // Zona de Extração na Rua (Anel + luz verde + feixe vertical)
+function buildExtractionZone(ex, ez) {
   extractionZoneGroup = new THREE.Group();
-  extractionZoneGroup.position.set(0, 0.04, 25);
+  extractionZoneGroup.position.set(ex, 0.04, ez);
 
   extractionRing = new THREE.Mesh(
     new THREE.RingGeometry(2.1, 2.6, 36),
@@ -843,7 +983,102 @@ function buildEnvironment() {
   extractionLight.position.set(0, 1.8, 0);
   extractionZoneGroup.add(extractionLight);
 
-  scene.add(extractionZoneGroup);
+  worldGroup.add(extractionZoneGroup);
+}
+
+function buildDocksEnvironment(cfg) {
+  // Água escura brilhante ao redor do píer
+  const waterMat = new THREE.MeshStandardMaterial({
+    color: 0x05182e,
+    emissive: 0x03223d,
+    emissiveIntensity: 0.7,
+    roughness: 0.12,
+    metalness: 0.85
+  });
+  waterMesh = new THREE.Mesh(new THREE.PlaneGeometry(180, 180), waterMat);
+  waterMesh.rotation.x = -Math.PI / 2;
+  waterMesh.position.set(0, -0.42, 0);
+  worldGroup.add(waterMesh);
+
+  // Plataforma principal do Píer (X: -22..22, Z: -14..36)
+  addStaticBox(44, 0.6, 50, 0, -0.3, 11, 0x182030, {
+    collide: false,
+    occlude: false,
+    edgesColor: 0x00f0ff,
+    edgesOpacity: 0.3
+  });
+
+  // Grade sutil no piso do píer
+  const grid = new THREE.GridHelper(44, 22, 0x00f0ff, 0x162442);
+  grid.position.set(0, 0.015, 11);
+  grid.material.opacity = 0.18;
+  grid.material.transparent = true;
+  worldGroup.add(grid);
+
+  // Muros/Barreiras laterais do píer e divisórias dos 2 portões (Z=10 e Z=-12)
+  addStaticBox(1, 3.2, 48, -21.5, 1.6, 10, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.4 });
+  addStaticBox(1, 3.2, 48, 21.5, 1.6, 10, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.4 });
+  addStaticBox(18, 4.5, 1, -12, 2.25, 10, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.45 });
+  addStaticBox(18, 4.5, 1, 12, 2.25, 10, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.45 });
+  addStaticBox(18, 4.5, 1, -12, 2.25, -12, 0x1b2236, { edgesColor: 0xff0055, edgesOpacity: 0.45 });
+  addStaticBox(18, 4.5, 1, 12, 2.25, -12, 0x1b2236, { edgesColor: 0xff0055, edgesOpacity: 0.45 });
+
+  radarWalls.push(
+    { x1: -21.5, z1: 34, x2: -21.5, z2: -14 },
+    { x1: 21.5, z1: 34, x2: 21.5, z2: -14 },
+    { x1: -21, z1: 10, x2: -3, z2: 10 },
+    { x1: 3, z1: 10, x2: 21, z2: 10 },
+    { x1: -21, z1: -12, x2: -3, z2: -12 },
+    { x1: 3, z1: -12, x2: 21, z2: -12 }
+  );
+
+  // Corredores formados por contêineres empilhados (vermelhos, azuis e ciano)
+  const containers = [
+    [-9, 1.35, 3, 6.2, 2.7, 2.6, 0x8b1e24, 0xff4455],
+    [-9, 4.05, 3, 6.2, 2.7, 2.6, 0x1b3b6f, 0x00f0ff],
+    [9, 1.35, 3, 6.2, 2.7, 2.6, 0x0e5a6f, 0x00f0ff],
+    [0, 1.35, -1.5, 5.8, 2.7, 2.6, 0x1b3b6f, 0x38bdf8],
+    [-11, 1.35, -7, 6.2, 2.7, 2.6, 0x0e5a6f, 0x00f0ff],
+    [11, 1.35, -7, 6.2, 2.7, 2.6, 0x8b1e24, 0xff4455],
+    [11, 4.05, -7, 6.2, 2.7, 2.6, 0x1b3b6f, 0x00f0ff],
+    [-7, 1.35, -17, 4.2, 2.7, 2.4, 0x8b1e24, 0xff4455],
+    [7, 1.35, -17, 4.2, 2.7, 2.4, 0x0e5a6f, 0x00f0ff]
+  ];
+  containers.forEach(([x, y, z, w, h, d, col, edgeCol]) => {
+    if (y < 2.0) radarCrates.push({ x, z, w, d });
+    addStaticBox(w, h, d, x, y, z, col, {
+      edgesColor: edgeCol,
+      edgesOpacity: 0.55
+    });
+  });
+
+  // Rampa e Navio / Cargueiro da Blume ancorado ao fundo (Z: -32..-13)
+  addStaticBox(28, 0.7, 18, 0, -0.2, -22, 0x141b2d, {
+    collide: false,
+    occlude: false,
+    edgesColor: 0x00f0ff,
+    edgesOpacity: 0.45
+  });
+  // Casco lateral do navio e ponte de comando da Blume
+  addStaticBox(1.5, 4.2, 18, -14, 2.1, -22, 0x161d2f, { edgesColor: 0xff0055, edgesOpacity: 0.6 });
+  addStaticBox(1.5, 4.2, 18, 14, 2.1, -22, 0x161d2f, { edgesColor: 0xff0055, edgesOpacity: 0.6 });
+  addStaticBox(29, 8.5, 4.5, 0, 4.25, -29.5, 0x101726, { edgesColor: 0x00f0ff, edgesOpacity: 0.55 });
+  addStaticBox(12, 0.6, 0.25, 0, 6.5, -27.1, 0x00f0ff, {
+    collide: false,
+    occlude: false,
+    emissive: 0x00f0ff,
+    emissiveIntensity: 1.4
+  });
+
+  // Ponte Golden Gate distante no horizonte da baía
+  buildGoldenGateBridge();
+
+  // 2 Portões / Barreiras Eletrônicas
+  buildMapGates(cfg);
+
+  // Servidor Central no convés do cargueiro + Zona de Extração no início do píer
+  buildServerUnit(cfg.serverPos[0], cfg.serverPos[2]);
+  buildExtractionZone(cfg.extractPos[0], cfg.extractPos[2]);
 }
 
 function buildGoldenGateBridge() {
@@ -927,7 +1162,7 @@ function buildGoldenGateBridge() {
   const mainCableGeo = new THREE.BufferGeometry().setFromPoints(cablePoints);
   bridgeGroup.add(new THREE.Line(mainCableGeo, cableMat));
 
-  scene.add(bridgeGroup);
+  worldGroup.add(bridgeGroup);
 }
 
 function buildComplexNeonAccents() {
@@ -987,14 +1222,14 @@ function buildComplexNeonAccents() {
   });
 }
 
-function buildServerParticles() {
+function buildServerParticles(sx = 0, sz = -21.5) {
   const count = 56;
   const positions = new Float32Array(count * 3);
 
   for (let i = 0; i < count; i++) {
-    const px = (Math.random() - 0.5) * 2.4;
+    const px = sx + (Math.random() - 0.5) * 2.4;
     const py = 0.4 + Math.random() * 4.4;
-    const pz = -21.5 + (Math.random() - 0.5) * 1.8;
+    const pz = sz + (Math.random() - 0.5) * 1.8;
 
     positions[i * 3] = px;
     positions[i * 3 + 1] = py;
@@ -1021,7 +1256,7 @@ function buildServerParticles() {
   });
 
   serverParticles = new THREE.Points(geo, mat);
-  scene.add(serverParticles);
+  worldGroup.add(serverParticles);
 }
 
 function createHackableDevice(w, h, d, x, y, z, glowColor, name) {
@@ -1044,7 +1279,7 @@ function createHackableDevice(w, h, d, x, y, z, glowColor, name) {
   mesh.name = name;
   mesh.userData.normalMaterial = normalMat;
   mesh.userData.nethackMaterial = nethackMat;
-  scene.add(mesh);
+  worldGroup.add(mesh);
 
   mesh.updateMatrixWorld(true);
   colliders.push({ box: new THREE.Box3().setFromObject(mesh), mesh });
@@ -1139,24 +1374,15 @@ function buildCarMesh(color, neonTrim) {
   return { carGroup, bodyMesh: body };
 }
 
-function buildCars() {
-  const carConfigs = [
-    // 1 Carro Esporte DedSec Dirigível
-    { x: -6.5, z: 18.5, yaw: Math.PI / 2, color: 0x111827, neon: 0x00f0ff, isDedsec: true },
-    // 3 Carros Estacionados (com colisão, oclusão e hackeáveis na Visão NetHack)
-    { x: -12, z: 10.5, yaw: Math.PI / 2, color: 0x26314a, neon: 0xffaa00, isDedsec: false },
-    { x: 11.5, z: 24.5, yaw: -Math.PI / 2, color: 0x2b1d38, neon: 0xff0055, isDedsec: false },
-    { x: -16, z: 27, yaw: 0, color: 0x1e2b3a, neon: 0x38bdf8, isDedsec: false }
-  ];
-
-  carConfigs.forEach((cfg, idx) => {
-    const { carGroup, bodyMesh } = buildCarMesh(cfg.color, cfg.neon);
-    carGroup.position.set(cfg.x, 0, cfg.z);
-    carGroup.rotation.y = cfg.yaw;
-    scene.add(carGroup);
+function buildCars(cfg) {
+  cfg.cars.forEach((carCfg, idx) => {
+    const { carGroup, bodyMesh } = buildCarMesh(carCfg.color, carCfg.neon);
+    carGroup.position.set(carCfg.x, 0, carCfg.z);
+    carGroup.rotation.y = carCfg.yaw;
+    worldGroup.add(carGroup);
 
     let headlight = null;
-    if (cfg.isDedsec) {
+    if (carCfg.isDedsec) {
       headlight = new THREE.PointLight(0x00f0ff, 0, 16);
       headlight.position.set(0, 1.0, 2.8);
       carGroup.add(headlight);
@@ -1173,16 +1399,16 @@ function buildCars() {
       mesh: carGroup,
       bodyMesh,
       colliderObj,
-      initialPos: new THREE.Vector3(cfg.x, 0, cfg.z),
-      initialYaw: cfg.yaw,
-      isDedsec: cfg.isDedsec,
+      initialPos: new THREE.Vector3(carCfg.x, 0, carCfg.z),
+      initialYaw: carCfg.yaw,
+      isDedsec: carCfg.isDedsec,
       speed: 0,
       hackedTimer: 0,
       hackedUsed: false,
       headlight
     };
     cars.push(carObj);
-    if (cfg.isDedsec) dedsecCar = carObj;
+    if (carCfg.isDedsec) dedsecCar = carObj;
   });
 }
 
@@ -1274,13 +1500,9 @@ function buildPlayer() {
 // ==========================================
 // CÂMERAS DE SEGURANÇA HACKEÁVEIS
 // ==========================================
-function buildSecurityCameras() {
-  const camConfigs = [
-    { name: 'CAM_01 // PÁTIO_OESTE', pos: new THREE.Vector3(-14.6, 4.3, -1), baseYaw: -2.15, basePitch: -0.35 },
-    { name: 'CAM_02 // SETOR_SERVIDOR', pos: new THREE.Vector3(14.6, 4.3, -17), baseYaw: 1.95, basePitch: -0.32 }
-  ];
-
-  camConfigs.forEach((cfg, idx) => {
+function buildSecurityCameras(cfg) {
+  cfg.cameras.forEach((camCfg, idx) => {
+    const pos = new THREE.Vector3(camCfg.pos[0], camCfg.pos[1], camCfg.pos[2]);
     const normalMat = new THREE.MeshStandardMaterial({
       color: 0x222c42,
       emissive: 0x00ff88,
@@ -1289,11 +1511,11 @@ function buildSecurityCameras() {
     const nethackMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
 
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.4, 0.8), normalMat);
-    mesh.position.copy(cfg.pos);
-    mesh.rotation.y = cfg.baseYaw;
+    mesh.position.copy(pos);
+    mesh.rotation.y = camCfg.baseYaw;
     mesh.userData.normalMaterial = normalMat;
     mesh.userData.nethackMaterial = nethackMat;
-    scene.add(mesh);
+    worldGroup.add(mesh);
 
     // Cone de visão verde no chão para varredura da câmera
     const camVisionRange = 11.5;
@@ -1313,18 +1535,18 @@ function buildSecurityCameras() {
     });
     const coneMesh = new THREE.Mesh(coneGeo, coneMat);
     coneMesh.rotation.x = -Math.PI / 2;
-    coneMesh.rotation.z = cfg.baseYaw;
-    coneMesh.position.set(cfg.pos.x, 0.05, cfg.pos.z);
-    scene.add(coneMesh);
+    coneMesh.rotation.z = camCfg.baseYaw;
+    coneMesh.position.set(pos.x, 0.05, pos.z);
+    worldGroup.add(coneMesh);
 
     hackableMeshes.push(mesh);
     securityCameras.push({
       id: idx,
-      name: cfg.name,
+      name: camCfg.name,
       mesh,
-      pos: cfg.pos.clone(),
-      baseYaw: cfg.baseYaw,
-      basePitch: cfg.basePitch,
+      pos: pos.clone(),
+      baseYaw: camCfg.baseYaw,
+      basePitch: camCfg.basePitch,
       yawOffset: 0,
       pitchOffset: 0,
       coneMesh,
@@ -1333,7 +1555,7 @@ function buildSecurityCameras() {
       visionHalfAngle: camVisionHalfAngle,
       disabledTimer: 0,
       sweepPhase: idx * 1.5,
-      currentYaw: cfg.baseYaw
+      currentYaw: camCfg.baseYaw
     });
   });
 }
@@ -1341,22 +1563,18 @@ function buildSecurityCameras() {
 // ==========================================
 // CAIXAS ELÉTRICAS DE DISTRAÇÃO
 // ==========================================
-function buildElectricBoxes() {
-  const boxConfigs = [
-    { name: 'CAIXA_ELETRICA_01', pos: new THREE.Vector3(-11.5, 0.85, -1.5) },
-    { name: 'CAIXA_ELETRICA_02', pos: new THREE.Vector3(11.5, 0.85, -12.5) }
-  ];
-
-  boxConfigs.forEach((cfg, idx) => {
-    const mesh = createHackableDevice(0.75, 1.3, 0.55, cfg.pos.x, cfg.pos.y, cfg.pos.z, 0xffaa00, cfg.name);
+function buildElectricBoxes(cfg) {
+  cfg.electricBoxes.forEach((boxCfg, idx) => {
+    const pos = new THREE.Vector3(boxCfg.pos[0], boxCfg.pos[1], boxCfg.pos[2]);
+    const mesh = createHackableDevice(0.75, 1.3, 0.55, pos.x, pos.y, pos.z, 0xffaa00, boxCfg.name);
 
     const sparkCount = 24;
     const sparkPositions = new Float32Array(sparkCount * 3);
     const sparkData = [];
     for (let i = 0; i < sparkCount; i++) {
-      sparkPositions[i * 3] = cfg.pos.x;
-      sparkPositions[i * 3 + 1] = cfg.pos.y + 0.5;
-      sparkPositions[i * 3 + 2] = cfg.pos.z;
+      sparkPositions[i * 3] = pos.x;
+      sparkPositions[i * 3 + 1] = pos.y + 0.5;
+      sparkPositions[i * 3 + 2] = pos.z;
       sparkData.push({
         vx: (Math.random() - 0.5) * 3.4,
         vy: 1.2 + Math.random() * 2.8,
@@ -1376,11 +1594,11 @@ function buildElectricBoxes() {
     });
     const sparkPoints = new THREE.Points(sparkGeo, sparkMat);
     sparkPoints.visible = false;
-    scene.add(sparkPoints);
+    worldGroup.add(sparkPoints);
 
     electricBoxes.push({
       id: idx,
-      name: cfg.name,
+      name: boxCfg.name,
       mesh,
       cooldown: 0,
       sparkTimer: 0,
@@ -1393,25 +1611,12 @@ function buildElectricBoxes() {
 // ==========================================
 // GUARDAS E CONES DE VISÃO
 // ==========================================
-function buildGuards() {
-  const guardConfigs = [
-    {
-      waypoints: [new THREE.Vector3(-11, 0, -3.5), new THREE.Vector3(11, 0, -3.5)],
-      speed: 2.8,
-      visionRange: 9.5,
-      visionHalfAngle: Math.PI / 5 // 36 graus cada lado (72 total)
-    },
-    {
-      waypoints: [new THREE.Vector3(10, 0, -14), new THREE.Vector3(-10, 0, -14)],
-      speed: 3.1,
-      visionRange: 9.5,
-      visionHalfAngle: Math.PI / 5
-    }
-  ];
-
-  guardConfigs.forEach((cfg) => {
+function buildGuards(cfg) {
+  const visionHalfAngle = Math.PI / 5;
+  cfg.guards.forEach((gCfg) => {
+    const waypoints = gCfg.waypoints.map(([wx, wy, wz]) => new THREE.Vector3(wx, wy, wz));
     const group = new THREE.Group();
-    group.position.copy(cfg.waypoints[0]);
+    group.position.copy(waypoints[0]);
 
     const armorMat = new THREE.MeshStandardMaterial({ color: 0x2b1d28, roughness: 0.65 });
     const helmetMat = new THREE.MeshStandardMaterial({ color: 0x151520, roughness: 0.5 });
@@ -1430,10 +1635,10 @@ function buildGuards() {
 
     // Cone de visão no chão centrado em +Z local
     const coneGeo = new THREE.CircleGeometry(
-      cfg.visionRange,
+      gCfg.visionRange,
       28,
-      -Math.PI / 2 - cfg.visionHalfAngle,
-      cfg.visionHalfAngle * 2
+      -Math.PI / 2 - visionHalfAngle,
+      visionHalfAngle * 2
     );
     const coneMat = new THREE.MeshBasicMaterial({
       color: 0xffd000,
@@ -1447,7 +1652,7 @@ function buildGuards() {
     coneMesh.position.y = 0.06;
 
     group.add(body, head, visor, coneMesh);
-    scene.add(group);
+    worldGroup.add(group);
 
     // Faíscas elétricas para estado STUNNED
     const sparkCount = 16;
@@ -1481,13 +1686,13 @@ function buildGuards() {
 
     guards.push({
       mesh: group,
-      waypoints: cfg.waypoints,
-      initialPos: cfg.waypoints[0].clone(),
+      waypoints,
+      initialPos: waypoints[0].clone(),
       currentTarget: 1,
-      baseSpeed: cfg.speed,
-      speed: cfg.speed,
-      visionRange: cfg.visionRange,
-      visionHalfAngle: cfg.visionHalfAngle,
+      baseSpeed: gCfg.speed,
+      speed: gCfg.speed,
+      visionRange: gCfg.visionRange,
+      visionHalfAngle,
       coneMesh,
       coneMat,
       sparkPoints,
@@ -1510,15 +1715,12 @@ function buildNetworkLines() {
   networkLinesGroup = new THREE.Group();
   networkLinesGroup.visible = false;
 
-  const points = [
-    gatePanelMesh.position.clone(),
-    electricBoxes[0].mesh.position.clone(),
-    securityCameras[0].pos.clone(),
-    serverMesh.position.clone().setY(2.2),
-    securityCameras[1].pos.clone(),
-    electricBoxes[1].mesh.position.clone(),
-    gatePanelMesh.position.clone()
-  ];
+  const points = [];
+  gates.forEach((g) => points.push(g.panelMesh.position.clone()));
+  electricBoxes.forEach((b) => points.push(b.mesh.position.clone()));
+  securityCameras.forEach((c) => points.push(c.pos.clone()));
+  points.push(serverMesh.position.clone().setY(2.2));
+  if (gates[0]) points.push(gates[0].panelMesh.position.clone());
 
   const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
   const lineMat = new THREE.LineBasicMaterial({
@@ -1529,7 +1731,7 @@ function buildNetworkLines() {
 
   const networkLine = new THREE.Line(lineGeo, lineMat);
   networkLinesGroup.add(networkLine);
-  scene.add(networkLinesGroup);
+  worldGroup.add(networkLinesGroup);
 }
 
 function buildNetHackLabels() {
@@ -1544,10 +1746,12 @@ function buildNetHackLabels() {
     netHackTagItems.push({ el, getPos, getText });
   };
 
-  registerTag(
-    () => gatePanelMesh.position.clone().add(new THREE.Vector3(0, 1.15, 0)),
-    () => (gameState.gateUnlocked ? 'PORTÃO ABERTO' : '[E] OVERRIDE')
-  );
+  gates.forEach((g, idx) => {
+    registerTag(
+      () => g.panelMesh.position.clone().add(new THREE.Vector3(0, 1.15, 0)),
+      () => (g.unlocked ? `PORTÃO ${idx + 1} ABERTO` : `[E] OVERRIDE PORTÃO ${idx + 1}`)
+    );
+  });
 
   electricBoxes.forEach((box) => {
     registerTag(
@@ -1725,6 +1929,16 @@ function setupInputs() {
   if (dom.btnMute) {
     dom.btnMute.addEventListener('click', () => AudioManager.toggleMute());
   }
+  dom.mapButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const nextMap = btn.dataset.map;
+      if (nextMap && MAPS_CONFIG[nextMap]) {
+        gameState.selectedMap = nextMap;
+        dom.mapButtons.forEach((b) => b.classList.toggle('active', b === btn));
+        buildMap(nextMap);
+      }
+    });
+  });
   dom.diffButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
       gameState.difficulty = btn.dataset.diff;
@@ -1882,10 +2096,14 @@ function handleInteractPress() {
 
   const pPos = playerGroup.position;
 
-  // 1. Checar proximidade do painel do portão
-  if (!gameState.gateUnlocked && pPos.distanceTo(gatePanelMesh.position) < 3.6) {
-    openTerminal('GATE');
-    return;
+  // 1. Checar proximidade dos painéis de portão não destravados
+  for (let i = 0; i < gates.length; i++) {
+    const g = gates[i];
+    if (!g.unlocked && pPos.distanceTo(g.panelMesh.position) < 3.6) {
+      gameState.activeGateIndex = i;
+      openTerminal('GATE');
+      return;
+    }
   }
 
   // 2. Checar firewall do servidor central antes do download
@@ -1993,27 +2211,32 @@ function completeTerminalHack() {
     return;
   }
 
-  gameState.gateUnlocked = true;
-  AudioManager.playGateMechanical();
-  gateMesh.userData.normalMaterial.emissive.setHex(0x00ff88);
-  if (gateMesh.userData.edgesMaterial) {
-    gateMesh.userData.edgesMaterial.color.setHex(0x00ff88);
-  }
-  gatePanelMesh.userData.normalMaterial.emissive.setHex(0x00ff88);
+  const targetGate = gates[gameState.activeGateIndex] || gates[0];
+  if (targetGate) {
+    targetGate.unlocked = true;
+    AudioManager.playGateMechanical();
+    targetGate.gateMesh.userData.normalMaterial.emissive.setHex(0x00ff88);
+    if (targetGate.gateMesh.userData.edgesMaterial) {
+      targetGate.gateMesh.userData.edgesMaterial.color.setHex(0x00ff88);
+    }
+    targetGate.panelMesh.userData.normalMaterial.emissive.setHex(0x00ff88);
 
+    for (let i = colliders.length - 1; i >= 0; i--) {
+      if (colliders[i].isGate && colliders[i].gateIndex === targetGate.index) {
+        colliders.splice(i, 1);
+      }
+    }
+    const occIdx = occluders.indexOf(targetGate.gateMesh);
+    if (occIdx !== -1) occluders.splice(occIdx, 1);
+  }
+
+  gameState.gateUnlocked = gates.every((g) => g.unlocked);
   dom.hackFeedback.textContent = '> ACESSO CONCEDIDO // PORTÃO DESTRAVADO!';
   dom.hackFeedback.style.color = '#00ff88';
 
-  // Remover colisor do portão
-  for (let i = colliders.length - 1; i >= 0; i--) {
-    if (colliders[i].isGate) {
-      colliders.splice(i, 1);
-    }
+  if (gameState.mission === MISSION_STATE.INFILTRATE) {
+    setMissionState(MISSION_STATE.STEAL_DATA);
   }
-  const occIdx = occluders.indexOf(gateMesh);
-  if (occIdx !== -1) occluders.splice(occIdx, 1);
-
-  setMissionState(MISSION_STATE.STEAL_DATA);
 
   setTimeout(() => {
     closeGateTerminal();
@@ -2791,11 +3014,13 @@ function setMissionState(newState) {
 }
 
 function updateInteractionsAndMission(dt) {
-  // Animação de abertura do portão
-  if (gameState.gateUnlocked && gameState.gateOpenProgress < 1) {
-    gameState.gateOpenProgress = Math.min(1, gameState.gateOpenProgress + dt * 1.4);
-    gateMesh.position.x = THREE.MathUtils.lerp(0, -6.1, gameState.gateOpenProgress);
-  }
+  // Animação de abertura dos portões destravados
+  gates.forEach((g) => {
+    if (g.unlocked && g.openProgress < 1) {
+      g.openProgress = Math.min(1, g.openProgress + dt * 1.4);
+      g.gateMesh.position.x = THREE.MathUtils.lerp(g.initialX, g.openX, g.openProgress);
+    }
+  });
 
   // Rotação do núcleo do servidor e pulso da zona de extração
   serverCoreMesh.rotation.y += dt * 1.6;
@@ -2823,9 +3048,13 @@ function updateInteractionsAndMission(dt) {
   const pPos = playerGroup.position;
   let promptText = '';
 
-  // Prompt do painel do portão
-  if (!gameState.gateUnlocked && pPos.distanceTo(gatePanelMesh.position) < 3.6) {
-    promptText = '[E] HACKEAR PAINEL DO PORTÃO';
+  // Prompt dos painéis de portão
+  for (let i = 0; i < gates.length; i++) {
+    const g = gates[i];
+    if (!g.unlocked && pPos.distanceTo(g.panelMesh.position) < 3.6) {
+      promptText = `[E] HACKEAR PAINEL DO PORTÃO ${gates.length > 1 ? i + 1 : ''}`.trim();
+      break;
+    }
   }
 
   // Prompt do carro DedSec dirigível
@@ -2944,8 +3173,9 @@ function resetWorldState() {
 
   gameState.drivingCar = null;
   AudioManager.stopEngineSound();
+  const mapCfg = MAPS_CONFIG[gameState.selectedMap] || MAPS_CONFIG.COMPLEXO_CTOS;
   playerGroup.visible = true;
-  playerGroup.position.set(0, 0, 14);
+  playerGroup.position.set(mapCfg.playerStart[0], mapCfg.playerStart[1], mapCfg.playerStart[2]);
   playerGroup.rotation.y = 0;
   playerGroup.scale.y = 1;
 
@@ -2961,22 +3191,31 @@ function resetWorldState() {
     car.colliderObj.box.setFromObject(car.mesh);
   });
 
-  // Restaurar portão e colisor caso tenha sido aberto
-  gateMesh.position.set(0, 2.2, 6);
-  gateMesh.userData.normalMaterial.emissive.setHex(0xff0055);
-  if (gateMesh.userData.edgesMaterial) {
-    gateMesh.userData.edgesMaterial.color.setHex(0xff0055);
-  }
-  gatePanelMesh.userData.normalMaterial.emissive.setHex(0x00f0ff);
-  serverMesh.userData.normalMaterial.emissive.setHex(0xff0055);
+  // Restaurar portões e colisores caso tenham sido abertos
+  gates.forEach((g) => {
+    g.unlocked = false;
+    g.openProgress = 0;
+    g.gateMesh.position.x = g.initialX;
+    g.gateMesh.userData.normalMaterial.emissive.setHex(0xff0055);
+    if (g.gateMesh.userData.edgesMaterial) {
+      g.gateMesh.userData.edgesMaterial.color.setHex(0xff0055);
+    }
+    g.panelMesh.userData.normalMaterial.emissive.setHex(0x00f0ff);
 
-  if (!colliders.some((c) => c.isGate)) {
-    gateMesh.updateMatrixWorld(true);
-    colliders.push({ box: new THREE.Box3().setFromObject(gateMesh), mesh: gateMesh, isGate: true });
-  }
-  if (!occluders.includes(gateMesh)) {
-    occluders.push(gateMesh);
-  }
+    if (!colliders.some((c) => c.isGate && c.gateIndex === g.index)) {
+      g.gateMesh.updateMatrixWorld(true);
+      colliders.push({
+        box: new THREE.Box3().setFromObject(g.gateMesh),
+        mesh: g.gateMesh,
+        isGate: true,
+        gateIndex: g.index
+      });
+    }
+    if (!occluders.includes(g.gateMesh)) {
+      occluders.push(g.gateMesh);
+    }
+  });
+  serverMesh.userData.normalMaterial.emissive.setHex(0xff0055);
 
   const preset = DIFFICULTY_PRESETS[gameState.difficulty];
 
@@ -3086,6 +3325,9 @@ function triggerVictory() {
   if (dom.finalRank) dom.finalRank.textContent = calculateMissionRank();
   if (dom.finalDetection) dom.finalDetection.textContent = `${Math.round(gameState.maxDetection)}%`;
   if (dom.finalHacks) dom.finalHacks.textContent = String(gameState.hacksUsed);
+  if (dom.finalMap) {
+    dom.finalMap.textContent = (MAPS_CONFIG[gameState.selectedMap] || MAPS_CONFIG.COMPLEXO_CTOS).label;
+  }
   if (dom.finalDifficulty) {
     dom.finalDifficulty.textContent = DIFFICULTY_PRESETS[gameState.difficulty].label;
   }
@@ -3114,6 +3356,11 @@ function updateVisualEffects(dt, nowSec) {
 
   if (extractionBeam) {
     extractionBeam.material.opacity = 0.13 + Math.sin(nowSec * 3.2) * 0.04;
+  }
+
+  if (waterMesh) {
+    waterMesh.position.y = -0.42 + Math.sin(nowSec * 1.4) * 0.06;
+    waterMesh.material.emissiveIntensity = 0.65 + Math.sin(nowSec * 2.0) * 0.12;
   }
 }
 
@@ -3155,33 +3402,28 @@ function updateRadar() {
     y: (wz - pPos.z) * scale
   });
 
-  // Planta baixa dos muros do complexo (X: -16..16, Z: -26..6)
+  // Planta baixa dos muros do mapa atual
   ctx.strokeStyle = 'rgba(0, 240, 255, 0.75)';
   ctx.lineWidth = 2.2;
-  const wLeft = toRadar(-16, -26);
-  const wRight = toRadar(16, -26);
-  const wBottomLeft = toRadar(-16, 6);
-  const wGateLeft = toRadar(-3, 6);
-  const wGateRight = toRadar(3, 6);
-  const wBottomRight = toRadar(16, 6);
+  radarWalls.forEach((w) => {
+    const p1 = toRadar(w.x1, w.z1);
+    const p2 = toRadar(w.x2, w.z2);
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    ctx.stroke();
+  });
 
-  ctx.beginPath();
-  ctx.moveTo(wGateLeft.x, wGateLeft.y);
-  ctx.lineTo(wBottomLeft.x, wBottomLeft.y);
-  ctx.lineTo(wLeft.x, wLeft.y);
-  ctx.lineTo(wRight.x, wRight.y);
-  ctx.lineTo(wBottomRight.x, wBottomRight.y);
-  ctx.lineTo(wGateRight.x, wGateRight.y);
-  ctx.stroke();
-
-  // Portão eletrônico
-  const gPos = toRadar(gateMesh.position.x, gateMesh.position.z);
-  ctx.strokeStyle = gameState.gateUnlocked ? '#00ff88' : '#ff0055';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(gPos.x - 3 * scale, gPos.y);
-  ctx.lineTo(gPos.x + 3 * scale, gPos.y);
-  ctx.stroke();
+  // Portões eletrônicos
+  gates.forEach((g) => {
+    const gPos = toRadar(g.gateMesh.position.x, g.gateMesh.position.z);
+    ctx.strokeStyle = g.unlocked ? '#00ff88' : '#ff0055';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(gPos.x - 3 * scale, gPos.y);
+    ctx.lineTo(gPos.x + 3 * scale, gPos.y);
+    ctx.stroke();
+  });
 
   // Caixas de cobertura
   ctx.fillStyle = 'rgba(36, 48, 74, 0.85)';

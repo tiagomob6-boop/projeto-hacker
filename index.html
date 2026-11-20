@@ -127,6 +127,13 @@
         <div><kbd>1 / 2</kbd> Taser / EMP (<kbd>Click</kbd> Disparar)</div>
       </div>
       <div class="difficulty-selector">
+        <span class="diff-label">MAPA DA OPERAÇÃO:</span>
+        <div class="diff-buttons">
+          <button type="button" class="map-btn active" data-map="COMPLEXO_CTOS">MAPA 01: COMPLEXO ctOS</button>
+          <button type="button" class="map-btn" data-map="DOCAS_BAIA_SF">MAPA 02: DOCAS DA BAÍA</button>
+        </div>
+      </div>
+      <div class="difficulty-selector">
         <span class="diff-label">DIFICULDADE:</span>
         <div class="diff-buttons">
           <button type="button" class="diff-btn active" data-diff="INICIANTE">INICIANTE (12s)</button>
@@ -190,6 +197,7 @@
         <div><span>TEMPO TOTAL:</span> <strong id="final-time" class="neon-cyan">00:00</strong></div>
         <div><span>DETECÇÃO MÁXIMA:</span> <strong id="final-detection" class="neon-magenta">0%</strong></div>
         <div><span>HACKS EXECUTADOS:</span> <strong id="final-hacks" class="neon-green">0</strong></div>
+        <div><span>MAPA:</span> <strong id="final-map" class="neon-cyan">COMPLEXO ctOS</strong></div>
         <div><span>DIFICULDADE:</span> <strong id="final-difficulty" class="neon-cyan">INICIANTE</strong></div>
       </div>
       <button id="btn-retry-victory" class="cyber-btn green-btn">JOGAR NOVAMENTE</button>

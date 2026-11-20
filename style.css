@@ -459,7 +459,8 @@ kbd {
   gap: 10px;
 }
 
-.diff-btn {
+.diff-btn,
+.map-btn {
   padding: 9px 12px;
   background: rgba(12, 20, 38, 0.9);
   border: 1px solid rgba(0, 240, 255, 0.3);
@@ -472,7 +473,8 @@ kbd {
   transition: all 0.15s ease;
 }
 
-.diff-btn.active {
+.diff-btn.active,
+.map-btn.active {
   border-color: var(--cyan);
   background: rgba(0, 240, 255, 0.16);
   color: var(--cyan);

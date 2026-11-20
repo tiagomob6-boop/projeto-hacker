@@ -22,6 +22,7 @@ Todo novo objeto sólido adicionado ao cenário deve:
    - `mesh.userData.normalMaterial`: material padrão (`MeshStandardMaterial` / `MeshBasicMaterial`).
    - `mesh.userData.nethackMaterial`: material wireframe/holográfico utilizado quando a **Visão NetHack** (`V`) está ativa.
 4. Registrar a malha em `structureMeshes` (para estruturas/paredes/caixas) ou `hackableMeshes` (para dispositivos interativos conectados à rede ctOS).
+5. Adicionar toda a geometria específica de cenário dentro de `worldGroup` (e não diretamente em `scene`) para garantir limpeza completa ao alternar entre mapas em `buildMap(mapKey)`.
 
 ## 4. Documentação Obrigatória
 Toda nova funcionalidade implementada em `script.js`, `index.html` ou `style.css` deve atualizar na mesma entrega:
