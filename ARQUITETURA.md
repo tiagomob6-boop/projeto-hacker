@@ -15,16 +15,17 @@ Este documento descreve a arquitetura do protótipo **Projeto Hacker**, constru�
 ## 2. Arquitetura da Cena Three.js
 
 ### 2.1 Renderização e Iluminação
-- **Cena e Neblina:** `THREE.Scene` com fundo escuro (`0x090b1a`) e `THREE.FogExp2` (`0.022`) para atmosfera noturna/entardecer estilo São Francisco.
+- **Cena e Neblina:** `THREE.Scene` com fundo escuro (`0x090b1a`) e `THREE.FogExp2` (`0.017`) para atmosfera noturna/entardecer estilo São Francisco, com `camera.far = 200` para exibir o horizonte completo.
 - **Iluminação:**
-  - `THREE.AmbientLight` roxa/azulada (`0x4b3b78`) para preenchimento base.
+  - `THREE.AmbientLight` roxa/azulada (`0x5b4b8a`, intensidade base `2.15`) e `THREE.HemisphereLight` (`0x6d8eff` / `0x181c30`) para preenchimento claro e leitura visual nítida de personagem, muros e coberturas.
   - `THREE.DirectionalLight` com `PCFSoftShadowMap` (`2048x2048`) projetando sombras de muros, caixas, guardas e personagem.
-  - `THREE.PointLight` em ciano e magenta na rua externa, ciano sobre o Servidor Central e verde na Zona de Extração.
+  - `THREE.PointLight` em ciano e magenta na rua externa, luz de destaque na fachada da entrada, luzes internas no pátio, ciano sobre o Servidor Central e verde na Zona de Extração.
 
-### 2.2 Construção Procedural do Mapa
-Todas as geometrias são primitivas do Three.js (`BoxGeometry`, `PlaneGeometry`, `RingGeometry`, `CircleGeometry`, `OctahedronGeometry`):
-- **Área Externa (Rua):** Região frontal (`Z > 6`) onde o jogador inicia (`z = 14`) e onde está localizada a **Zona de Extração** (`z = 25`).
-- **Complexo Protegido:** Perímetro murado (`X: -16..16`, `Z: -26..6`) com abertura frontal fechada pelo `gateMesh` deslizante e painel eletrônico lateral (`gatePanelMesh`). Contém caixas de cobertura, 2 câmeras elevadas nos muros e o `serverMesh` no fundo (`z = -21.5`).
+### 2.2 Construção Procedural do Mapa e Atmosfera
+Todas as geometrias são primitivas do Three.js (`BoxGeometry`, `PlaneGeometry`, `RingGeometry`, `CircleGeometry`, `OctahedronGeometry`, `CylinderGeometry`, `EdgesGeometry`, `BufferGeometry`):
+- **Área Externa (Rua):** Região frontal (`Z > 6`) onde o jogador inicia (`z = 14`) e onde está localizada a **Zona de Extração** (`z = 25`), composta por anel pulsante, círculo interno e feixe de luz vertical semitransparente (`THREE.CylinderGeometry` com `AdditiveBlending`).
+- **Horizonte de São Francisco (Skyline + Golden Gate):** Prédios distantes fora da área jogável com faixas de janelas emissivas sutis e uma estrutura estilizada da **Ponte Golden Gate** (`buildGoldenGateBridge`) ao fundo (`z = -52`), com duas torres, tabuleiro, cabos suspensos e iluminação laranja-neon (`fog: false`).
+- **Complexo Protegido:** Perímetro murado (`X: -16..16`, `Z: -26..6`) com abertura frontal fechada pelo `gateMesh` deslizante e painel eletrônico lateral (`gatePanelMesh`). Inclui pórtico luminoso e letreiros/faixas emissivas (`buildComplexNeonAccents`) na fachada e muros, contornos neon (`THREE.EdgesGeometry` + `THREE.LineSegments`) nos muros, caixas de cobertura e portão, 2 câmeras elevadas nos muros e o `serverMesh` no fundo (`z = -21.5`) com sistema de partículas flutuantes (`THREE.Points` em `buildServerParticles`).
 
 ### 2.3 Sistema de Colisão e Câmera em 3ª Pessoa
 - **Colisão AABB x Círculo (`checkCollision`):** Cada obstáculo sólido registra uma `THREE.Box3` no array `colliders`. A movimentação do jogador testa os eixos `X` e `Z` separadamente para permitir deslizamento suave ao encostar em paredes. Quando o portão é destravado, o colisor marcado com `isGate: true` é removido.

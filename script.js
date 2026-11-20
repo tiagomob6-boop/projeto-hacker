@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+﻿import * as THREE from 'three';
 
 // ==========================================
 // CONSTANTES E ESTADO GLOBAL
@@ -25,6 +25,7 @@ const PLAYER_RADIUS = 0.55;
 const PLAYER_SPEED = 7.4;
 const GATE_HACK_TIME = 10.0;
 const DOWNLOAD_DURATION = 3.5;
+const BASE_AMBIENT_INTENSITY = 2.15;
 
 // Referências DOM
 const dom = {
@@ -62,8 +63,9 @@ const dom = {
 let scene, camera, renderer, clock;
 let ambientLight, dirLight;
 let playerGroup, playerParts = {};
-let gateMesh, gatePanelMesh, serverMesh, serverCoreMesh, extractionZoneGroup, extractionRing;
-let networkLinesGroup;
+let gateMesh, gatePanelMesh, serverMesh, serverCoreMesh, extractionZoneGroup, extractionRing, extractionBeam;
+let networkLinesGroup, serverParticles;
+const serverParticleData = [];
 
 // Listas de mundo e gameplay
 const colliders = [];   // { box: THREE.Box3, mesh, isGate?: boolean }
@@ -99,9 +101,9 @@ const raycaster = new THREE.Raycaster();
 function initThree() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x090b1a);
-  scene.fog = new THREE.FogExp2(0x090b1a, 0.022);
+  scene.fog = new THREE.FogExp2(0x090b1a, 0.017);
 
-  camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 140);
+  camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 200);
 
   renderer = new THREE.WebGLRenderer({ canvas: dom.canvas, antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -122,10 +124,13 @@ function initThree() {
 }
 
 function setupLighting() {
-  ambientLight = new THREE.AmbientLight(0x4b3b78, 1.35);
+  ambientLight = new THREE.AmbientLight(0x5b4b8a, BASE_AMBIENT_INTENSITY);
   scene.add(ambientLight);
 
-  dirLight = new THREE.DirectionalLight(0x88bbff, 0.95);
+  const hemiLight = new THREE.HemisphereLight(0x6d8eff, 0x181c30, 0.75);
+  scene.add(hemiLight);
+
+  dirLight = new THREE.DirectionalLight(0x99c6ff, 1.15);
   dirLight.position.set(18, 28, 16);
   dirLight.castShadow = true;
   dirLight.shadow.mapSize.set(2048, 2048);
@@ -139,15 +144,29 @@ function setupLighting() {
   scene.add(dirLight);
 
   // Luzes neon de atmosfera cyberpunk (ciano e magenta)
-  const streetNeonCyan = new THREE.PointLight(0x00f0ff, 2.2, 26);
+  const streetNeonCyan = new THREE.PointLight(0x00f0ff, 2.4, 28);
   streetNeonCyan.position.set(-10, 5, 16);
   scene.add(streetNeonCyan);
 
-  const streetNeonMagenta = new THREE.PointLight(0xff0055, 2.2, 26);
+  const streetNeonMagenta = new THREE.PointLight(0xff0055, 2.4, 28);
   streetNeonMagenta.position.set(10, 5, 16);
   scene.add(streetNeonMagenta);
 
-  const serverLight = new THREE.PointLight(0x00f0ff, 2.6, 20);
+  // Luz de destaque na fachada da entrada do complexo
+  const gateEntryLight = new THREE.PointLight(0x00f0ff, 2.4, 18);
+  gateEntryLight.position.set(0, 4.6, 7.8);
+  scene.add(gateEntryLight);
+
+  // Luzes internas sutis no pátio para melhorar leitura de cobertura e guardas
+  const courtyardLightLeft = new THREE.PointLight(0x4b7bec, 1.8, 24);
+  courtyardLightLeft.position.set(-9, 4.5, -6);
+  scene.add(courtyardLightLeft);
+
+  const courtyardLightRight = new THREE.PointLight(0x706fd3, 1.8, 24);
+  courtyardLightRight.position.set(9, 4.5, -14);
+  scene.add(courtyardLightRight);
+
+  const serverLight = new THREE.PointLight(0x00f0ff, 2.8, 22);
   serverLight.position.set(0, 4.2, -20);
   scene.add(serverLight);
 }
@@ -161,7 +180,8 @@ function addStaticBox(w, h, d, x, y, z, color, options = {}) {
     roughness: options.roughness ?? 0.75,
     metalness: options.metalness ?? 0.2,
     emissive: options.emissive ?? 0x000000,
-    emissiveIntensity: options.emissiveIntensity ?? 0
+    emissiveIntensity: options.emissiveIntensity ?? 0,
+    fog: options.fog ?? true
   });
 
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
@@ -169,6 +189,18 @@ function addStaticBox(w, h, d, x, y, z, color, options = {}) {
   mesh.castShadow = options.castShadow ?? true;
   mesh.receiveShadow = options.receiveShadow ?? true;
   scene.add(mesh);
+
+  if (options.edgesColor !== undefined) {
+    const edgesGeo = new THREE.EdgesGeometry(mesh.geometry);
+    const edgesMat = new THREE.LineBasicMaterial({
+      color: options.edgesColor,
+      transparent: true,
+      opacity: options.edgesOpacity ?? 0.5
+    });
+    const edges = new THREE.LineSegments(edgesGeo, edgesMat);
+    mesh.add(edges);
+    mesh.userData.edgesMaterial = edgesMat;
+  }
 
   mesh.userData.normalMaterial = mat;
   mesh.userData.nethackMaterial = new THREE.MeshBasicMaterial({
@@ -254,23 +286,50 @@ function buildEnvironment() {
       emissive: idx % 2 === 0 ? 0x051828 : 0x1d0618,
       emissiveIntensity: 0.7
     });
+
+    // Janelas emissivas sutis nos prédios do skyline
+    const winColor = idx % 2 === 0 ? 0x00f0ff : 0xff4488;
+    const winMat = new THREE.MeshBasicMaterial({
+      color: winColor,
+      transparent: true,
+      opacity: 0.28
+    });
+    const rows = Math.floor(h / 4);
+    for (let r = 1; r < rows; r++) {
+      if ((r + idx) % 2 !== 0) continue;
+      const winBand = new THREE.Mesh(
+        new THREE.BoxGeometry(w * 0.72, 0.32, 0.12),
+        winMat
+      );
+      const faceZ = z < 0 ? z + d / 2 + 0.08 : z - d / 2 - 0.08;
+      winBand.position.set(x, r * 3.6, faceZ);
+      scene.add(winBand);
+    }
   });
+
+  // Ponte Golden Gate estilizada em laranja-neon ao fundo do horizonte
+  buildGoldenGateBridge();
 
   // Muros do Complexo Protegido (X: -16 a +16, Z: -26 a +6)
   // Muro frontal esquerdo e direito (deixando vão central de X=-3 a +3 para o portão)
-  addStaticBox(13, 5, 1, -9.5, 2.5, 6, 0x1b2236);
-  addStaticBox(13, 5, 1, 9.5, 2.5, 6, 0x1b2236);
+  addStaticBox(13, 5, 1, -9.5, 2.5, 6, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.45 });
+  addStaticBox(13, 5, 1, 9.5, 2.5, 6, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.45 });
   // Muros laterais
-  addStaticBox(1, 5, 32, -16, 2.5, -10, 0x1b2236);
-  addStaticBox(1, 5, 32, 16, 2.5, -10, 0x1b2236);
+  addStaticBox(1, 5, 32, -16, 2.5, -10, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.42 });
+  addStaticBox(1, 5, 32, 16, 2.5, -10, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.42 });
   // Muro dos fundos
-  addStaticBox(33, 5, 1, 0, 2.5, -26, 0x1b2236);
+  addStaticBox(33, 5, 1, 0, 2.5, -26, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.42 });
+
+  // Luzes de destaque e letreiros emissivos na fachada da entrada e muros do complexo
+  buildComplexNeonAccents();
 
   // Portão Eletrônico (desliza para o lado ao ser hackeado)
   gateMesh = addStaticBox(6, 4.4, 0.6, 0, 2.2, 6, 0x26314a, {
     isGate: true,
     emissive: 0xff0055,
-    emissiveIntensity: 0.45
+    emissiveIntensity: 0.45,
+    edgesColor: 0xff0055,
+    edgesOpacity: 0.8
   });
 
   // Painel do Portão (Hackeável)
@@ -289,7 +348,9 @@ function buildEnvironment() {
   crates.forEach(([x, y, z, w, h, d]) => {
     addStaticBox(w, h, d, x, y, z, 0x24304a, {
       emissive: 0x081526,
-      emissiveIntensity: 0.4
+      emissiveIntensity: 0.4,
+      edgesColor: 0x00d4ff,
+      edgesOpacity: 0.52
     });
   });
 
@@ -305,7 +366,10 @@ function buildEnvironment() {
   serverCoreMesh.position.set(0, 3.9, -21.5);
   scene.add(serverCoreMesh);
 
-  // Zona de Extração na Rua (Anel + luz verde)
+  // Sistema de partículas flutuantes subindo do servidor
+  buildServerParticles();
+
+  // Zona de Extração na Rua (Anel + luz verde + feixe vertical)
   extractionZoneGroup = new THREE.Group();
   extractionZoneGroup.position.set(0, 0.04, 25);
 
@@ -333,11 +397,203 @@ function buildEnvironment() {
   extractionInner.rotation.x = -Math.PI / 2;
   extractionZoneGroup.add(extractionInner);
 
+  extractionBeam = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.05, 2.25, 9, 32, 1, true),
+    new THREE.MeshBasicMaterial({
+      color: 0x00ff88,
+      transparent: true,
+      opacity: 0.15,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    })
+  );
+  extractionBeam.position.y = 4.5;
+  extractionZoneGroup.add(extractionBeam);
+
   const extractionLight = new THREE.PointLight(0x00ff88, 1.8, 12);
   extractionLight.position.set(0, 1.8, 0);
   extractionZoneGroup.add(extractionLight);
 
   scene.add(extractionZoneGroup);
+}
+
+function buildGoldenGateBridge() {
+  const bridgeGroup = new THREE.Group();
+  const bridgeZ = -52;
+  const deckY = 10;
+  const towerXs = [-22, 22];
+
+  const neonOrangeMat = new THREE.MeshBasicMaterial({
+    color: 0xff5a1f,
+    fog: false
+  });
+  const towerBodyMat = new THREE.MeshStandardMaterial({
+    color: 0x3b1812,
+    emissive: 0xff4500,
+    emissiveIntensity: 0.75,
+    roughness: 0.5,
+    fog: false
+  });
+
+  // Tabuleiro principal da ponte
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(110, 0.9, 2.2), towerBodyMat);
+  deck.position.set(0, deckY, bridgeZ);
+  bridgeGroup.add(deck);
+
+  const deckTrim = new THREE.Mesh(new THREE.BoxGeometry(110, 0.25, 2.4), neonOrangeMat);
+  deckTrim.position.set(0, deckY + 0.55, bridgeZ);
+  bridgeGroup.add(deckTrim);
+
+  // Duas torres características
+  towerXs.forEach((tx) => {
+    [-1.4, 1.4].forEach((offsetZ) => {
+      const pillar = new THREE.Mesh(new THREE.BoxGeometry(1.3, 30, 1.1), towerBodyMat);
+      pillar.position.set(tx, 15, bridgeZ + offsetZ);
+      bridgeGroup.add(pillar);
+    });
+
+    // Travessas horizontais entre os pilares da torre
+    [16, 22, 28].forEach((cy) => {
+      const cross = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.7, 3.6), neonOrangeMat);
+      cross.position.set(tx, cy, bridgeZ);
+      bridgeGroup.add(cross);
+    });
+
+    // Sinalizador luminoso no topo
+    const beacon = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.5, 3.8), neonOrangeMat);
+    beacon.position.set(tx, 30.2, bridgeZ);
+    bridgeGroup.add(beacon);
+  });
+
+  // Cabos suspensos principais (catenária estilizada) e cabos verticais
+  const cableMat = new THREE.LineBasicMaterial({ color: 0xff6b2b, fog: false });
+  const spanSamples = 24;
+  const cablePoints = [];
+
+  for (let i = 0; i <= spanSamples; i++) {
+    const t = i / spanSamples;
+    const x = THREE.MathUtils.lerp(-50, 50, t);
+    let y;
+    if (x < towerXs[0]) {
+      const localT = (x - -50) / (towerXs[0] - -50);
+      y = THREE.MathUtils.lerp(deckY + 0.5, 29.5, localT * localT);
+    } else if (x <= towerXs[1]) {
+      const midT = (x - towerXs[0]) / (towerXs[1] - towerXs[0]) * 2 - 1;
+      y = deckY + 2.2 + 17.3 * (midT * midT);
+    } else {
+      const localT = (50 - x) / (50 - towerXs[1]);
+      y = THREE.MathUtils.lerp(deckY + 0.5, 29.5, localT * localT);
+    }
+    cablePoints.push(new THREE.Vector3(x, y, bridgeZ));
+
+    if (i % 2 === 0 && Math.abs(x - towerXs[0]) > 1.5 && Math.abs(x - towerXs[1]) > 1.5) {
+      const hangerGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(x, deckY + 0.6, bridgeZ),
+        new THREE.Vector3(x, y, bridgeZ)
+      ]);
+      bridgeGroup.add(new THREE.Line(hangerGeo, cableMat));
+    }
+  }
+
+  const mainCableGeo = new THREE.BufferGeometry().setFromPoints(cablePoints);
+  bridgeGroup.add(new THREE.Line(mainCableGeo, cableMat));
+
+  scene.add(bridgeGroup);
+}
+
+function buildComplexNeonAccents() {
+  // Pórtico luminoso sobre a entrada do portão
+  addStaticBox(7.2, 0.45, 1.3, 0, 4.95, 6, 0x162038, {
+    collide: false,
+    occlude: false,
+    emissive: 0x00f0ff,
+    emissiveIntensity: 0.45,
+    edgesColor: 0x00f0ff,
+    edgesOpacity: 0.7
+  });
+
+  // Letreiro emissivo central na fachada da entrada
+  addStaticBox(5.2, 0.32, 0.16, 0, 5.05, 6.72, 0x00f0ff, {
+    collide: false,
+    occlude: false,
+    emissive: 0x00f0ff,
+    emissiveIntensity: 1.4
+  });
+
+  // Pilastras luminosas flanqueando o portão
+  [-3.25, 3.25].forEach((px) => {
+    addStaticBox(0.3, 4.6, 0.25, px, 2.3, 6.58, 0xff0055, {
+      collide: false,
+      occlude: false,
+      emissive: 0xff0055,
+      emissiveIntensity: 1.1
+    });
+  });
+
+  // Faixas/letreiros emissivos nos muros frontais
+  [-9.5, 9.5].forEach((wx) => {
+    addStaticBox(10.5, 0.2, 0.15, wx, 4.2, 6.56, 0x00f0ff, {
+      collide: false,
+      occlude: false,
+      emissive: 0x00f0ff,
+      emissiveIntensity: 0.95
+    });
+  });
+
+  // Faixas emissivas internas nos muros laterais e fundo para melhor orientação
+  [-15.42, 15.42].forEach((lx) => {
+    addStaticBox(0.14, 0.22, 28, lx, 4.1, -10, 0x00f0ff, {
+      collide: false,
+      occlude: false,
+      emissive: 0x00f0ff,
+      emissiveIntensity: 0.75
+    });
+  });
+
+  addStaticBox(28, 0.22, 0.14, 0, 4.1, -25.42, 0xff0055, {
+    collide: false,
+    occlude: false,
+    emissive: 0xff0055,
+    emissiveIntensity: 0.8
+  });
+}
+
+function buildServerParticles() {
+  const count = 56;
+  const positions = new Float32Array(count * 3);
+
+  for (let i = 0; i < count; i++) {
+    const px = (Math.random() - 0.5) * 2.4;
+    const py = 0.4 + Math.random() * 4.4;
+    const pz = -21.5 + (Math.random() - 0.5) * 1.8;
+
+    positions[i * 3] = px;
+    positions[i * 3 + 1] = py;
+    positions[i * 3 + 2] = pz;
+
+    serverParticleData.push({
+      baseX: px,
+      baseZ: pz,
+      speed: 0.65 + Math.random() * 0.9,
+      phase: Math.random() * Math.PI * 2
+    });
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+  const mat = new THREE.PointsMaterial({
+    color: 0x00f0ff,
+    size: 0.14,
+    transparent: true,
+    opacity: 0.85,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  });
+
+  serverParticles = new THREE.Points(geo, mat);
+  scene.add(serverParticles);
 }
 
 function createHackableDevice(w, h, d, x, y, z, glowColor, name) {
@@ -656,8 +912,8 @@ function toggleNetHack(forceState) {
   } else {
     scene.background.setHex(0x090b1a);
     scene.fog.color.setHex(0x090b1a);
-    scene.fog.density = 0.022;
-    ambientLight.intensity = 1.35;
+    scene.fog.density = 0.017;
+    ambientLight.intensity = BASE_AMBIENT_INTENSITY;
     dom.nethackOverlay.classList.add('hidden');
     dom.statusMode.textContent = gameState.activeCamIndex >= 0 ? 'CÂMERA' : 'FURTIVO';
     networkLinesGroup.visible = false;
@@ -751,6 +1007,9 @@ function closeGateTerminal() {
 function completeGateHack() {
   gameState.gateUnlocked = true;
   gateMesh.userData.normalMaterial.emissive.setHex(0x00ff88);
+  if (gateMesh.userData.edgesMaterial) {
+    gateMesh.userData.edgesMaterial.color.setHex(0x00ff88);
+  }
   gatePanelMesh.userData.normalMaterial.emissive.setHex(0x00ff88);
 
   dom.hackFeedback.textContent = '> ACESSO CONCEDIDO // PORTÃO DESTRAVADO!';
@@ -1109,6 +1368,9 @@ function resetWorldState() {
   // Restaurar portão e colisor caso tenha sido aberto
   gateMesh.position.set(0, 2.2, 6);
   gateMesh.userData.normalMaterial.emissive.setHex(0xff0055);
+  if (gateMesh.userData.edgesMaterial) {
+    gateMesh.userData.edgesMaterial.color.setHex(0xff0055);
+  }
   gatePanelMesh.userData.normalMaterial.emissive.setHex(0x00f0ff);
   serverMesh.userData.normalMaterial.emissive.setHex(0xff0055);
 
@@ -1177,9 +1439,31 @@ function onWindowResize() {
   renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
+function updateVisualEffects(dt, nowSec) {
+  if (serverParticles) {
+    const posAttr = serverParticles.geometry.getAttribute('position');
+    for (let i = 0; i < serverParticleData.length; i++) {
+      const p = serverParticleData[i];
+      let y = posAttr.getY(i) + p.speed * dt;
+      if (y > 4.9) y = 0.4;
+      const swayX = p.baseX + Math.sin(nowSec * 1.8 + p.phase) * 0.14;
+      const swayZ = p.baseZ + Math.cos(nowSec * 1.6 + p.phase) * 0.14;
+      posAttr.setXYZ(i, swayX, y, swayZ);
+    }
+    posAttr.needsUpdate = true;
+  }
+
+  if (extractionBeam) {
+    extractionBeam.material.opacity = 0.13 + Math.sin(nowSec * 3.2) * 0.04;
+  }
+}
+
 function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
+  const nowSec = clock.elapsedTime;
+
+  updateVisualEffects(dt, nowSec);
 
   const isPlaying =
     gameState.mission === MISSION_STATE.INFILTRATE ||
