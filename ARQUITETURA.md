@@ -6,7 +6,7 @@ Este documento descreve a arquitetura do protótipo **Projeto Hacker**, constru�
 
 ## 1. Estrutura de Arquivos
 
-- [index.html](file:///c:/Users/tiago/programação/SENAC/atividade-IA/projeto-hacker/index.html): Estrutura o `<canvas id="game-canvas">`, os overlays de efeitos visuais (`#nethack-overlay`, `#camera-overlay`, `#alert-vignette`), o HUD estilo DedSec/ctOS, o modal de terminal para o minigame de digitação e as telas de início, Game Over e Vitória.
+- [index.html](file:///c:/Users/tiago/programação/SENAC/atividade-IA/projeto-hacker/index.html): Estrutura o `<canvas id="game-canvas">`, os overlays de efeitos visuais (`#nethack-overlay`, `#camera-overlay`, `#alert-vignette`), o HUD estilo DedSec/ctOS (incluindo o minimapa circular `<canvas id="radar-canvas">`), o modal de terminal para o minigame de digitação e as telas de início, Game Over e Vitória.
 - [style.css](file:///c:/Users/tiago/programação/SENAC/atividade-IA/projeto-hacker/style.css): Define a estética cyberpunk com fontes monoespaçadas, paleta neon (`#00f0ff` ciano, `#ff0055` magenta, `#00ff88` verde), scanlines, barras de progresso (detecção e download) e estilização do terminal.
 - [script.js](file:///c:/Users/tiago/programação/SENAC/atividade-IA/projeto-hacker/script.js): Contém toda a lógica da cena 3D, movimentação e colisão do jogador, câmera orbital em 3ª pessoa, IA de patrulha e detecção dos guardas, mecânicas de hack e máquina de estados da missão.
 
@@ -50,9 +50,12 @@ IDLE ──(Iniciar Missão)──▶ INFILTRATE ──(Hack do Portão)──�
 
 ---
 
-## 4. Detecção de Visão (Guardas e Câmeras) + Stealth
+## 4. Detecção de Visão (Guardas e Câmeras) + Stealth + Radar
 
-Cada guarda em `guards` patrulha entre dois `waypoints` em loop (ou desvia para investigar caixas elétricas acionadas por `6.0s`), rotacionando suavemente na direção do deslocamento.
+Cada guarda em `guards` opera com uma máquina de estados (`GUARD_STATE`):
+- **`PATROL`:** Patrulha em loop entre os `waypoints` com cone amarelo.
+- **`INVESTIGATE`:** Ativado quando o jogador entra no cone e atinge `detectionLevel >= 40%` antes de escapar. O cone muda para laranja (`0xff7700`), o guarda caminha até `lastKnownPos`, olha para os lados por `3.0s` e retorna a `PATROL`.
+- **`DISTRACTED`:** Ativado ao sobrecarregar uma caixa elétrica, atraindo o guarda mais próximo até o local por `6.0s` com cone laranja.
 
 1. **Cone Visual:** Um `THREE.CircleGeometry` plano no chão (`y = 0.06` nos guardas, `y = 0.05` nas câmeras), orientado para `+Z` local (`thetaStart = -Math.PI / 2 - visionHalfAngle`), acompanha a rotação do guarda ou a varredura periódica da câmera (`updateSecurityCameras`).
 2. **Teste Geométrico e Modificadores de Stealth:**
@@ -61,6 +64,8 @@ Cada guarda em `guards` patrulha entre dois `waypoints` em loop (ou desvia para 
 3. **Teste de Oclusão (Cobertura):**
    - Dispara um `THREE.Raycaster` da altura dos olhos do guarda (`y = 1.45`) ou da posição da câmera até o centro do jogador (`y = 1.05` em pé, `y = 0.58` agachado com `Ctrl`) contra a lista `occluders` (muros, portão fechado e caixas de cobertura).
    - Se `blocked.length === 0`, há linha de visão limpa: o cone muda para vermelho e `gameState.detectionLevel` sobe rapidamente até `100%` (Game Over). Caso o jogador entre atrás de uma caixa ou saia do cone, o medidor reduz gradualmente.
+4. **Minimapa / Radar DedSec (`updateRadar` / `#radar-canvas`):**
+   - Canvas 2D circular no canto inferior direito do HUD que renderiza em tempo real a planta baixa do complexo (muros, caixas de cobertura), o portão, o servidor central, a zona de extração, os pontos vermelhos e cones dos guardas e a posição/direção do jogador no centro rotacionada pela câmera.
 
 ---
 

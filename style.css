@@ -322,6 +322,33 @@ kbd {
   color: var(--text-muted);
 }
 
+/* Minimapa / Radar DedSec */
+#radar-container {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+#radar-canvas {
+  width: 168px;
+  height: 168px;
+  border-radius: 50%;
+  background: rgba(6, 12, 24, 0.86);
+  border: 1.5px solid rgba(0, 240, 255, 0.65);
+  box-shadow: 0 0 18px rgba(0, 240, 255, 0.22);
+}
+
+.radar-label {
+  font-size: 0.68rem;
+  letter-spacing: 1.5px;
+  color: var(--cyan);
+  text-shadow: 0 0 8px rgba(0, 240, 255, 0.4);
+}
+
 /* Overlays / Telas */
 .overlay-screen {
   position: fixed;

@@ -12,6 +12,12 @@ const MISSION_STATE = {
   GAMEOVER: 'GAMEOVER'
 };
 
+const GUARD_STATE = {
+  PATROL: 'PATROL',
+  INVESTIGATE: 'INVESTIGATE',
+  DISTRACTED: 'DISTRACTED'
+};
+
 const HACK_CODES = [
   'OVERRIDE_GATE_77',
   'BYPASS_CTOS_404',
@@ -72,6 +78,7 @@ const dom = {
   hackFeedback: document.getElementById('hack-feedback'),
   terminalLogAction: document.getElementById('terminal-log-action'),
   btnMute: document.getElementById('btn-mute'),
+  radarCanvas: document.getElementById('radar-canvas'),
   finalTime: document.getElementById('final-time'),
   btnStart: document.getElementById('btn-start'),
   btnRetryGameover: document.getElementById('btn-retry-gameover'),
@@ -92,8 +99,9 @@ const occluders = [];   // Meshes que bloqueiam visão dos guardas
 const structureMeshes = []; // Meshes afetados pelo wireframe NetHack
 const hackableMeshes = [];  // Dispositivos destacáveis no NetHack
 const securityCameras = []; // { id, name, mesh, pos, baseYaw, basePitch, yawOffset, pitchOffset, coneMesh, coneMat, disabledTimer, sweepPhase, currentYaw }
-const guards = [];          // { mesh, waypoints, currentTarget, speed, visionRange, visionHalfAngle, coneMesh, coneMat, investigateTarget, investigateTimer }
+const guards = [];          // { mesh, waypoints, currentTarget, speed, visionRange, visionHalfAngle, coneMesh, coneMat, state, lastKnownPos, lookAroundTimer, lookBaseYaw, investigateTarget, investigateTimer }
 const electricBoxes = [];   // { id, name, mesh, cooldown, sparkTimer, sparkPoints, sparkData }
+const radarCrates = [];     // { x, z, w, d } para planta baixa do radar
 
 // Estado do jogo
 const gameState = {
@@ -592,6 +600,7 @@ function buildEnvironment() {
     [5.5, 1.15, -17.5, 2.8, 2.3, 2.4]
   ];
   crates.forEach(([x, y, z, w, h, d]) => {
+    radarCrates.push({ x, z, w, d });
     addStaticBox(w, h, d, x, y, z, 0x24304a, {
       emissive: 0x081526,
       emissiveIntensity: 0.4,
@@ -1101,6 +1110,10 @@ function buildGuards() {
       visionHalfAngle: cfg.visionHalfAngle,
       coneMesh,
       coneMat,
+      state: GUARD_STATE.PATROL,
+      lastKnownPos: null,
+      lookAroundTimer: 0,
+      lookBaseYaw: 0,
       investigateTarget: null,
       investigateTimer: 0
     });
@@ -1351,8 +1364,11 @@ function triggerElectricBox(box) {
   });
 
   if (nearestGuard) {
+    nearestGuard.state = GUARD_STATE.DISTRACTED;
     nearestGuard.investigateTarget = new THREE.Vector3(box.mesh.position.x, 0, box.mesh.position.z);
     nearestGuard.investigateTimer = ELECTRIC_INVESTIGATE_TIME;
+    nearestGuard.lastKnownPos = null;
+    nearestGuard.lookAroundTimer = 0;
   }
 }
 
@@ -1733,8 +1749,8 @@ function updateGuards(dt) {
   const rangeDelta = gameState.isSprinting ? 3.0 : gameState.isCrouching ? -1.5 : 0;
 
   guards.forEach((g) => {
-    // Investigação de caixa elétrica ou patrulha normal
-    if (g.investigateTimer > 0 && g.investigateTarget) {
+    // 1. Máquina de estados de movimentação (DISTRACTED, INVESTIGATE, PATROL)
+    if (g.state === GUARD_STATE.DISTRACTED && g.investigateTarget) {
       g.investigateTimer = Math.max(0, g.investigateTimer - dt);
       const toInv = g.investigateTarget.clone().sub(g.mesh.position);
       toInv.y = 0;
@@ -1750,9 +1766,37 @@ function updateGuards(dt) {
       }
       if (g.investigateTimer === 0) {
         g.investigateTarget = null;
+        g.state = GUARD_STATE.PATROL;
+      }
+    } else if (g.state === GUARD_STATE.INVESTIGATE && g.lastKnownPos) {
+      const toLast = g.lastKnownPos.clone().sub(g.mesh.position);
+      toLast.y = 0;
+      const distLast = toLast.length();
+
+      if (distLast > 0.75 && g.lookAroundTimer <= 0) {
+        toLast.normalize();
+        g.mesh.position.addScaledVector(toLast, g.speed * 1.15 * dt);
+        const desiredYaw = Math.atan2(toLast.x, toLast.z);
+        let diff = desiredYaw - g.mesh.rotation.y;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        g.mesh.rotation.y += diff * Math.min(1, dt * 8);
+      } else {
+        if (g.lookAroundTimer <= 0) {
+          g.lookAroundTimer = 3.0;
+          g.lookBaseYaw = g.mesh.rotation.y;
+        } else {
+          g.lookAroundTimer = Math.max(0, g.lookAroundTimer - dt);
+          const elapsedLook = 3.0 - g.lookAroundTimer;
+          g.mesh.rotation.y = g.lookBaseYaw + Math.sin(elapsedLook * 3.4) * 0.85;
+          if (g.lookAroundTimer === 0) {
+            g.lastKnownPos = null;
+            g.state = GUARD_STATE.PATROL;
+          }
+        }
       }
     } else {
-      // Patrulha ida e volta
+      // Patrulha ida e volta (PATROL)
       const target = g.waypoints[g.currentTarget];
       const toTarget = target.clone().sub(g.mesh.position);
       toTarget.y = 0;
@@ -1771,7 +1815,7 @@ function updateGuards(dt) {
       }
     }
 
-    // Checar se o jogador está no cone de visão + linha de visão livre
+    // 2. Checar se o jogador está no cone de visão + linha de visão livre
     const guardForward = new THREE.Vector3(
       Math.sin(g.mesh.rotation.y),
       0,
@@ -1801,8 +1845,18 @@ function updateGuards(dt) {
 
     if (guardSeesPlayer) {
       spottedThisFrame = true;
+      g.lastKnownPos = new THREE.Vector3(playerPos.x, 0, playerPos.z);
+      if (gameState.detectionLevel >= 40) {
+        g.state = GUARD_STATE.INVESTIGATE;
+        g.lookAroundTimer = 0;
+        g.investigateTarget = null;
+        g.investigateTimer = 0;
+      }
       g.coneMat.color.setHex(0xff0055);
       g.coneMat.opacity = 0.42;
+    } else if (g.state === GUARD_STATE.INVESTIGATE || g.state === GUARD_STATE.DISTRACTED) {
+      g.coneMat.color.setHex(0xff7700);
+      g.coneMat.opacity = 0.34;
     } else {
       g.coneMat.color.setHex(0xffd000);
       g.coneMat.opacity = 0.24;
@@ -2013,6 +2067,10 @@ function resetWorldState() {
   guards.forEach((g) => {
     g.mesh.position.copy(g.initialPos);
     g.currentTarget = 1;
+    g.state = GUARD_STATE.PATROL;
+    g.lastKnownPos = null;
+    g.lookAroundTimer = 0;
+    g.lookBaseYaw = 0;
     g.investigateTarget = null;
     g.investigateTimer = 0;
     g.coneMat.color.setHex(0xffd000);
@@ -2109,6 +2167,141 @@ function updateVisualEffects(dt, nowSec) {
   }
 }
 
+function updateRadar() {
+  if (!dom.radarCanvas) return;
+  const ctx = dom.radarCanvas.getContext('2d');
+  const size = dom.radarCanvas.width;
+  const cx = size / 2;
+  const cy = size / 2;
+  const radius = size / 2 - 2;
+  const scale = 2.85;
+
+  const pPos = playerGroup.position;
+
+  ctx.clearRect(0, 0, size, size);
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.clip();
+
+  // Fundo e anéis de alcance
+  ctx.fillStyle = 'rgba(6, 12, 24, 0.9)';
+  ctx.fillRect(0, 0, size, size);
+
+  ctx.strokeStyle = 'rgba(0, 240, 255, 0.14)';
+  ctx.lineWidth = 1;
+  [radius * 0.35, radius * 0.7].forEach((r) => {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+  });
+
+  // Transformar mundo para o espaço do radar (jogador no centro, câmera apontando para cima)
+  ctx.translate(cx, cy);
+  ctx.rotate(gameState.cameraYaw);
+
+  const toRadar = (wx, wz) => ({
+    x: (wx - pPos.x) * scale,
+    y: (wz - pPos.z) * scale
+  });
+
+  // Planta baixa dos muros do complexo (X: -16..16, Z: -26..6)
+  ctx.strokeStyle = 'rgba(0, 240, 255, 0.75)';
+  ctx.lineWidth = 2.2;
+  const wLeft = toRadar(-16, -26);
+  const wRight = toRadar(16, -26);
+  const wBottomLeft = toRadar(-16, 6);
+  const wGateLeft = toRadar(-3, 6);
+  const wGateRight = toRadar(3, 6);
+  const wBottomRight = toRadar(16, 6);
+
+  ctx.beginPath();
+  ctx.moveTo(wGateLeft.x, wGateLeft.y);
+  ctx.lineTo(wBottomLeft.x, wBottomLeft.y);
+  ctx.lineTo(wLeft.x, wLeft.y);
+  ctx.lineTo(wRight.x, wRight.y);
+  ctx.lineTo(wBottomRight.x, wBottomRight.y);
+  ctx.lineTo(wGateRight.x, wGateRight.y);
+  ctx.stroke();
+
+  // Portão eletrônico
+  const gPos = toRadar(gateMesh.position.x, gateMesh.position.z);
+  ctx.strokeStyle = gameState.gateUnlocked ? '#00ff88' : '#ff0055';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(gPos.x - 3 * scale, gPos.y);
+  ctx.lineTo(gPos.x + 3 * scale, gPos.y);
+  ctx.stroke();
+
+  // Caixas de cobertura
+  ctx.fillStyle = 'rgba(36, 48, 74, 0.85)';
+  ctx.strokeStyle = 'rgba(0, 212, 255, 0.45)';
+  ctx.lineWidth = 1;
+  radarCrates.forEach((c) => {
+    const pos = toRadar(c.x, c.z);
+    const rw = c.w * scale;
+    const rd = c.d * scale;
+    ctx.fillRect(pos.x - rw / 2, pos.y - rd / 2, rw, rd);
+    ctx.strokeRect(pos.x - rw / 2, pos.y - rd / 2, rw, rd);
+  });
+
+  // Servidor central ctOS
+  const sPos = toRadar(serverMesh.position.x, serverMesh.position.z);
+  ctx.fillStyle = gameState.serverFirewallDisabled ? '#00f0ff' : '#ff0055';
+  ctx.fillRect(sPos.x - 3.5, sPos.y - 3.5, 7, 7);
+
+  // Zona de extração
+  const ePos = toRadar(extractionZoneGroup.position.x, extractionZoneGroup.position.z);
+  ctx.strokeStyle = '#00ff88';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(ePos.x, ePos.y, 2.3 * scale, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Guardas e cones de visão
+  guards.forEach((g) => {
+    const gp = toRadar(g.mesh.position.x, g.mesh.position.z);
+    const yaw = g.mesh.rotation.y;
+    const fx = Math.sin(yaw);
+    const fz = Math.cos(yaw);
+    const dirAngle = Math.atan2(fz, fx);
+
+    ctx.fillStyle =
+      g.state === GUARD_STATE.INVESTIGATE || g.state === GUARD_STATE.DISTRACTED
+        ? 'rgba(255, 119, 0, 0.28)'
+        : 'rgba(255, 208, 0, 0.22)';
+    ctx.beginPath();
+    ctx.moveTo(gp.x, gp.y);
+    ctx.arc(
+      gp.x,
+      gp.y,
+      g.visionRange * scale,
+      dirAngle - g.visionHalfAngle,
+      dirAngle + g.visionHalfAngle
+    );
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = '#ff2a55';
+    ctx.beginPath();
+    ctx.arc(gp.x, gp.y, 3.8, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // Seta do jogador no centro
+  ctx.rotate(-playerGroup.rotation.y);
+  ctx.fillStyle = '#00f0ff';
+  ctx.beginPath();
+  ctx.moveTo(0, 6);
+  ctx.lineTo(-4.5, -5);
+  ctx.lineTo(0, -2.5);
+  ctx.lineTo(4.5, -5);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
+}
+
 function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
@@ -2129,6 +2322,7 @@ function animate() {
     updateElectricBoxes(dt);
     updateGuards(dt);
     updateInteractionsAndMission(dt);
+    updateRadar();
   }
 
   updateCamera();
