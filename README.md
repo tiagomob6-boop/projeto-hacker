@@ -34,7 +34,7 @@ Na tela inicial, escolha o mapa da operação e o nível de dificuldade antes de
 | `C` | Hackear / alternar entre **Câmeras de Segurança** e voltar ao agente |
 | `R` | Sobrecarregar e desativar por `15s` a câmera controlada no momento |
 | `E` | Hackear Portão / Firewall, sobrecarregar Caixa Elétrica, acelerar Carro (NetHack) ou baixar Servidor |
-| `F` | Entrar / sair do Carro Esporte DedSec (dirigir com `WASD`) |
+| `F` | Entrar / sair do Carro Esporte DedSec ou pilotar / desembarcar da **Lancha DedSec** (`WASD`) |
 | `1` `2` `3` `4` | Selecionar arma: `[1]` Taser, `[2]` 9mm Silenciada, `[3]` Rifle Automático, `[4]` Pulso EMP |
 | `Clique Esquerdo` | Disparar arma equipada (segurar para rajada automática no Rifle `[3]`) |
 | `M` | Ligar / silenciar (Mudo) o áudio procedural e a trilha sonora |

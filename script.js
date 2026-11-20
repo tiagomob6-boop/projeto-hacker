@@ -78,7 +78,7 @@ const MAPS_CONFIG = {
     bounds: WORLD_BOUNDS,
     radarScale: 1.5,
     playerStart: [DOCKS_OFFSET_X, 0, 62],
-    markerPos: [DOCKS_OFFSET_X, 0.06, 60],
+    markerPos: [DOCKS_OFFSET_X - 28, 0.06, 35],
     extractPos: [DOCKS_OFFSET_X, 0.04, 72],
     serverPos: [DOCKS_OFFSET_X, 1.65, -42],
     gates: [
@@ -232,6 +232,7 @@ const radarBuildings = [];  // { x, z, w, d } para quarteirões laterais no rada
 const radarWalls = [];      // { x1, z1, x2, z2 } para paredes no radar
 const gates = [];           // { gateMesh, panelMesh, unlocked, openProgress, initialX, openX }
 const cars = [];            // { mesh, colliderObj, initialPos, initialYaw, isDedsec, speed, hackedTimer, hackedUsed, headlight }
+const boats = [];           // { id, mesh, initialPos, initialYaw, speed, wakePoints, wakeData }
 const projectiles = [];     // { mesh, line, origin, pos, dir, speed, life, damage, isTaser }
 const guardProjectiles = []; // { mesh, pos, dir, speed, life }
 const empWaves = [];        // { mesh, mat, radius, maxRadius }
@@ -263,6 +264,7 @@ const gameState = {
   netHackActive: false,
   activeCamIndex: -1, // -1 = câmera 3ª pessoa do jogador
   drivingCar: null,
+  drivingBoat: null,
   equippedWeapon: WEAPON_TYPE.TASER,
   weaponCooldown: 0,
   taserCooldown: 0,
@@ -541,7 +543,7 @@ const AudioManager = {
   engineOsc: null,
   engineGain: null,
 
-  updateEngineSound(speedAbs) {
+  updateEngineSound(speedAbs, isBoat = false) {
     if (!this.ctx || this.muted) {
       this.stopEngineSound();
       return;
@@ -550,17 +552,18 @@ const AudioManager = {
       this.engineOsc = this.ctx.createOscillator();
       const filter = this.ctx.createBiquadFilter();
       filter.type = 'lowpass';
-      filter.frequency.value = 260;
+      filter.frequency.value = isBoat ? 190 : 260;
       this.engineGain = this.ctx.createGain();
       this.engineGain.gain.value = 0.05;
       this.engineOsc.type = 'sawtooth';
-      this.engineOsc.frequency.value = 48;
+      this.engineOsc.frequency.value = isBoat ? 38 : 48;
       this.engineOsc.connect(filter);
       filter.connect(this.engineGain);
       this.engineGain.connect(this.masterGain);
       this.engineOsc.start();
     }
-    const targetFreq = 46 + Math.min(speedAbs, 18) * 4.5;
+    const base = isBoat ? 36 : 46;
+    const targetFreq = base + Math.min(speedAbs, 22) * (isBoat ? 3.2 : 4.5);
     this.engineOsc.frequency.setTargetAtTime(targetFreq, this.ctx.currentTime, 0.06);
   },
 
@@ -605,10 +608,22 @@ function initThree() {
 
 function getSurfaceHeight(x, z) {
   // Ponte Golden Gate atravessável (X: 80..400, Z: 26..44)
-  if (z >= 26 && z <= 44 && x >= 80 && x <= 400) {
+  if (z >= 26.5 && z <= 43.5 && x >= 78 && x <= 402) {
+    if (x <= 80) return 0;
     if (x < 120) return ((x - 80) / 40) * 10;
     if (x <= 360) return 10;
-    return ((400 - x) / 40) * 10;
+    if (x <= 400) return ((400 - x) / 40) * 10;
+    return 0;
+  }
+  // Píer de embarque Oeste (X: 64..76, Z: 57..67)
+  if (z >= 57 && z <= 67 && x >= 64 && x <= 76) {
+    if (x <= 68) return ((x - 64) / 4) * -0.35;
+    return -0.35;
+  }
+  // Píer de embarque Leste (X: 394..404, Z: 57..67)
+  if (z >= 57 && z <= 67 && x >= 394 && x <= 404) {
+    if (x >= 400) return ((404 - x) / 4) * -0.35;
+    return -0.35;
   }
   return 0;
 }
@@ -626,6 +641,7 @@ function buildMap() {
   electricBoxes.length = 0;
   guards.length = 0;
   cars.length = 0;
+  boats.length = 0;
   gates.length = 0;
   radarCrates.length = 0;
   radarBuildings.length = 0;
@@ -662,8 +678,9 @@ function buildMap() {
   // Marcadores Holográficos de Missão no Mapa
   buildMissionMarkers();
 
-  // Veículos do Mundo Aberto
+  // Veículos e Barcos do Mundo Aberto
   buildCars();
+  buildBoatPiersAndBoats();
 
   // Câmeras, Caixas Elétricas e Guardas das duas missões
   ['COMPLEXO_CTOS', 'DOCAS_BAIA_SF'].forEach((mKey) => {
@@ -723,6 +740,12 @@ function buildTraversableGoldenGate() {
   // Guard-rails laterais com colisão para não cair na baía
   addStaticBox(320, 12, 0.8, 240, 6, zCenter - deckW / 2 - 0.5, 0x26314a, { occlude: false });
   addStaticBox(320, 12, 0.8, 240, 6, zCenter + deckW / 2 + 0.5, 0x26314a, { occlude: false });
+
+  // Paredes laterais fechadas embaixo das rampas (X: 80..120 e X: 360..400) para impedir passagem por baixo
+  [100, 380].forEach((rx) => {
+    addStaticBox(40, 10, 0.9, rx, 5, 26, 0x1e273d, { occlude: false, edgesColor: 0xff5a1f, edgesOpacity: 0.4 });
+    addStaticBox(40, 10, 0.9, rx, 5, 44, 0x1e273d, { occlude: false, edgesColor: 0xff5a1f, edgesOpacity: 0.4 });
+  });
 
   // Duas torres monumentais da Golden Gate (X = 185 e X = 295)
   const towerXs = [185, 295];
@@ -1328,8 +1351,20 @@ function buildDocksEnvironment(cfg) {
   grid.material.transparent = true;
   worldGroup.add(grid);
 
-  // Muros laterais com guard-rail e divisórias dos 2 portões (Z=18 e Z=-24)
-  addStaticBox(1.2, 3.6, 108, dx - 44, 1.8, 30, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.4 });
+  // Muro oeste dividido em duas partes (Z: -25..24 e Z: 46..84), deixando abertura ampla de 22m (Z: 24..46) na saída da ponte
+  addStaticBox(1.2, 3.6, 49, dx - 44, 1.8, -0.5, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.4 });
+  addStaticBox(1.2, 3.6, 38, dx - 44, 1.8, 65, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.4 });
+  // Pórtico luminoso na entrada das Docas (Z = 24..46)
+  addStaticBox(1.4, 6.0, 1.4, dx - 44, 3.0, 24, 0x222c42, { edgesColor: 0x00f0ff, edgesOpacity: 0.65 });
+  addStaticBox(1.4, 6.0, 1.4, dx - 44, 3.0, 46, 0x222c42, { edgesColor: 0x00f0ff, edgesOpacity: 0.65 });
+  addStaticBox(1.4, 0.8, 23.5, dx - 44, 6.2, 35, 0x182236, {
+    collide: false,
+    occlude: false,
+    emissive: 0x00f0ff,
+    emissiveIntensity: 0.65,
+    edgesColor: 0x00f0ff,
+    edgesOpacity: 0.8
+  });
   addStaticBox(1.2, 3.6, 108, dx + 44, 1.8, 30, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.4 });
   addStaticBox(88, 1.1, 0.8, dx, 0.55, 84, 0x26314a, { edgesColor: 0xffaa00, edgesOpacity: 0.75 });
   [-30, -15, 0, 15, 30].forEach((lx) => {
@@ -1347,7 +1382,8 @@ function buildDocksEnvironment(cfg) {
   addStaticBox(40, 4.8, 1.2, dx + 23.5, 2.4, -24, 0x1b2236, { edgesColor: 0xff0055, edgesOpacity: 0.45 });
 
   radarWalls.push(
-    { x1: dx - 44, z1: 84, x2: dx - 44, z2: -25 },
+    { x1: dx - 44, z1: 84, x2: dx - 44, z2: 46 },
+    { x1: dx - 44, z1: 24, x2: dx - 44, z2: -25 },
     { x1: dx + 44, z1: 84, x2: dx + 44, z2: -25 },
     { x1: dx - 43, z1: 18, x2: dx - 3.5, z2: 18 },
     { x1: dx + 3.5, z1: 18, x2: dx + 43, z2: 18 },
@@ -1750,6 +1786,108 @@ function buildCars() {
     };
     cars.push(carObj);
     if (carCfg.isDedsec) dedsecCar = carObj;
+  });
+}
+
+// ==========================================
+// PÍERES DE EMBARQUE E BARCOS NAVEGÁVEIS
+// ==========================================
+function buildBoatMesh(color, neonTrim) {
+  const boatGroup = new THREE.Group();
+  const hullMat = new THREE.MeshStandardMaterial({
+    color,
+    roughness: 0.35,
+    metalness: 0.55,
+    emissive: neonTrim,
+    emissiveIntensity: 0.12
+  });
+  const cabinMat = new THREE.MeshStandardMaterial({ color: 0x0b1220, roughness: 0.25, metalness: 0.7 });
+  const trimMat = new THREE.MeshBasicMaterial({ color: neonTrim });
+
+  // Casco principal + proa afilada
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.75, 4.6), hullMat);
+  hull.position.y = 0.28;
+  hull.add(
+    new THREE.LineSegments(
+      new THREE.EdgesGeometry(hull.geometry),
+      new THREE.LineBasicMaterial({ color: neonTrim, transparent: true, opacity: 0.8 })
+    )
+  );
+  const bow = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.65, 1.4), hullMat);
+  bow.position.set(0, 0.32, 2.75);
+  const bowTip = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.55, 0.9), hullMat);
+  bowTip.position.set(0, 0.36, 3.6);
+
+  // Cabine e motor de popa com neon
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.65, 1.8), cabinMat);
+  cabin.position.set(0, 0.92, -0.2);
+  const motor = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.55, 0.6), cabinMat);
+  motor.position.set(0, 0.5, -2.45);
+  const motorNeon = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.16, 0.2), trimMat);
+  motorNeon.position.set(0, 0.72, -2.55);
+
+  boatGroup.add(hull, bow, bowTip, cabin, motor, motorNeon);
+  return boatGroup;
+}
+
+function buildBoatPiersAndBoats() {
+  // 2 Píeres de embarque ao nível da água (y = -0.35) com rampa de acesso
+  // Píer Oeste (margem leste do Centro Urbano: X = 72, Z = 62)
+  addStaticBox(8, 0.35, 10, 72, -0.42, 62, 0x1c263b, { collide: false, occlude: false, edgesColor: 0x00f0ff, edgesOpacity: 0.5 });
+  const rampW = addStaticBox(4.5, 0.25, 10, 66, -0.18, 62, 0x202b42, { collide: false, occlude: false });
+  rampW.rotation.z = -0.09;
+
+  // Píer Leste (margem oeste das Docas: X = 398, Z = 62)
+  addStaticBox(8, 0.35, 10, 398, -0.42, 62, 0x1c263b, { collide: false, occlude: false, edgesColor: 0x00f0ff, edgesOpacity: 0.5 });
+  const rampE = addStaticBox(4.5, 0.25, 10, 402, -0.18, 62, 0x202b42, { collide: false, occlude: false });
+  rampE.rotation.z = 0.09;
+
+  const boatConfigs = [
+    { x: 78, z: 62, yaw: Math.PI / 2, color: 0x111a2e, neon: 0x00f0ff },
+    { x: 391, z: 62, yaw: -Math.PI / 2, color: 0x111a2e, neon: 0x00ff88 }
+  ];
+
+  boatConfigs.forEach((bCfg, idx) => {
+    const mesh = buildBoatMesh(bCfg.color, bCfg.neon);
+    mesh.position.set(bCfg.x, -0.32, bCfg.z);
+    mesh.rotation.y = bCfg.yaw;
+    worldGroup.add(mesh);
+
+    // Rastro ciano na popa
+    const wakeCount = 24;
+    const wakePos = new Float32Array(wakeCount * 3);
+    const wakeData = [];
+    for (let i = 0; i < wakeCount; i++) {
+      wakePos[i * 3] = bCfg.x;
+      wakePos[i * 3 + 1] = -0.35;
+      wakePos[i * 3 + 2] = bCfg.z;
+      wakeData.push({ life: 0, vx: 0, vz: 0 });
+    }
+    const wakeGeo = new THREE.BufferGeometry();
+    wakeGeo.setAttribute('position', new THREE.BufferAttribute(wakePos, 3));
+    const wakePoints = new THREE.Points(
+      wakeGeo,
+      new THREE.PointsMaterial({
+        color: 0x00f0ff,
+        size: 0.32,
+        transparent: true,
+        opacity: 0.75,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      })
+    );
+    wakePoints.visible = false;
+    worldGroup.add(wakePoints);
+
+    boats.push({
+      id: idx,
+      mesh,
+      initialPos: new THREE.Vector3(bCfg.x, -0.32, bCfg.z),
+      initialYaw: bCfg.yaw,
+      speed: 0,
+      wakePoints,
+      wakeData
+    });
   });
 }
 
@@ -2958,8 +3096,54 @@ function updateEmpWaves(dt) {
   }
 }
 
+function isWaterArea(x, z) {
+  // Centro Urbano (X: -82..68, Z: -90..95)
+  if (x >= -82 && x <= 68 && z >= -90 && z <= 95) return false;
+  // Docas da Baía SF (X: 400..490, Z: -56..86)
+  if (x >= 400 && x <= 490 && z >= -56 && z <= 86) return false;
+  // Píeres de embarque
+  if (z >= 57 && z <= 67 && ((x >= 64 && x <= 76) || (x >= 394 && x <= 404))) return false;
+  return true;
+}
+
 function toggleDriveDedsecCar() {
-  if (!dedsecCar || gameState.terminalOpen || gameState.activeCamIndex >= 0) return;
+  if (gameState.terminalOpen || gameState.missionModalOpen || gameState.activeCamIndex >= 0) return;
+
+  // Desembarcar do barco em terra firme ou píer próximo
+  if (gameState.drivingBoat) {
+    const boat = gameState.drivingBoat;
+    const bPos = boat.mesh.position;
+    let landX = null;
+    let landZ = null;
+
+    if (bPos.x < 120 && Math.hypot(bPos.x - 72, bPos.z - 62) < 14) {
+      landX = 68;
+      landZ = 62;
+    } else if (bPos.x > 340 && Math.hypot(bPos.x - 398, bPos.z - 62) < 14) {
+      landX = 402;
+      landZ = 62;
+    } else if (bPos.x < 95) {
+      landX = 64;
+      landZ = THREE.MathUtils.clamp(bPos.z, -80, 85);
+    } else if (bPos.x > 375) {
+      landX = 406;
+      landZ = THREE.MathUtils.clamp(bPos.z, -20, 80);
+    } else {
+      // No meio da baía: move o desembarque para o píer mais próximo
+      const toWest = Math.hypot(bPos.x - 72, bPos.z - 62);
+      const toEast = Math.hypot(bPos.x - 398, bPos.z - 62);
+      landX = toWest <= toEast ? 68 : 402;
+      landZ = 62;
+    }
+
+    gameState.drivingBoat = null;
+    boat.speed = 0;
+    if (boat.wakePoints) boat.wakePoints.visible = false;
+    AudioManager.stopEngineSound();
+    playerGroup.position.set(landX, getSurfaceHeight(landX, landZ), landZ);
+    playerGroup.visible = true;
+    return;
+  }
 
   if (gameState.drivingCar) {
     const car = gameState.drivingCar;
@@ -2980,7 +3164,19 @@ function toggleDriveDedsecCar() {
     return;
   }
 
-  if (playerGroup.position.distanceTo(dedsecCar.mesh.position) < 4.0) {
+  // Verificar embarque em lancha DedSec
+  for (const boat of boats) {
+    if (playerGroup.position.distanceTo(boat.mesh.position) < 5.2) {
+      gameState.drivingBoat = boat;
+      gameState.isCrouching = false;
+      gameState.isSprinting = false;
+      playerGroup.visible = false;
+      if (!gameState.netHackActive) dom.statusMode.textContent = 'LANCHA';
+      return;
+    }
+  }
+
+  if (dedsecCar && playerGroup.position.distanceTo(dedsecCar.mesh.position) < 4.0) {
     gameState.drivingCar = dedsecCar;
     gameState.isCrouching = false;
     gameState.isSprinting = false;
@@ -3038,6 +3234,67 @@ function updatePlayer(dt) {
     playerParts.backpackLed.material.color.setHex(
       gameState.isCrouching ? 0xffaa00 : pulseOn ? 0x00ff88 : 0x004433
     );
+  }
+
+  // Modo Navegação de Lancha DedSec na Baía
+  if (gameState.drivingBoat) {
+    const boat = gameState.drivingBoat;
+    let throttle = 0;
+    let steer = 0;
+    if (gameState.keys['KeyW'] || gameState.keys['ArrowUp']) throttle += 1;
+    if (gameState.keys['KeyS'] || gameState.keys['ArrowDown']) throttle -= 1;
+    if (gameState.keys['KeyA'] || gameState.keys['ArrowLeft']) steer += 1;
+    if (gameState.keys['KeyD'] || gameState.keys['ArrowRight']) steer -= 1;
+
+    if (throttle !== 0) {
+      boat.speed = THREE.MathUtils.clamp(boat.speed + throttle * 14 * dt, -7.5, 22.0);
+    } else {
+      boat.speed *= Math.max(0, 1 - dt * 1.8);
+      if (Math.abs(boat.speed) < 0.08) boat.speed = 0;
+    }
+
+    if (Math.abs(boat.speed) > 0.3 && steer !== 0) {
+      const dirSign = boat.speed >= 0 ? 1 : -1;
+      boat.mesh.rotation.y += steer * dirSign * 1.85 * dt;
+    }
+
+    const fx = Math.sin(boat.mesh.rotation.y);
+    const fz = Math.cos(boat.mesh.rotation.y);
+    const nextX = THREE.MathUtils.clamp(boat.mesh.position.x + fx * boat.speed * dt, WORLD_BOUNDS.minX + 4, WORLD_BOUNDS.maxX - 4);
+    const nextZ = THREE.MathUtils.clamp(boat.mesh.position.z + fz * boat.speed * dt, WORLD_BOUNDS.minZ + 4, WORLD_BOUNDS.maxZ - 4);
+
+    if (isWaterArea(nextX, nextZ)) {
+      boat.mesh.position.x = nextX;
+      boat.mesh.position.z = nextZ;
+    } else {
+      boat.speed *= -0.2;
+    }
+
+    boat.mesh.position.y = -0.32 + Math.sin(gameState.elapsedTime * 3.0 + boat.id) * 0.05;
+    playerGroup.position.copy(boat.mesh.position);
+
+    // Rastro ciano na popa
+    if (boat.wakePoints) {
+      boat.wakePoints.visible = Math.abs(boat.speed) > 1.0;
+      if (boat.wakePoints.visible) {
+        const attr = boat.wakePoints.geometry.getAttribute('position');
+        const sternX = boat.mesh.position.x - fx * 2.7;
+        const sternZ = boat.mesh.position.z - fz * 2.7;
+        for (let i = 0; i < boat.wakeData.length; i++) {
+          const w = boat.wakeData[i];
+          w.life -= dt;
+          if (w.life <= 0) {
+            w.life = 0.35 + Math.random() * 0.4;
+            attr.setXYZ(i, sternX + (Math.random() - 0.5) * 1.2, -0.35, sternZ + (Math.random() - 0.5) * 1.2);
+          }
+        }
+        attr.needsUpdate = true;
+      }
+    }
+
+    AudioManager.updateEngineSound(Math.abs(boat.speed), true);
+    if (!gameState.netHackActive) dom.statusMode.textContent = 'LANCHA';
+    return;
   }
 
   // Modo Direção do Carro Esporte DedSec
@@ -3215,16 +3472,18 @@ function updateCamera() {
     return;
   }
 
-  const focusPos = gameState.drivingCar
+  const focusPos = gameState.drivingBoat
+    ? gameState.drivingBoat.mesh.position
+    : gameState.drivingCar
     ? gameState.drivingCar.mesh.position
     : playerGroup.position;
   const target = new THREE.Vector3(
     focusPos.x,
-    focusPos.y + (gameState.drivingCar ? 1.4 : gameState.isCrouching ? 1.05 : 1.55),
+    focusPos.y + (gameState.drivingBoat ? 1.5 : gameState.drivingCar ? 1.4 : gameState.isCrouching ? 1.05 : 1.55),
     focusPos.z
   );
 
-  const dist = gameState.drivingCar ? 7.6 : 5.4;
+  const dist = gameState.drivingBoat ? 9.0 : gameState.drivingCar ? 7.6 : 5.4;
   const yaw = gameState.cameraYaw;
   const pitch = gameState.cameraPitch;
 
@@ -3653,12 +3912,22 @@ function updateInteractionsAndMission(dt) {
     }
   }
 
-  // Prompt do carro DedSec dirigível
-  if (!promptText && dedsecCar && gameState.activeCamIndex < 0) {
-    if (gameState.drivingCar) {
+  // Prompt do carro DedSec ou lancha navegável
+  if (!promptText && gameState.activeCamIndex < 0) {
+    if (gameState.drivingBoat) {
+      promptText = '[F] DESEMBARCAR DA LANCHA';
+    } else if (gameState.drivingCar) {
       promptText = '[F] SAIR DO CARRO DEDSEC';
-    } else if (pPos.distanceTo(dedsecCar.mesh.position) < 4.0) {
-      promptText = '[F] ENTRAR NO CARRO DEDSEC';
+    } else {
+      for (const boat of boats) {
+        if (pPos.distanceTo(boat.mesh.position) < 5.2) {
+          promptText = '[F] PILOTAR LANCHA DEDSEC';
+          break;
+        }
+      }
+      if (!promptText && dedsecCar && pPos.distanceTo(dedsecCar.mesh.position) < 4.0) {
+        promptText = '[F] ENTRAR NO CARRO DEDSEC';
+      }
     }
   }
 
@@ -3781,6 +4050,7 @@ function resetWorldState(keepPlayerPos = false) {
   const mapCfg = MAPS_CONFIG[gameState.selectedMap] || MAPS_CONFIG.COMPLEXO_CTOS;
   if (!keepPlayerPos) {
     gameState.drivingCar = null;
+    gameState.drivingBoat = null;
     AudioManager.stopEngineSound();
     playerGroup.visible = true;
     playerGroup.position.set(mapCfg.playerStart[0], mapCfg.playerStart[1], mapCfg.playerStart[2]);
@@ -3788,7 +4058,7 @@ function resetWorldState(keepPlayerPos = false) {
     playerGroup.scale.y = 1;
   }
 
-  // Resetar carros (exceto quando mantendo posição em FREE_ROAM)
+  // Resetar carros e barcos (exceto quando mantendo posição em FREE_ROAM)
   if (!keepPlayerPos) {
     cars.forEach((car) => {
       car.mesh.position.copy(car.initialPos);
@@ -3799,6 +4069,12 @@ function resetWorldState(keepPlayerPos = false) {
       if (car.headlight) car.headlight.intensity = 0;
       car.mesh.updateMatrixWorld(true);
       car.colliderObj.box.setFromObject(car.mesh);
+    });
+    boats.forEach((boat) => {
+      boat.mesh.position.copy(boat.initialPos);
+      boat.mesh.rotation.y = boat.initialYaw;
+      boat.speed = 0;
+      if (boat.wakePoints) boat.wakePoints.visible = false;
     });
   }
 
@@ -4193,6 +4469,23 @@ function updateRadar() {
     const bd = b.d * scale;
     ctx.fillRect(bp.x - bw / 2, bp.y - bd / 2, bw, bd);
     ctx.strokeRect(bp.x - bw / 2, bp.y - bd / 2, bw, bd);
+  });
+
+  // Píeres de embarque e Lanchas DedSec no radar
+  [72, 398].forEach((px) => {
+    const pp = toRadar(px, 62);
+    ctx.fillStyle = 'rgba(28, 38, 59, 0.9)';
+    ctx.fillRect(pp.x - 4 * scale, pp.y - 5 * scale, 8 * scale, 10 * scale);
+  });
+
+  boats.forEach((boat) => {
+    const bp = toRadar(boat.mesh.position.x, boat.mesh.position.z);
+    ctx.save();
+    ctx.translate(bp.x, bp.y);
+    ctx.rotate(-boat.mesh.rotation.y);
+    ctx.fillStyle = '#00ff88';
+    ctx.fillRect(-1.15 * scale, -2.3 * scale, 2.3 * scale, 4.6 * scale);
+    ctx.restore();
   });
 
   // Carros (estacionados e DedSec dirigível)
