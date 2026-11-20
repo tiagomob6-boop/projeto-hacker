@@ -20,6 +20,7 @@
   <!-- Efeitos de Filtro (NetHack / Câmera / Alerta) -->
   <div id="nethack-overlay" class="screen-fx hidden">
     <div class="fx-scanlines"></div>
+    <div id="nethack-labels"></div>
     <div class="nethack-badge">[ VISÃO NETHACK ATIVA // TOPOLOGIA ctOS ]</div>
   </div>
 
@@ -116,6 +117,13 @@
         <div><kbd>C</kbd> Câmeras / <kbd>R</kbd> Sobrecarregar</div>
         <div><kbd>E</kbd> Hackear / Distrair / Baixar</div>
       </div>
+      <div class="difficulty-selector">
+        <span class="diff-label">DIFICULDADE:</span>
+        <div class="diff-buttons">
+          <button type="button" class="diff-btn active" data-diff="INICIANTE">INICIANTE (12s)</button>
+          <button type="button" class="diff-btn" data-diff="DEDSEC_ELITE">DEDSEC ELITE (7s)</button>
+        </div>
+      </div>
       <button id="btn-start" class="cyber-btn">INICIAR MISSÃO</button>
     </div>
   </div>
@@ -168,10 +176,13 @@
     <div class="terminal-card victory-card">
       <div class="brand-tag neon-green">DEDSEC // EXTRAÇÃO BEM-SUCEDIDA</div>
       <h1 class="status-title neon-green">MISSÃO CONCLUÍDA - DADOS EXTRAÍDOS</h1>
-      <p class="intro-desc">
-        Os arquivos confidenciais da ctOS foram copiados com sucesso. Tempo total:
-        <strong id="final-time" class="neon-cyan">00:00</strong>.
-      </p>
+      <div id="final-rank" class="rank-badge">RANK S - FANTASMA</div>
+      <div class="victory-stats">
+        <div><span>TEMPO TOTAL:</span> <strong id="final-time" class="neon-cyan">00:00</strong></div>
+        <div><span>DETECÇÃO MÁXIMA:</span> <strong id="final-detection" class="neon-magenta">0%</strong></div>
+        <div><span>HACKS EXECUTADOS:</span> <strong id="final-hacks" class="neon-green">0</strong></div>
+        <div><span>DIFICULDADE:</span> <strong id="final-difficulty" class="neon-cyan">INICIANTE</strong></div>
+      </div>
       <button id="btn-retry-victory" class="cyber-btn green-btn">JOGAR NOVAMENTE</button>
     </div>
   </div>

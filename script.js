@@ -50,6 +50,23 @@ const ELECTRIC_COOLDOWN = 12.0;
 const ELECTRIC_INVESTIGATE_TIME = 6.0;
 const BASE_AMBIENT_INTENSITY = 2.15;
 
+const DIFFICULTY_PRESETS = {
+  INICIANTE: {
+    label: 'INICIANTE',
+    guardSpeedMult: 0.85,
+    camSweepSpeed: 0.55,
+    gateTime: 12.0,
+    firewallTime: 10.5
+  },
+  DEDSEC_ELITE: {
+    label: 'DEDSEC ELITE',
+    guardSpeedMult: 1.28,
+    camSweepSpeed: 1.05,
+    gateTime: 7.0,
+    firewallTime: 6.5
+  }
+};
+
 // Referências DOM
 const dom = {
   canvas: document.getElementById('game-canvas'),
@@ -79,7 +96,13 @@ const dom = {
   terminalLogAction: document.getElementById('terminal-log-action'),
   btnMute: document.getElementById('btn-mute'),
   radarCanvas: document.getElementById('radar-canvas'),
+  nethackLabels: document.getElementById('nethack-labels'),
+  finalRank: document.getElementById('final-rank'),
   finalTime: document.getElementById('final-time'),
+  finalDetection: document.getElementById('final-detection'),
+  finalHacks: document.getElementById('final-hacks'),
+  finalDifficulty: document.getElementById('final-difficulty'),
+  diffButtons: document.querySelectorAll('.diff-btn'),
   btnStart: document.getElementById('btn-start'),
   btnRetryGameover: document.getElementById('btn-retry-gameover'),
   btnRetryVictory: document.getElementById('btn-retry-victory')
@@ -102,10 +125,12 @@ const securityCameras = []; // { id, name, mesh, pos, baseYaw, basePitch, yawOff
 const guards = [];          // { mesh, waypoints, currentTarget, speed, visionRange, visionHalfAngle, coneMesh, coneMat, state, lastKnownPos, lookAroundTimer, lookBaseYaw, investigateTarget, investigateTimer }
 const electricBoxes = [];   // { id, name, mesh, cooldown, sparkTimer, sparkPoints, sparkData }
 const radarCrates = [];     // { x, z, w, d } para planta baixa do radar
+const netHackTagItems = []; // { el, getPos, getText }
 
 // Estado do jogo
 const gameState = {
   mission: MISSION_STATE.IDLE,
+  difficulty: 'INICIANTE',
   elapsedTime: 0,
   netHackActive: false,
   activeCamIndex: -1, // -1 = câmera 3ª pessoa do jogador
@@ -118,6 +143,8 @@ const gameState = {
   hackCode: '',
   downloadProgress: 0,
   detectionLevel: 0,
+  maxDetection: 0,
+  hacksUsed: 0,
   isSprinting: false,
   isCrouching: false,
   cameraYaw: 0,
@@ -373,6 +400,7 @@ function initThree() {
   buildElectricBoxes();
   buildGuards();
   buildNetworkLines();
+  buildNetHackLabels();
 
   window.addEventListener('resize', onWindowResize);
 }
@@ -1105,6 +1133,7 @@ function buildGuards() {
       waypoints: cfg.waypoints,
       initialPos: cfg.waypoints[0].clone(),
       currentTarget: 1,
+      baseSpeed: cfg.speed,
       speed: cfg.speed,
       visionRange: cfg.visionRange,
       visionHalfAngle: cfg.visionHalfAngle,
@@ -1147,6 +1176,79 @@ function buildNetworkLines() {
   const networkLine = new THREE.Line(lineGeo, lineMat);
   networkLinesGroup.add(networkLine);
   scene.add(networkLinesGroup);
+}
+
+function buildNetHackLabels() {
+  if (!dom.nethackLabels) return;
+  dom.nethackLabels.innerHTML = '';
+  netHackTagItems.length = 0;
+
+  const registerTag = (getPos, getText) => {
+    const el = document.createElement('div');
+    el.className = 'nethack-tag';
+    dom.nethackLabels.appendChild(el);
+    netHackTagItems.push({ el, getPos, getText });
+  };
+
+  registerTag(
+    () => gatePanelMesh.position.clone().add(new THREE.Vector3(0, 1.15, 0)),
+    () => (gameState.gateUnlocked ? 'PORTÃO ABERTO' : '[E] OVERRIDE')
+  );
+
+  electricBoxes.forEach((box) => {
+    registerTag(
+      () => box.mesh.position.clone().add(new THREE.Vector3(0, 1.05, 0)),
+      () => (box.cooldown > 0 ? `RECARGA ${Math.ceil(box.cooldown)}s` : '[E] DISTRAIR')
+    );
+  });
+
+  securityCameras.forEach((camObj, idx) => {
+    registerTag(
+      () => camObj.pos.clone().add(new THREE.Vector3(0, 0.55, 0)),
+      () =>
+        camObj.disabledTimer > 0
+          ? `CAM_0${idx + 1} OFF (${Math.ceil(camObj.disabledTimer)}s)`
+          : `[C] CAM_0${idx + 1}`
+    );
+  });
+
+  registerTag(
+    () => serverMesh.position.clone().add(new THREE.Vector3(0, 2.55, 0)),
+    () =>
+      gameState.mission === MISSION_STATE.ESCAPE
+        ? 'DADOS EXTRAÍDOS'
+        : gameState.serverFirewallDisabled
+        ? '[E] BAIXAR DADOS'
+        : '[E] SERVIDOR (FIREWALL)'
+  );
+}
+
+function updateNetHackLabels() {
+  if (!gameState.netHackActive || !dom.nethackLabels) return;
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+
+  netHackTagItems.forEach((item) => {
+    const pos = item.getPos();
+    const projected = pos.project(camera);
+    if (
+      projected.z > 1 ||
+      projected.x < -1.05 ||
+      projected.x > 1.05 ||
+      projected.y < -1.05 ||
+      projected.y > 1.05
+    ) {
+      item.el.style.display = 'none';
+      return;
+    }
+
+    const sx = (projected.x * 0.5 + 0.5) * w;
+    const sy = (-projected.y * 0.5 + 0.5) * h;
+    item.el.style.display = 'block';
+    item.el.style.left = `${sx.toFixed(1)}px`;
+    item.el.style.top = `${sy.toFixed(1)}px`;
+    item.el.textContent = item.getText();
+  });
 }
 
 // ==========================================
@@ -1232,6 +1334,12 @@ function setupInputs() {
   if (dom.btnMute) {
     dom.btnMute.addEventListener('click', () => AudioManager.toggleMute());
   }
+  dom.diffButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      gameState.difficulty = btn.dataset.diff;
+      dom.diffButtons.forEach((b) => b.classList.toggle('active', b === btn));
+    });
+  });
 
   // Input do Terminal Hacker
   dom.hackInput.addEventListener('input', () => {
@@ -1331,6 +1439,7 @@ function cycleSecurityCamera(specificIndex = null) {
 function overloadActiveCamera() {
   if (gameState.activeCamIndex < 0) return;
   AudioManager.playElectricZap();
+  gameState.hacksUsed += 1;
   const camObj = securityCameras[gameState.activeCamIndex];
   camObj.disabledTimer = CAMERA_OVERLOAD_DURATION;
   camObj.coneMesh.visible = false;
@@ -1341,6 +1450,7 @@ function overloadActiveCamera() {
 function triggerElectricBox(box) {
   if (box.cooldown > 0) return;
   AudioManager.playElectricZap();
+  gameState.hacksUsed += 1;
   box.cooldown = ELECTRIC_COOLDOWN;
   box.sparkTimer = 1.6;
   box.sparkPoints.visible = true;
@@ -1430,7 +1540,8 @@ function openTerminal(targetType = 'GATE') {
   gameState.terminalTarget = targetType;
 
   const isFirewall = targetType === 'FIREWALL';
-  const duration = isFirewall ? FIREWALL_HACK_TIME : GATE_HACK_TIME;
+  const preset = DIFFICULTY_PRESETS[gameState.difficulty];
+  const duration = isFirewall ? preset.firewallTime : preset.gateTime;
   const pool = isFirewall ? FIREWALL_CODES : HACK_CODES;
 
   gameState.hackTimeLeft = duration;
@@ -1462,6 +1573,7 @@ function closeGateTerminal() {
 
 function completeTerminalHack() {
   AudioManager.playTerminalSuccess();
+  gameState.hacksUsed += 1;
   if (gameState.terminalTarget === 'FIREWALL') {
     gameState.serverFirewallDisabled = true;
     serverMesh.userData.normalMaterial.emissive.setHex(0x00f0ff);
@@ -1696,7 +1808,8 @@ function updateSecurityCameras(dt, playerPos, playerCenter) {
     if (gameState.activeCamIndex === idx) {
       yaw = camObj.baseYaw + camObj.yawOffset;
     } else {
-      camObj.sweepPhase += dt * 0.65;
+      const sweepSpeed = DIFFICULTY_PRESETS[gameState.difficulty].camSweepSpeed;
+      camObj.sweepPhase += dt * sweepSpeed;
       yaw = camObj.baseYaw + Math.sin(camObj.sweepPhase) * 0.6;
     }
     camObj.currentYaw = yaw;
@@ -1868,6 +1981,7 @@ function updateGuards(dt) {
   } else {
     gameState.detectionLevel = Math.max(0, gameState.detectionLevel - dt * 38);
   }
+  gameState.maxDetection = Math.max(gameState.maxDetection, gameState.detectionLevel);
 
   AudioManager.updateAlertTick(dt, gameState.detectionLevel);
 
@@ -2033,6 +2147,8 @@ function resetWorldState() {
   gameState.terminalTarget = 'GATE';
   gameState.downloadProgress = 0;
   gameState.detectionLevel = 0;
+  gameState.maxDetection = 0;
+  gameState.hacksUsed = 0;
   gameState.isSprinting = false;
   gameState.isCrouching = false;
   gameState.cameraYaw = 0;
@@ -2063,9 +2179,12 @@ function resetWorldState() {
     occluders.push(gateMesh);
   }
 
+  const preset = DIFFICULTY_PRESETS[gameState.difficulty];
+
   // Resetar guardas, câmeras e caixas elétricas
   guards.forEach((g) => {
     g.mesh.position.copy(g.initialPos);
+    g.speed = g.baseSpeed * preset.guardSpeedMult;
     g.currentTarget = 1;
     g.state = GUARD_STATE.PATROL;
     g.lastKnownPos = null;
@@ -2130,6 +2249,15 @@ function triggerGameOver() {
   dom.gameoverScreen.classList.remove('hidden');
 }
 
+function calculateMissionRank() {
+  const det = gameState.maxDetection;
+  const time = gameState.elapsedTime;
+  if (det < 15 && time <= 85) return 'RANK S - FANTASMA';
+  if (det < 45 && time <= 120) return 'RANK A - INFILTRADOR';
+  if (det < 80 && time <= 165) return 'RANK B - OPERATIVO';
+  return 'RANK C';
+}
+
 function triggerVictory() {
   gameState.mission = MISSION_STATE.VICTORY;
   AudioManager.stopMusic();
@@ -2139,6 +2267,12 @@ function triggerVictory() {
   }
   dom.hud.classList.add('hidden');
   dom.finalTime.textContent = formatTime(gameState.elapsedTime);
+  if (dom.finalRank) dom.finalRank.textContent = calculateMissionRank();
+  if (dom.finalDetection) dom.finalDetection.textContent = `${Math.round(gameState.maxDetection)}%`;
+  if (dom.finalHacks) dom.finalHacks.textContent = String(gameState.hacksUsed);
+  if (dom.finalDifficulty) {
+    dom.finalDifficulty.textContent = DIFFICULTY_PRESETS[gameState.difficulty].label;
+  }
   dom.victoryScreen.classList.remove('hidden');
 }
 
@@ -2323,6 +2457,9 @@ function animate() {
     updateGuards(dt);
     updateInteractionsAndMission(dt);
     updateRadar();
+    if (gameState.netHackActive) {
+      updateNetHackLabels();
+    }
   }
 
   updateCamera();

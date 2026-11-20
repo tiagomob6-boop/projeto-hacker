@@ -8,7 +8,15 @@ Protótipo funcional de um jogo 3D em terceira pessoa de infiltração e hacking
 
 1. **Infiltração:** Aproxime-se do painel eletrônico do portão de entrada do complexo ctOS, pressione `E` e complete o minigame de digitação dentro do tempo limite para destravar e abrir o portão.
 2. **Furtividade e Coleta de Dados:** Utilize caixas de cobertura (agachando com `Ctrl`), a **Visão NetHack** (`V`), **caixas elétricas de distração** (`E`) e o **hack/sobrecarga de câmeras** (`C` / `R`) para evitar os cones de visão dos guardas e das câmeras. Chegue ao **Servidor Central ctOS**, desative o firewall (`E`) e segure `E` até concluir o download (`100%`).
-3. **Extração:** Com os dados em mãos, fuja do complexo (use `Shift` para correr) e pise na **Zona de Extração** (anel verde na rua) para concluir a missão.
+3. **Extração:** Com os dados em mãos, fuja do complexo (use `Shift` para correr) e pise na **Zona de Extração** (anel verde na rua) para concluir a missão e receber sua avaliação (**Rank S - Fantasma** a **Rank C**).
+
+---
+
+## ⚙️ Dificuldade
+
+Na tela inicial, escolha o nível antes de iniciar a missão:
+- **INICIANTE:** Guardas mais lentos, varredura de câmeras moderada e `12.0s` no terminal.
+- **DEDSEC ELITE:** Guardas mais rápidos, varredura de câmeras acelerada e `7.0s` no terminal.
 
 ---
 

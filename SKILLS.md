@@ -8,7 +8,7 @@ Este documento define as convenções técnicas obrigatórias para qualquer evol
 - **100% Vanilla JS (ES6+)**, **HTML5** e **CSS3**.
 - **Three.js `0.160.0`** carregado exclusivamente via CDN usando `<script type="importmap">` em [index.html](file:///c:/Users/tiago/programação/SENAC/atividade-IA/projeto-hacker/index.html).
 - **Zero bundlers** (sem Vite, Webpack, Parcel, Babel ou Node.js). O projeto deve rodar diretamente no navegador via **Live Server**.
-- **Zero assets externos** (proibido importar `.glb`, `.gltf`, `.mp3`, `.wav`, `.png`, `.jpg` ou fontes externas). Toda geometria deve usar primitivas do Three.js (`BoxGeometry`, `PlaneGeometry`, `RingGeometry`, `CircleGeometry`, `OctahedronGeometry`, etc.).
+- **Zero assets externos** (proibido importar `.glb`, `.gltf`, `.mp3`, `.wav`, `.png`, `.jpg` ou fontes externas). Toda geometria deve usar primitivas do Three.js (`BoxGeometry`, `PlaneGeometry`, `RingGeometry`, `CircleGeometry`, `OctahedronGeometry`, `CylinderGeometry`, `EdgesGeometry`, `BufferGeometry`).
 
 ## 2. Áudio Procedural
 - Todo e qualquer efeito sonoro ou trilha ambiente deve ser sintetizado nativamente via **Web Audio API** (`AudioContext`, `OscillatorNode`, `GainNode`, `BiquadFilterNode`).

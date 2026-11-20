@@ -6,7 +6,7 @@ Este documento descreve a arquitetura do protótipo **Projeto Hacker**, constru�
 
 ## 1. Estrutura de Arquivos
 
-- [index.html](file:///c:/Users/tiago/programação/SENAC/atividade-IA/projeto-hacker/index.html): Estrutura o `<canvas id="game-canvas">`, os overlays de efeitos visuais (`#nethack-overlay`, `#camera-overlay`, `#alert-vignette`), o HUD estilo DedSec/ctOS (incluindo o minimapa circular `<canvas id="radar-canvas">`), o modal de terminal para o minigame de digitação e as telas de início, Game Over e Vitória.
+- [index.html](file:///c:/Users/tiago/programação/SENAC/atividade-IA/projeto-hacker/index.html): Estrutura o `<canvas id="game-canvas">`, os overlays de efeitos visuais (`#nethack-overlay` com `#nethack-labels`, `#camera-overlay`, `#alert-vignette`), o HUD estilo DedSec/ctOS (incluindo o minimapa circular `<canvas id="radar-canvas">` e botão de mudo `#btn-mute`), o modal de terminal para o minigame de digitação e as telas de início (com seletor de dificuldade), Game Over e Vitória (com ranking e estatísticas).
 - [style.css](file:///c:/Users/tiago/programação/SENAC/atividade-IA/projeto-hacker/style.css): Define a estética cyberpunk com fontes monoespaçadas, paleta neon (`#00f0ff` ciano, `#ff0055` magenta, `#00ff88` verde), scanlines, barras de progresso (detecção e download) e estilização do terminal.
 - [script.js](file:///c:/Users/tiago/programação/SENAC/atividade-IA/projeto-hacker/script.js): Contém toda a lógica da cena 3D, movimentação e colisão do jogador, câmera orbital em 3ª pessoa, IA de patrulha e detecção dos guardas, mecânicas de hack e máquina de estados da missão.
 
@@ -46,7 +46,8 @@ IDLE ──(Iniciar Missão)──▶ INFILTRATE ──(Hack do Portão)──�
 - **`INFILTRATE`:** Portão trancado. Objetivo aponta para o painel na entrada.
 - **`STEAL_DATA`:** Portão desliza abrindo passagem. Jogador deve infiltrar-se até o servidor central, desativar o **Firewall** via terminal (`E`) e então segurar `E` para completar `downloadProgress` (`0%` a `100%` em `3.5s`).
 - **`ESCAPE`:** Objetivo muda para fugir até a Zona de Extração na rua.
-- **`VICTORY` / `GAMEOVER`:** Liberam o Pointer Lock e exibem a tela final correspondente com opção de reinício (`resetWorldState()`).
+- **`VICTORY` / `GAMEOVER`:** Liberam o Pointer Lock, param a trilha procedural e exibem a tela final correspondente com opção de reinício (`resetWorldState()`). Na vitória, `calculateMissionRank()` avalia tempo, detecção máxima e hacks executados para atribuir o rank (`RANK S - FANTASMA`, `RANK A - INFILTRADOR`, `RANK B - OPERATIVO` ou `RANK C`).
+- **Dificuldade (`DIFFICULTY_PRESETS`):** Selecionada na `#start-screen` entre `INICIANTE` (guardas mais lentos, `12.0s` no terminal) e `DEDSEC ELITE` (guardas e varredura de câmeras mais rápidos, `7.0s` no terminal).
 
 ---
 
@@ -71,7 +72,7 @@ Cada guarda em `guards` opera com uma máquina de estados (`GUARD_STATE`):
 
 ## 5. Mecânicas de Hack
 
-- **Visão NetHack (`toggleNetHack` / Tecla `V`):** Escurece a cena e a neblina, alterna os materiais de `structureMeshes` para wireframe translúcido, destaca dispositivos em `hackableMeshes` em ciano neon e exibe `networkLinesGroup` (`THREE.Line`) conectando Painel do Portão, Caixas Elétricas, Câmeras e Servidor.
+- **Visão NetHack (`toggleNetHack` / Tecla `V`):** Escurece a cena e a neblina, alterna os materiais de `structureMeshes` para wireframe translúcido, destaca dispositivos em `hackableMeshes` em ciano neon, exibe `networkLinesGroup` (`THREE.Line`) e projeta etiquetas flutuantes 3D-para-2D (`updateNetHackLabels` via `Vector3.project(camera)`) sobre Painel do Portão, Caixas Elétricas, Câmeras e Servidor.
 - **Caixas Elétricas de Distração (`buildElectricBoxes` / `triggerElectricBox`):** Duas caixas hackeáveis dentro do complexo (`CAIXA_ELETRICA_01` e `CAIXA_ELETRICA_02`). Pressionar `E` perto ou mirando na Visão NetHack gera faíscas (`THREE.Points`) e atrai o guarda mais próximo por `6.0s` (cooldown de `12.0s`).
 - **Hack e Sobrecarga de Câmeras (`cycleSecurityCamera` / `C` e `overloadActiveCamera` / `R`):** Transfere a `camera` principal para uma câmera do complexo (`securityCameras`), permitindo girar o ângulo com o mouse. Pressionar `R` durante o controle sobrecarrega e desativa a câmera (e seu cone de detecção verde) por `15.0s`.
 - **Minigame de Terminal (`openTerminal` / Tecla `E` no painel ou servidor):** Libera o Pointer Lock, exibe `#terminal-modal` com códigos variados (`HACK_CODES` para o portão em `10.0s`, `FIREWALL_CODES` para o firewall do servidor em `8.5s`) e executa `completeTerminalHack()` ao digitar o comando exato no `#hack-input`.

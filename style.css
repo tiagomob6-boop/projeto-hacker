@@ -414,8 +414,98 @@ kbd {
   padding: 14px;
   background: rgba(0, 240, 255, 0.05);
   border: 1px solid rgba(0, 240, 255, 0.2);
-  margin-bottom: 24px;
+  margin-bottom: 18px;
   font-size: 0.84rem;
+}
+
+/* Etiquetas 3D NetHack */
+#nethack-labels {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.nethack-tag {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  padding: 3px 8px;
+  background: rgba(4, 10, 22, 0.88);
+  border: 1px solid var(--cyan);
+  color: var(--cyan);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  white-space: nowrap;
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.28);
+}
+
+/* Seletor de Dificuldade */
+.difficulty-selector {
+  margin-bottom: 18px;
+}
+
+.diff-label {
+  display: block;
+  font-size: 0.75rem;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.diff-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.diff-btn {
+  padding: 9px 12px;
+  background: rgba(12, 20, 38, 0.9);
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.diff-btn.active {
+  border-color: var(--cyan);
+  background: rgba(0, 240, 255, 0.16);
+  color: var(--cyan);
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.25);
+}
+
+/* Ranking e Estatísticas de Vitória */
+.rank-badge {
+  margin: 10px 0 16px;
+  padding: 10px 14px;
+  text-align: center;
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: var(--green);
+  background: rgba(0, 255, 136, 0.1);
+  border: 1px solid var(--green);
+  box-shadow: 0 0 16px rgba(0, 255, 136, 0.2);
+}
+
+.victory-stats {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  margin-bottom: 20px;
+  background: rgba(6, 12, 24, 0.75);
+  border: 1px solid rgba(0, 255, 136, 0.28);
+  font-size: 0.86rem;
+}
+
+.victory-stats > div {
+  display: flex;
+  justify-content: space-between;
 }
 
 .cyber-btn {
