@@ -247,6 +247,7 @@ export function initThree() {
     new THREE.MeshBasicMaterial({
       map: TextureGenerator.getSunsetSkyTexture(),
       side: THREE.BackSide,
+      depthWrite: false,
       fog: false
     })
   );
@@ -525,6 +526,8 @@ export function buildInstancedWorldElements() {
   });
   refs.worldGroup.add(horizonMesh);
 }
+
+export function buildTraversableGoldenGate() {
   const zCenter = 35;
   const deckW = 18;
   const bridgeGroup = new THREE.Group();

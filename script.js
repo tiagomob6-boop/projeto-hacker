@@ -81,6 +81,7 @@ function setupInputs() {
       gameState.mission === MISSION_STATE.FREE_ROAM ||
       gameState.mission === MISSION_STATE.INFILTRATE ||
       gameState.mission === MISSION_STATE.STEAL_DATA ||
+      gameState.mission === MISSION_STATE.STEAL_CAR ||
       gameState.mission === MISSION_STATE.ESCAPE;
     if (!activeMode) return;
 
@@ -137,6 +138,7 @@ function setupInputs() {
       gameState.mission === MISSION_STATE.FREE_ROAM ||
       gameState.mission === MISSION_STATE.INFILTRATE ||
       gameState.mission === MISSION_STATE.STEAL_DATA ||
+      gameState.mission === MISSION_STATE.STEAL_CAR ||
       gameState.mission === MISSION_STATE.ESCAPE;
     if (playing && !gameState.terminalOpen && !gameState.missionModalOpen && document.pointerLockElement !== dom.canvas) {
       AudioManager.init();
@@ -153,6 +155,7 @@ function setupInputs() {
       gameState.mission === MISSION_STATE.FREE_ROAM ||
       gameState.mission === MISSION_STATE.INFILTRATE ||
       gameState.mission === MISSION_STATE.STEAL_DATA ||
+      gameState.mission === MISSION_STATE.STEAL_CAR ||
       gameState.mission === MISSION_STATE.ESCAPE;
     if (!playing) return;
 
@@ -212,9 +215,6 @@ function setupInputs() {
   });
 }
 
-// ==========================================
-// MECÂNICAS DE HACK (NETHACK, CÂMERA, PORTÃO)
-
 function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(refs.clock.getDelta(), 0.05);
@@ -225,6 +225,7 @@ function animate() {
   const isContract =
     gameState.mission === MISSION_STATE.INFILTRATE ||
     gameState.mission === MISSION_STATE.STEAL_DATA ||
+    gameState.mission === MISSION_STATE.STEAL_CAR ||
     gameState.mission === MISSION_STATE.ESCAPE;
   const isPlaying = isContract || gameState.mission === MISSION_STATE.FREE_ROAM;
 
@@ -252,12 +253,29 @@ function animate() {
   refs.renderer.render(refs.scene, refs.camera);
 }
 
+function showFatalError(err) {
+  console.error('[Projeto Hacker] Erro de inicialização:', err);
+  const existing = document.getElementById('fatal-error-banner');
+  const banner = existing || document.createElement('div');
+  banner.id = 'fatal-error-banner';
+  banner.style.cssText =
+    'position:fixed;inset:24px;z-index:9999;background:rgba(10,14,24,0.96);border:2px solid #ff0055;color:#ff88aa;padding:24px;font-family:monospace;font-size:14px;overflow:auto;white-space:pre-wrap;';
+  banner.textContent = `ERRO CRÍTICO DE RENDERIZAÇÃO:\n${err?.stack || err?.message || String(err)}`;
+  if (!existing && document.body) {
+    document.body.appendChild(banner);
+  }
+}
+
 // ==========================================
 // BOOTSTRAP
 // ==========================================
-initThree();
-setupInputs();
-setMissionState(MISSION_STATE.FREE_ROAM);
-updateMoneyHUD();
-updateHpHUD();
-animate();
+try {
+  initThree();
+  setupInputs();
+  setMissionState(MISSION_STATE.FREE_ROAM);
+  updateMoneyHUD();
+  updateHpHUD();
+  animate();
+} catch (err) {
+  showFatalError(err);
+}
