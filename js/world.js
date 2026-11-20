@@ -41,7 +41,8 @@ import {
   buildNetHackLabels,
   toggleNetHack,
   setMissionState,
-  updateHpHUD
+  updateHpHUD,
+  updateVehicleHpHUD
 } from './ui.js';
 import { selectWeapon } from './combat.js';
 import {
@@ -656,10 +657,14 @@ export function buildInstancedWorldElements() {
 }
 
 export function buildMissionMarkers() {
-  ['COMPLEXO_CTOS', 'DOCAS_BAIA_SF'].forEach((mKey) => {
+  ['COMPLEXO_CTOS', 'DOCAS_BAIA_SF', 'VIP_CAR_01', 'VIP_CAR_02'].forEach((mKey) => {
     const mCfg = MAPS_CONFIG[mKey];
     const [mx, my, mz] = mCfg.markerPos;
-    const color = mKey === 'COMPLEXO_CTOS' ? 0x00f0ff : 0xffaa00;
+    const color = mKey.startsWith('VIP_CAR')
+      ? 0xd946ef
+      : mKey === 'COMPLEXO_CTOS'
+      ? 0x00f0ff
+      : 0xffaa00;
 
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(1.8, 2.3, 32),
@@ -685,6 +690,35 @@ export function buildMissionMarkers() {
 
     missionMarkers.push({ key: mKey, pos: new THREE.Vector3(mx, 0, mz), ring, beam });
   });
+
+  // Zona de entrega de veículos VIP na Garagem Clandestina DedSec (-120, 0, 320)
+  const delivGroup = new THREE.Group();
+  delivGroup.position.set(-120, 0.06, 320);
+  const delivRing = new THREE.Mesh(
+    new THREE.RingGeometry(3.4, 4.2, 36),
+    new THREE.MeshBasicMaterial({ color: 0x00ff88, side: THREE.DoubleSide, transparent: true, opacity: 0.9 })
+  );
+  delivRing.rotation.x = -Math.PI / 2;
+  delivGroup.add(delivRing);
+
+  const delivBeam = new THREE.Mesh(
+    new THREE.CylinderGeometry(3.5, 3.8, 9.0, 28, 1, true),
+    new THREE.MeshBasicMaterial({
+      color: 0x00ff88,
+      transparent: true,
+      opacity: 0.18,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    })
+  );
+  delivBeam.position.y = 4.5;
+  delivGroup.add(delivBeam);
+  delivGroup.visible = false;
+  refs.worldGroup.add(delivGroup);
+  refs.vehicleDeliveryGroup = delivGroup;
+  refs.vehicleDeliveryRing = delivRing;
+  refs.vehicleDeliveryBeam = delivBeam;
 }
 
 export function setupLighting() {
@@ -1589,7 +1623,9 @@ export function buildCarMesh(color, neonTrim, isPatrol = false) {
 
 export function buildCars() {
   const worldCars = [
-    { x: -10, z: 42, yaw: Math.PI / 2, color: 0x111827, neon: 0x00f0ff, isDedsec: true },
+    { x: -10, z: 42, yaw: Math.PI / 2, color: 0x111827, neon: 0x00f0ff, isDedsec: true, isDrivable: true, maxHp: 100 },
+    { x: -42, z: -24, yaw: Math.PI * 0.5, color: 0xcc22ff, neon: 0xd946ef, isDedsec: false, isDrivable: true, maxHp: 120, vipMissionKey: 'VIP_CAR_01' },
+    { x: DOCKS_OFFSET_X + 76, z: 14, yaw: -Math.PI * 0.5, color: 0x3b4252, neon: 0xd946ef, isDedsec: false, isDrivable: true, maxHp: 220, vipMissionKey: 'VIP_CAR_02' },
     { x: -40, z: 28, yaw: 0, color: 0x141720, neon: 0xff0044, isDedsec: false, isPatrol: true },
     { x: 16, z: 16, yaw: -Math.PI / 2, color: 0x141720, neon: 0xff0044, isDedsec: false, isPatrol: true },
     { x: -16, z: 16, yaw: Math.PI / 2, color: 0x26314a, neon: 0xffaa00, isDedsec: false },
@@ -1606,12 +1642,36 @@ export function buildCars() {
     carGroup.rotation.y = carCfg.yaw;
     refs.worldGroup.add(carGroup);
 
+    const isDrivable = !!(carCfg.isDedsec || carCfg.isDrivable);
     let headlight = null;
-    if (carCfg.isDedsec) {
-      headlight = new THREE.PointLight(0x00f0ff, 0, 16);
+    if (isDrivable) {
+      headlight = new THREE.PointLight(carCfg.neon || 0x00f0ff, 0, 16);
       headlight.position.set(0, 1.0, 2.8);
       carGroup.add(headlight);
     }
+
+    // Partículas de fumaça escura (ativas quando HP <= 35)
+    const smokeCount = 22;
+    const smokePos = new Float32Array(smokeCount * 3);
+    const smokeData = [];
+    for (let s = 0; s < smokeCount; s++) {
+      smokePos[s * 3] = (Math.random() - 0.5) * 0.7;
+      smokePos[s * 3 + 1] = 0.8 + Math.random() * 1.4;
+      smokePos[s * 3 + 2] = 1.3 + (Math.random() - 0.5) * 0.6;
+      smokeData.push({ speed: 1.2 + Math.random() * 1.4, phase: Math.random() * Math.PI * 2 });
+    }
+    const smokeGeo = new THREE.BufferGeometry();
+    smokeGeo.setAttribute('position', new THREE.BufferAttribute(smokePos, 3));
+    const smokeMat = new THREE.PointsMaterial({
+      color: 0x2b2b2b,
+      size: 0.55,
+      transparent: true,
+      opacity: 0.75,
+      depthWrite: false
+    });
+    const smokePoints = new THREE.Points(smokeGeo, smokeMat);
+    smokePoints.visible = false;
+    carGroup.add(smokePoints);
 
     carGroup.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(carGroup);
@@ -1619,6 +1679,7 @@ export function buildCars() {
     colliders.push(colliderObj);
     occluders.push(bodyMesh);
 
+    const maxHp = carCfg.maxHp || 100;
     const carObj = {
       id: idx,
       mesh: carGroup,
@@ -1626,7 +1687,15 @@ export function buildCars() {
       colliderObj,
       initialPos: new THREE.Vector3(carCfg.x, 0, carCfg.z),
       initialYaw: carCfg.yaw,
-      isDedsec: carCfg.isDedsec,
+      initialColor: carCfg.color,
+      isDedsec: !!carCfg.isDedsec,
+      isDrivable,
+      vipMissionKey: carCfg.vipMissionKey || null,
+      maxHp,
+      hp: maxHp,
+      destroyed: false,
+      smokePoints,
+      smokeData,
       speed: 0,
       hackedTimer: 0,
       hackedUsed: false,
@@ -1791,6 +1860,7 @@ export function resetWorldState(keepPlayerPos = false) {
   gameState.empCooldown = 0;
   selectWeapon(WEAPON_TYPE.TASER);
   updateHpHUD();
+  updateVehicleHpHUD();
   if (dom.damageFlash) dom.damageFlash.classList.add('hidden');
   if (dom.baseAlertBanner) dom.baseAlertBanner.classList.add('hidden');
   gameState.isSprinting = false;
@@ -1820,6 +1890,16 @@ export function resetWorldState(keepPlayerPos = false) {
     cars.forEach((car) => {
       car.mesh.position.copy(car.initialPos);
       car.mesh.rotation.y = car.initialYaw;
+      car.hp = car.maxHp;
+      car.destroyed = false;
+      if (car.smokePoints) car.smokePoints.visible = false;
+      if (car.bodyMesh?.userData?.normalMaterial) {
+        car.bodyMesh.userData.normalMaterial.color.setHex(car.initialColor ?? 0x111827);
+        if (car.bodyMesh.userData.normalMaterial.emissive) {
+          car.bodyMesh.userData.normalMaterial.emissive.setHex(0x000000);
+          car.bodyMesh.userData.normalMaterial.emissiveIntensity = 0;
+        }
+      }
       car.speed = 0;
       car.hackedTimer = 0;
       car.hackedUsed = false;
@@ -1941,7 +2021,17 @@ export function startContract(missionKey) {
   dom.gameoverScreen.classList.add('hidden');
   dom.victoryScreen.classList.add('hidden');
   dom.hud.classList.remove('hidden');
-  setMissionState(MISSION_STATE.INFILTRATE);
+
+  const mCfg = MAPS_CONFIG[missionKey];
+  if (mCfg?.isVehicleTheft) {
+    gameState.targetCar = cars.find((c) => c.vipMissionKey === missionKey) || null;
+    if (refs.vehicleDeliveryGroup) refs.vehicleDeliveryGroup.visible = true;
+    setMissionState(MISSION_STATE.STEAL_CAR);
+  } else {
+    gameState.targetCar = null;
+    if (refs.vehicleDeliveryGroup) refs.vehicleDeliveryGroup.visible = false;
+    setMissionState(MISSION_STATE.INFILTRATE);
+  }
   AudioManager.startMusic(96);
   dom.canvas.requestPointerLock();
 }
@@ -1954,6 +2044,8 @@ export function returnToFreeRoam() {
     gameState.selectedMap = 'COMPLEXO_CTOS';
   }
   gameState.activeMissionKey = null;
+  gameState.targetCar = null;
+  if (refs.vehicleDeliveryGroup) refs.vehicleDeliveryGroup.visible = false;
   gameState.markerCooldown = 3.5;
   resetWorldState(keepPos);
   dom.gameoverScreen.classList.add('hidden');

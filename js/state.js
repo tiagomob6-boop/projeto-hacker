@@ -8,6 +8,7 @@ export const MISSION_STATE = {
   IDLE: 'IDLE',
   INFILTRATE: 'INFILTRATE',
   STEAL_DATA: 'STEAL_DATA',
+  STEAL_CAR: 'STEAL_CAR',
   ESCAPE: 'ESCAPE',
   VICTORY: 'VICTORY',
   GAMEOVER: 'GAMEOVER'
@@ -100,6 +101,46 @@ export const MAPS_CONFIG = {
       { waypoints: [[DOCKS_OFFSET_X - 16, 0, -30], [DOCKS_OFFSET_X + 16, 0, -30], [DOCKS_OFFSET_X + 16, 0, -44], [DOCKS_OFFSET_X - 16, 0, -44]], speed: 3.2, visionRange: 22 },
       { waypoints: [[DOCKS_OFFSET_X - 14, 0, 26], [DOCKS_OFFSET_X + 14, 0, 26], [DOCKS_OFFSET_X + 14, 0, 34], [DOCKS_OFFSET_X - 14, 0, 34]], speed: 2.7, visionRange: 22 }
     ]
+  },
+  VIP_CAR_01: {
+    key: 'VIP_CAR_01',
+    isVehicleTheft: true,
+    label: 'CONTRATO VEICULAR 01 // PROTÓTIPO BLUME',
+    desc: 'Roube o Protótipo Esportivo Blume no pátio vigiado em Downtown e entregue-o intacto na Garagem Clandestina DedSec (Distrito Sul).',
+    reward: 1800,
+    bounds: WORLD_BOUNDS,
+    radarScale: 0.95,
+    playerStart: [-52, 0, -10],
+    markerPos: [-52, 0.06, -18],
+    extractPos: [-120, 0.06, 320],
+    carSpawn: { x: -42, z: -24, yaw: Math.PI * 0.5, maxHp: 120, color: 0xcc22ff, name: 'Protótipo Esportivo Blume' },
+    gates: [],
+    cameras: [],
+    electricBoxes: [],
+    guards: [
+      { waypoints: [[-50, 0, -18], [-34, 0, -18], [-34, 0, -30], [-50, 0, -30]], speed: 3.1, visionRange: 22 },
+      { waypoints: [[-36, 0, -28], [-48, 0, -28], [-48, 0, -16], [-36, 0, -16]], speed: 3.3, visionRange: 22 }
+    ]
+  },
+  VIP_CAR_02: {
+    key: 'VIP_CAR_02',
+    isVehicleTheft: true,
+    label: 'CONTRATO VEICULAR 02 // SUV BLINDADO ctOS',
+    desc: 'Roube o SUV Blindado ctOS (220 HP) no terminal portuário das Docas, escape pela ponte e entregue-o na Garagem Clandestina DedSec (Distrito Sul).',
+    reward: 3000,
+    bounds: WORLD_BOUNDS,
+    radarScale: 0.95,
+    playerStart: [DOCKS_OFFSET_X + 58, 0, 14],
+    markerPos: [DOCKS_OFFSET_X + 64, 0.06, 14],
+    extractPos: [-120, 0.06, 320],
+    carSpawn: { x: DOCKS_OFFSET_X + 76, z: 14, yaw: -Math.PI * 0.5, maxHp: 220, color: 0x3b4252, name: 'SUV Blindado ctOS' },
+    gates: [],
+    cameras: [],
+    electricBoxes: [],
+    guards: [
+      { waypoints: [[DOCKS_OFFSET_X + 68, 0, 6], [DOCKS_OFFSET_X + 84, 0, 6], [DOCKS_OFFSET_X + 84, 0, 22], [DOCKS_OFFSET_X + 68, 0, 22]], speed: 3.2, visionRange: 22 },
+      { waypoints: [[DOCKS_OFFSET_X + 82, 0, 20], [DOCKS_OFFSET_X + 66, 0, 20], [DOCKS_OFFSET_X + 66, 0, 8], [DOCKS_OFFSET_X + 82, 0, 8]], speed: 3.4, visionRange: 22 }
+    ]
   }
 };
 
@@ -188,6 +229,9 @@ export const dom = {
   downloadContainer: document.getElementById('download-container'),
   downloadBar: document.getElementById('download-bar'),
   downloadPercent: document.getElementById('download-percent'),
+  vehicleHpContainer: document.getElementById('vehicle-hp-container'),
+  vehicleHpBar: document.getElementById('vehicle-hp-bar'),
+  vehicleHpPercent: document.getElementById('vehicle-hp-percent'),
   interactPrompt: document.getElementById('interact-prompt'),
   camName: document.getElementById('cam-name'),
   hackTimer: document.getElementById('hack-timer'),
@@ -236,6 +280,9 @@ export const refs = {
   waterMesh: null,
   waterTexture: null,
   dedsecCar: null,
+  vehicleDeliveryGroup: null,
+  vehicleDeliveryRing: null,
+  vehicleDeliveryBeam: null,
   onFirewallDisabled: null,
   onAcceptMission: null
 };
@@ -287,6 +334,8 @@ export const gameState = {
   activeCamIndex: -1, // -1 = câmera 3ª pessoa do jogador
   drivingCar: null,
   drivingBoat: null,
+  targetCar: null,
+  deliveryPos: [-120, 0.06, 320],
   equippedWeapon: WEAPON_TYPE.TASER,
   weaponCooldown: 0,
   taserCooldown: 0,

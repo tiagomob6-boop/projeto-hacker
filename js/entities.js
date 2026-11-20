@@ -37,7 +37,8 @@ import {
   setMissionState,
   openMissionModal,
   triggerGameOver,
-  triggerVictory
+  triggerVictory,
+  updateVehicleHpHUD
 } from './ui.js';
 import {
   stunGuard,
@@ -579,6 +580,7 @@ export function toggleDriveDedsecCar() {
     refs.playerGroup.visible = true;
     car.mesh.updateMatrixWorld(true);
     car.colliderObj.box.setFromObject(car.mesh);
+    updateVehicleHpHUD();
     return;
   }
 
@@ -594,13 +596,28 @@ export function toggleDriveDedsecCar() {
     }
   }
 
-  if (refs.dedsecCar && refs.playerGroup.position.distanceTo(refs.dedsecCar.mesh.position) < 4.0) {
-    gameState.drivingCar = refs.dedsecCar;
+  let nearestCar = null;
+  let nearestDist = 4.2;
+  for (const car of cars) {
+    if (!car.isDrivable || car.destroyed) continue;
+    const d = refs.playerGroup.position.distanceTo(car.mesh.position);
+    if (d < nearestDist) {
+      nearestDist = d;
+      nearestCar = car;
+    }
+  }
+
+  if (nearestCar) {
+    gameState.drivingCar = nearestCar;
     gameState.isCrouching = false;
     gameState.isSprinting = false;
     refs.playerGroup.visible = false;
-    if (refs.dedsecCar.headlight) refs.dedsecCar.headlight.intensity = 2.4;
+    if (nearestCar.headlight) nearestCar.headlight.intensity = 2.4;
     if (!gameState.netHackActive) dom.statusMode.textContent = 'VEÍCULO';
+    updateVehicleHpHUD();
+    if (nearestCar === gameState.targetCar && gameState.mission === MISSION_STATE.STEAL_CAR) {
+      triggerBaseAlert();
+    }
   }
 }
 
@@ -609,7 +626,24 @@ export function toggleDriveDedsecCar() {
 // ==========================================
 export function updateCars(dt) {
   cars.forEach((car) => {
-    if (car.isDedsec || car.hackedTimer <= 0) return;
+    // Fumaça escura quando integridade <= 35%
+    if (car.smokePoints) {
+      if (car.hp <= 35) {
+        car.smokePoints.visible = true;
+        const posAttr = car.smokePoints.geometry.getAttribute('position');
+        for (let s = 0; s < car.smokeData.length; s++) {
+          const sd = car.smokeData[s];
+          let sy = posAttr.getY(s) + sd.speed * dt;
+          if (sy > 2.6) sy = 0.85;
+          posAttr.setY(s, sy);
+        }
+        posAttr.needsUpdate = true;
+      } else {
+        car.smokePoints.visible = false;
+      }
+    }
+
+    if (car.isDrivable || car.destroyed || car.hackedTimer <= 0) return;
 
     car.hackedTimer = Math.max(0, car.hackedTimer - dt);
     const forwardX = Math.sin(car.mesh.rotation.y);
@@ -1281,8 +1315,18 @@ export function updateInteractionsAndMission(dt) {
           break;
         }
       }
-      if (!promptText && refs.dedsecCar && pPos.distanceTo(refs.dedsecCar.mesh.position) < 4.0) {
-        promptText = '[F] ENTRAR NO CARRO DEDSEC';
+      if (!promptText) {
+        for (const car of cars) {
+          if (car.isDrivable && !car.destroyed && pPos.distanceTo(car.mesh.position) < 4.2) {
+            promptText =
+              car === gameState.targetCar
+                ? '[F] ROUBAR VEÍCULO VIP'
+                : car.isDedsec
+                ? '[F] ENTRAR NO CARRO DEDSEC'
+                : '[F] ENTRAR NO VEÍCULO';
+            break;
+          }
+        }
       }
     }
   }
@@ -1338,6 +1382,23 @@ export function updateInteractionsAndMission(dt) {
       }
     } else {
       dom.downloadContainer.classList.add('hidden');
+    }
+  }
+
+  // Verificar entrega de veículo VIP na Garagem Clandestina DedSec (-120, 320)
+  if (
+    gameState.mission === MISSION_STATE.STEAL_CAR &&
+    gameState.targetCar &&
+    !gameState.targetCar.destroyed &&
+    gameState.drivingCar === gameState.targetCar
+  ) {
+    const distDelivery = Math.hypot(
+      gameState.targetCar.mesh.position.x - -120,
+      gameState.targetCar.mesh.position.z - 320
+    );
+    if (distDelivery < 6.5) {
+      triggerVictory();
+      return;
     }
   }
 

@@ -4,6 +4,8 @@ import {
   GUARD_STATE,
   WEAPON_TYPE,
   WEAPON_CONFIG,
+  WORLD_BOUNDS,
+  getSurfaceHeight,
   dom,
   refs,
   gameState,
@@ -17,7 +19,7 @@ import {
   impactFlashes
 } from './state.js';
 import { AudioManager } from './audio.js';
-import { updateWeaponHUD, updateHpHUD, triggerGameOver } from './ui.js';
+import { updateWeaponHUD, updateHpHUD, updateVehicleHpHUD, triggerGameOver } from './ui.js';
 
 export function selectWeapon(weaponType) {
   gameState.equippedWeapon = weaponType;
@@ -285,19 +287,104 @@ export function updateGuardProjectiles(dt) {
     gp.pos.addScaledVector(gp.dir, step);
     gp.mesh.position.copy(gp.pos);
 
-    const distPlayer = Math.hypot(gp.pos.x - pPos.x, gp.pos.z - pPos.z);
-    const maxPlayerY = gameState.isCrouching ? 1.25 : 2.05;
-    if (distPlayer < 0.72 && gp.pos.y >= 0.1 && gp.pos.y <= maxPlayerY) {
-      damagePlayer(12);
-      refs.scene.remove(gp.mesh);
-      guardProjectiles.splice(i, 1);
-      continue;
+    if (gameState.drivingCar && !gameState.drivingCar.destroyed) {
+      const carBox = gameState.drivingCar.colliderObj.box.clone().expandByScalar(0.35);
+      if (carBox.containsPoint(gp.pos)) {
+        damageCar(gameState.drivingCar, 12);
+        refs.scene.remove(gp.mesh);
+        guardProjectiles.splice(i, 1);
+        continue;
+      }
+    } else {
+      const distPlayer = Math.hypot(gp.pos.x - pPos.x, gp.pos.z - pPos.z);
+      const maxPlayerY = gameState.isCrouching ? 1.25 : 2.05;
+      if (distPlayer < 0.72 && gp.pos.y >= 0.1 && gp.pos.y <= maxPlayerY) {
+        damagePlayer(12);
+        refs.scene.remove(gp.mesh);
+        guardProjectiles.splice(i, 1);
+        continue;
+      }
     }
 
     if (hitObs.length > 0 || gp.life <= 0) {
       refs.scene.remove(gp.mesh);
       guardProjectiles.splice(i, 1);
     }
+  }
+}
+
+export function damageCar(car, amount) {
+  if (!car || car.destroyed) return;
+  car.hp = Math.max(0, car.hp - amount);
+  if (car === gameState.drivingCar) {
+    updateVehicleHpHUD();
+  }
+  if (car.hp <= 0) {
+    explodeCar(car);
+  }
+}
+
+export function explodeCar(car) {
+  if (!car || car.destroyed) return;
+  car.destroyed = true;
+  car.hp = 0;
+  car.speed = 0;
+  if (car.headlight) car.headlight.intensity = 0;
+
+  if (gameState.drivingCar === car) {
+    gameState.drivingCar = null;
+    AudioManager.stopEngineSound();
+    const sideX = Math.cos(car.mesh.rotation.y) * 2.4;
+    const sideZ = -Math.sin(car.mesh.rotation.y) * 2.4;
+    const outX = THREE.MathUtils.clamp(car.mesh.position.x + sideX, WORLD_BOUNDS.minX, WORLD_BOUNDS.maxX);
+    const outZ = THREE.MathUtils.clamp(car.mesh.position.z + sideZ, WORLD_BOUNDS.minZ, WORLD_BOUNDS.maxZ);
+    refs.playerGroup.position.set(outX, getSurfaceHeight(outX, outZ), outZ);
+    refs.playerGroup.visible = true;
+    updateVehicleHpHUD();
+    damagePlayer(25);
+  }
+
+  AudioManager.playExplosion();
+  spawnImpactFlash(car.mesh.position.clone().add(new THREE.Vector3(0, 1.3, 0)), 0xff5500);
+
+  const ringGeo = new THREE.RingGeometry(0.6, 1.4, 32);
+  const ringMat = new THREE.MeshBasicMaterial({
+    color: 0xff5500,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.9
+  });
+  const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+  ringMesh.rotation.x = -Math.PI / 2;
+  ringMesh.position.set(car.mesh.position.x, car.mesh.position.y + 0.35, car.mesh.position.z);
+  refs.worldGroup.add(ringMesh);
+  empWaves.push({ mesh: ringMesh, mat: ringMat, radius: 1.0, maxRadius: 12.0 });
+
+  car.mesh.traverse((child) => {
+    if (child.isMesh && child.userData?.normalMaterial) {
+      child.userData.normalMaterial.color.setHex(0x1a1a1a);
+      if (child.userData.normalMaterial.emissive) {
+        child.userData.normalMaterial.emissive.setHex(0x220800);
+        child.userData.normalMaterial.emissiveIntensity = 0.25;
+      }
+      if (!gameState.netHackActive) {
+        child.material = child.userData.normalMaterial;
+      }
+    }
+  });
+
+  guards.forEach((g) => {
+    if (g.state === GUARD_STATE.DEAD) return;
+    if (g.mesh.position.distanceTo(car.mesh.position) <= 10.5) {
+      damageGuard(g, 110);
+    }
+  });
+
+  if (car === gameState.targetCar && gameState.mission === MISSION_STATE.STEAL_CAR) {
+    triggerGameOver(
+      'VEÍCULO VIP DESTRUÍDO',
+      'O veículo do contrato explodiu antes da entrega na Garagem DedSec.'
+    );
   }
 }
 

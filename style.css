@@ -255,7 +255,8 @@ kbd {
 
 /* Barras de Progresso */
 #detection-container,
-#download-container {
+#download-container,
+#vehicle-hp-container {
   position: fixed;
   left: 50%;
   transform: translateX(-50%);
@@ -263,6 +264,11 @@ kbd {
   background: var(--panel-bg);
   padding: 10px 14px;
   border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+#vehicle-hp-container {
+  bottom: 124px;
+  border-color: rgba(0, 240, 255, 0.65);
 }
 
 #detection-container {

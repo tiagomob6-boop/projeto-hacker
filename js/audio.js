@@ -210,6 +210,30 @@ export const AudioManager = {
     this._tone(880, 540, 0.32, 'sawtooth', 0.16, 1500, 0.28);
   },
 
+  playExplosion() {
+    if (!this.ctx || this.muted) return;
+    this._tone(115, 26, 0.85, 'sine', 0.32, 300);
+    if (!this.noiseBuffer) return;
+    const now = this.ctx.currentTime;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noiseBuffer;
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(680, now);
+    filter.frequency.exponentialRampToValueAtTime(90, now + 0.85);
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.32, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
+
+    src.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.masterGain);
+    src.start(now);
+    src.stop(now + 0.92);
+  },
+
   startMusic(bpm = 96) {
     this.stopMusic();
     this.currentBpm = bpm;

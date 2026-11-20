@@ -78,15 +78,20 @@ export function buildNetHackLabels() {
   );
 
   cars.forEach((car) => {
-    if (car.isDedsec) {
+    if (car.isDrivable) {
       registerTag(
         () => car.mesh.position.clone().add(new THREE.Vector3(0, 2.0, 0)),
-        () => (gameState.drivingCar ? '[F] SAIR DO CARRO' : '[F] DIRIGIR DEDSEC')
+        () =>
+          car.destroyed
+            ? 'SUCATA QUEIMADA'
+            : gameState.drivingCar === car
+            ? '[F] SAIR DO VEÍCULO'
+            : `[F] DIRIGIR (${Math.ceil((car.hp / car.maxHp) * 100)}% HP)`
       );
     } else {
       registerTag(
         () => car.mesh.position.clone().add(new THREE.Vector3(0, 2.0, 0)),
-        () => (car.hackedUsed ? 'CARRO HACKEADO' : '[E] ACELERAR CARRO')
+        () => (car.destroyed ? 'SUCATA' : car.hackedUsed ? 'CARRO HACKEADO' : '[E] ACELERAR CARRO')
       );
     }
   });
@@ -279,6 +284,25 @@ export function updateHpHUD() {
   }
 }
 
+export function updateVehicleHpHUD() {
+  if (!dom.vehicleHpContainer) return;
+  const car = gameState.drivingCar;
+  if (!car) {
+    dom.vehicleHpContainer.classList.add('hidden');
+    return;
+  }
+  dom.vehicleHpContainer.classList.remove('hidden');
+  const pct = THREE.MathUtils.clamp((car.hp / (car.maxHp || 100)) * 100, 0, 100);
+  if (dom.vehicleHpPercent) {
+    dom.vehicleHpPercent.textContent = `${Math.ceil(pct)}%`;
+    dom.vehicleHpPercent.className = pct > 50 ? 'neon-green' : pct > 35 ? 'neon-cyan' : 'neon-magenta';
+  }
+  if (dom.vehicleHpBar) {
+    dom.vehicleHpBar.style.width = `${pct}%`;
+    dom.vehicleHpBar.style.background = pct <= 35 ? '#ff0055' : pct <= 65 ? '#ffaa00' : '#00f0ff';
+  }
+}
+
 export function setMissionState(newState) {
   gameState.mission = newState;
 
@@ -291,6 +315,10 @@ export function setMissionState(newState) {
   } else if (newState === MISSION_STATE.STEAL_DATA) {
     dom.missionObjective.textContent = 'BAIXE OS DADOS DO SERVIDOR CENTRAL';
     dom.missionSub.textContent = 'Use cobertura [V / C] contra os guardas e segure [E] no servidor';
+  } else if (newState === MISSION_STATE.STEAL_CAR) {
+    dom.missionObjective.textContent = 'ROUBE O VEÍCULO VIP E ENTREGUE NA GARAGEM DEDSEC';
+    dom.missionSub.textContent = 'Entre no carro marcado [F] e dirija até a Garagem Clandestina no Distrito Sul';
+    AudioManager.setMusicTempo(134);
   } else if (newState === MISSION_STATE.ESCAPE) {
     dom.missionObjective.textContent = 'FUJA PARA A ZONA DE EXTRAÇÃO';
     dom.missionSub.textContent = 'Corra até o anel verde na rua para concluir a missão';
@@ -369,6 +397,7 @@ export function triggerVictory() {
   if (document.pointerLockElement === dom.canvas) {
     document.exitPointerLock();
   }
+  const activeCfg = MAPS_CONFIG[gameState.activeMissionKey || gameState.selectedMap] || MAPS_CONFIG.COMPLEXO_CTOS;
   const rank = calculateMissionRank();
   const rewardMap = {
     'RANK S - FANTASMA': 2500,
@@ -376,18 +405,18 @@ export function triggerVictory() {
     'RANK B - OPERATIVO': 1300,
     'RANK C': 1000
   };
-  const reward = rewardMap[rank] || 1000;
+  const reward = activeCfg.isVehicleTheft ? activeCfg.reward || 2000 : rewardMap[rank] || 1000;
   gameState.money += reward;
   updateMoneyHUD();
 
   dom.hud.classList.add('hidden');
   dom.finalTime.textContent = formatTime(gameState.elapsedTime);
-  if (dom.finalRank) dom.finalRank.textContent = rank;
+  if (dom.finalRank) dom.finalRank.textContent = activeCfg.isVehicleTheft ? 'ENTREGA VIP CONCLUÍDA' : rank;
   if (dom.finalReward) dom.finalReward.textContent = `+$${reward.toLocaleString('pt-BR')}`;
   if (dom.finalDetection) dom.finalDetection.textContent = `${Math.round(gameState.maxDetection)}%`;
   if (dom.finalHacks) dom.finalHacks.textContent = String(gameState.hacksUsed);
   if (dom.finalMap) {
-    dom.finalMap.textContent = (MAPS_CONFIG[gameState.selectedMap] || MAPS_CONFIG.COMPLEXO_CTOS).label;
+    dom.finalMap.textContent = activeCfg.label;
   }
   if (dom.finalDifficulty) {
     dom.finalDifficulty.textContent = DIFFICULTY_PRESETS[gameState.difficulty].label;
@@ -448,13 +477,25 @@ export function updateRadar() {
 
   // Garagem DedSec no Distrito Sul
   const garPos = toRadar(-120, 320);
-  ctx.fillStyle = 'rgba(0, 255, 136, 0.35)';
+  ctx.fillStyle = gameState.mission === MISSION_STATE.STEAL_CAR ? 'rgba(0, 255, 136, 0.7)' : 'rgba(0, 255, 136, 0.35)';
   ctx.fillRect(garPos.x - 6, garPos.y - 5, 12, 10);
+  ctx.strokeStyle = '#00ff88';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(garPos.x - 6, garPos.y - 5, 12, 10);
+  if (gameState.mission === MISSION_STATE.STEAL_CAR) {
+    ctx.beginPath();
+    ctx.arc(garPos.x, garPos.y, 9, 0, Math.PI * 2);
+    ctx.stroke();
+  }
 
   // Marcadores de missão no radar
   missionMarkers.forEach((m) => {
     const mp = toRadar(m.pos.x, m.pos.z);
-    ctx.strokeStyle = m.key === 'COMPLEXO_CTOS' ? '#00f0ff' : '#ffaa00';
+    ctx.strokeStyle = m.key.startsWith('VIP_CAR')
+      ? '#d946ef'
+      : m.key === 'COMPLEXO_CTOS'
+      ? '#00f0ff'
+      : '#ffaa00';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(mp.x, mp.y, 4.5, 0, Math.PI * 2);
@@ -525,13 +566,21 @@ export function updateRadar() {
     ctx.restore();
   });
 
-  // Carros (estacionados e DedSec dirigível)
+  // Carros (estacionados, VIPs e DedSec dirigível)
   cars.forEach((car) => {
     const cp = toRadar(car.mesh.position.x, car.mesh.position.z);
     ctx.save();
     ctx.translate(cp.x, cp.y);
     ctx.rotate(-car.mesh.rotation.y);
-    ctx.fillStyle = car.isDedsec ? '#00f0ff' : car.hackedUsed ? '#ffaa00' : '#94a3b8';
+    ctx.fillStyle = car.destroyed
+      ? '#334155'
+      : car === gameState.targetCar
+      ? '#d946ef'
+      : car.isDedsec
+      ? '#00f0ff'
+      : car.hackedUsed
+      ? '#ffaa00'
+      : '#94a3b8';
     ctx.fillRect(-1.05 * scale, -2.2 * scale, 2.1 * scale, 4.4 * scale);
     ctx.restore();
   });
