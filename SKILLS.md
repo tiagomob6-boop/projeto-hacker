@@ -5,9 +5,10 @@ Este documento define as convenções técnicas obrigatórias para qualquer evol
 ---
 
 ## 1. Stack e Restrições de Dependências
-- **100% Vanilla JS (ES6+)**, **HTML5** e **CSS3**.
+- **100% Vanilla JS (ES Modules nativos no navegador)**, **HTML5** e **CSS3**.
+- Estrutura modular em `js/` (`state.js`, `audio.js`, `ui.js`, `combat.js`, `entities.js`, `world.js`) com [script.js](file:///c:/Users/tiago/programação/SENAC/atividade-IA/projeto-hacker/script.js) como *entrypoint*; todos os `import` / `export` devem usar caminhos relativos com extensão `.js` (compatível com Live Server e GitHub Pages).
 - **Three.js `0.160.0`** carregado exclusivamente via CDN usando `<script type="importmap">` em [index.html](file:///c:/Users/tiago/programação/SENAC/atividade-IA/projeto-hacker/index.html).
-- **Zero bundlers** (sem Vite, Webpack, Parcel, Babel ou Node.js). O projeto deve rodar diretamente no navegador via **Live Server**.
+- **Zero bundlers** (sem Vite, Webpack, Parcel, Babel ou Node.js em produção). O projeto deve rodar diretamente no navegador via **Live Server** ou **GitHub Pages**.
 - **Zero assets externos** (proibido importar `.glb`, `.gltf`, `.mp3`, `.wav`, `.png`, `.jpg` ou fontes externas). Toda geometria deve usar primitivas do Three.js (`BoxGeometry`, `PlaneGeometry`, `RingGeometry`, `CircleGeometry`, `OctahedronGeometry`, `CylinderGeometry`, `EdgesGeometry`, `BufferGeometry`).
 
 ## 2. Áudio Procedural
