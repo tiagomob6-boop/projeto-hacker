@@ -15,8 +15,17 @@ const MISSION_STATE = {
 const GUARD_STATE = {
   PATROL: 'PATROL',
   INVESTIGATE: 'INVESTIGATE',
-  DISTRACTED: 'DISTRACTED'
+  DISTRACTED: 'DISTRACTED',
+  STUNNED: 'STUNNED'
 };
+
+const WEAPON_TYPE = {
+  TASER: 'TASER',
+  EMP: 'EMP'
+};
+
+const TASER_COOLDOWN = 2.5;
+const EMP_COOLDOWN = 15.0;
 
 const HACK_CODES = [
   'OVERRIDE_GATE_77',
@@ -82,6 +91,7 @@ const dom = {
   missionSub: document.getElementById('mission-sub'),
   statusMode: document.getElementById('status-mode'),
   statusTimer: document.getElementById('status-timer'),
+  statusWeapon: document.getElementById('status-weapon'),
   detectionContainer: document.getElementById('detection-container'),
   detectionBar: document.getElementById('detection-bar'),
   downloadContainer: document.getElementById('download-container'),
@@ -127,6 +137,8 @@ const electricBoxes = [];   // { id, name, mesh, cooldown, sparkTimer, sparkPoin
 const radarCrates = [];     // { x, z, w, d } para planta baixa do radar
 const radarBuildings = [];  // { x, z, w, d } para quarteirões laterais no radar
 const cars = [];            // { mesh, colliderObj, initialPos, initialYaw, isDedsec, speed, hackedTimer, hackedUsed, headlight }
+const projectiles = [];     // { mesh, line, origin, pos, dir, speed, life }
+const empWaves = [];        // { mesh, mat, radius, maxRadius }
 const netHackTagItems = []; // { el, getPos, getText }
 let dedsecCar = null;
 
@@ -138,6 +150,9 @@ const gameState = {
   netHackActive: false,
   activeCamIndex: -1, // -1 = câmera 3ª pessoa do jogador
   drivingCar: null,
+  equippedWeapon: WEAPON_TYPE.TASER,
+  taserCooldown: 0,
+  empCooldown: 0,
   gateUnlocked: false,
   gateOpenProgress: 0,
   serverFirewallDisabled: false,
@@ -337,6 +352,16 @@ const AudioManager = {
     this._tone(659.25, 659.25, 0.12, 'triangle', 0.15, null, 0.1);
     this._tone(783.99, 783.99, 0.14, 'triangle', 0.15, null, 0.2);
     this._tone(1046.5, 1046.5, 0.35, 'triangle', 0.18, null, 0.32);
+  },
+
+  playTaserShot() {
+    this._tone(1650, 320, 0.13, 'square', 0.11, 3600);
+    this._tone(920, 440, 0.11, 'sawtooth', 0.08, 2200, 0.02);
+  },
+
+  playEmpPulse() {
+    this._tone(140, 38, 0.55, 'sawtooth', 0.22, 480);
+    this._tone(980, 120, 0.4, 'sine', 0.15, 1800, 0.02);
   },
 
   startMusic(bpm = 96) {
@@ -1226,7 +1251,22 @@ function buildPlayer() {
   const visor = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.12, 0.08), visorMat);
   visor.position.set(0, 1.82, 0.22);
 
-  playerParts = { legL, legR, armL, armR, backpackLed };
+  // Pistola Taser DedSec na mão direita (acoplada ao braço direito)
+  const taserMesh = new THREE.Group();
+  const taserBody = new THREE.Mesh(
+    new THREE.BoxGeometry(0.1, 0.12, 0.34),
+    new THREE.MeshStandardMaterial({ color: 0x162032, roughness: 0.4, metalness: 0.6 })
+  );
+  taserBody.position.set(0, -0.3, 0.18);
+  const taserBarrel = new THREE.Mesh(
+    new THREE.BoxGeometry(0.06, 0.05, 0.18),
+    new THREE.MeshBasicMaterial({ color: 0x00f0ff })
+  );
+  taserBarrel.position.set(0, -0.29, 0.34);
+  taserMesh.add(taserBody, taserBarrel);
+  armR.add(taserMesh);
+
+  playerParts = { legL, legR, armL, armR, backpackLed, taserMesh };
   playerGroup.add(legL, legR, torso, armL, armR, trimL, trimR, backpack, backpackLed, head, visor);
   scene.add(playerGroup);
 }
@@ -1409,6 +1449,36 @@ function buildGuards() {
     group.add(body, head, visor, coneMesh);
     scene.add(group);
 
+    // Faíscas elétricas para estado STUNNED
+    const sparkCount = 16;
+    const sparkPos = new Float32Array(sparkCount * 3);
+    const sparkData = [];
+    for (let i = 0; i < sparkCount; i++) {
+      sparkPos[i * 3] = 0;
+      sparkPos[i * 3 + 1] = 0.4;
+      sparkPos[i * 3 + 2] = 0;
+      sparkData.push({
+        vx: (Math.random() - 0.5) * 2.2,
+        vy: 0.8 + Math.random() * 1.8,
+        vz: (Math.random() - 0.5) * 2.2
+      });
+    }
+    const sparkGeo = new THREE.BufferGeometry();
+    sparkGeo.setAttribute('position', new THREE.BufferAttribute(sparkPos, 3));
+    const sparkPoints = new THREE.Points(
+      sparkGeo,
+      new THREE.PointsMaterial({
+        color: 0x00f0ff,
+        size: 0.15,
+        transparent: true,
+        opacity: 0.95,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      })
+    );
+    sparkPoints.visible = false;
+    group.add(sparkPoints);
+
     guards.push({
       mesh: group,
       waypoints: cfg.waypoints,
@@ -1420,6 +1490,8 @@ function buildGuards() {
       visionHalfAngle: cfg.visionHalfAngle,
       coneMesh,
       coneMat,
+      sparkPoints,
+      sparkData,
       state: GUARD_STATE.PATROL,
       lastKnownPos: null,
       lookAroundTimer: 0,
@@ -1583,6 +1655,10 @@ function setupInputs() {
       handleInteractPress();
     } else if (code === 'KeyF') {
       toggleDriveDedsecCar();
+    } else if (code === 'Digit1' || code === 'Numpad1') {
+      selectWeapon(WEAPON_TYPE.TASER);
+    } else if (code === 'Digit2' || code === 'Numpad2') {
+      selectWeapon(WEAPON_TYPE.EMP);
     } else if (code === 'KeyR' && gameState.activeCamIndex >= 0) {
       overloadActiveCamera();
     }
@@ -1622,6 +1698,23 @@ function setupInputs() {
       gameState.mission === MISSION_STATE.ESCAPE;
     if (playing && !gameState.terminalOpen && document.pointerLockElement !== dom.canvas) {
       dom.canvas.requestPointerLock();
+    }
+  });
+
+  document.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    if (document.pointerLockElement !== dom.canvas) return;
+    if (gameState.terminalOpen || gameState.activeCamIndex >= 0 || gameState.drivingCar) return;
+    const playing =
+      gameState.mission === MISSION_STATE.INFILTRATE ||
+      gameState.mission === MISSION_STATE.STEAL_DATA ||
+      gameState.mission === MISSION_STATE.ESCAPE;
+    if (!playing) return;
+
+    if (gameState.equippedWeapon === WEAPON_TYPE.TASER) {
+      fireTaser();
+    } else {
+      fireEmpPulse();
     }
   });
 
@@ -1925,6 +2018,187 @@ function completeTerminalHack() {
   setTimeout(() => {
     closeGateTerminal();
   }, 450);
+}
+
+// ==========================================
+// ARMAS TÁTICAS DEDSEC (TASER & PULSO EMP)
+// ==========================================
+function selectWeapon(weaponType) {
+  gameState.equippedWeapon = weaponType;
+  if (playerParts.taserMesh) {
+    playerParts.taserMesh.visible = weaponType === WEAPON_TYPE.TASER;
+  }
+  updateWeaponHUD();
+}
+
+function updateWeaponHUD() {
+  if (!dom.statusWeapon) return;
+  if (gameState.equippedWeapon === WEAPON_TYPE.TASER) {
+    const cd = gameState.taserCooldown;
+    dom.statusWeapon.textContent =
+      cd > 0 ? `[1] TASER (${cd.toFixed(1)}s)` : '[1] TASER (PRONTO)';
+    dom.statusWeapon.className = cd > 0 ? 'neon-magenta' : 'neon-cyan';
+  } else {
+    const cd = gameState.empCooldown;
+    dom.statusWeapon.textContent =
+      cd > 0 ? `[2] EMP (${cd.toFixed(1)}s)` : '[2] EMP (PRONTO)';
+    dom.statusWeapon.className = cd > 0 ? 'neon-magenta' : 'neon-green';
+  }
+}
+
+function stunGuard(guard, duration) {
+  guard.state = GUARD_STATE.STUNNED;
+  guard.stunTimer = duration;
+  guard.coneMesh.visible = false;
+  guard.investigateTarget = null;
+  guard.investigateTimer = 0;
+  guard.lookAroundTimer = 0;
+  guard.mesh.rotation.x = Math.PI / 2.2;
+  guard.mesh.position.y = 0.25;
+  if (guard.sparkPoints) {
+    guard.sparkPoints.visible = true;
+  }
+}
+
+function fireTaser() {
+  if (gameState.taserCooldown > 0) return;
+  gameState.taserCooldown = TASER_COOLDOWN;
+  AudioManager.playTaserShot();
+  updateWeaponHUD();
+
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  dir.y = THREE.MathUtils.clamp(dir.y, -0.35, 0.35);
+  dir.normalize();
+
+  const startPos = playerGroup.position.clone().add(new THREE.Vector3(0, 1.35, 0));
+  startPos.addScaledVector(dir, 0.7);
+
+  const boltMesh = new THREE.Mesh(
+    new THREE.BoxGeometry(0.12, 0.12, 0.55),
+    new THREE.MeshBasicMaterial({ color: 0x00f0ff })
+  );
+  boltMesh.position.copy(startPos);
+  boltMesh.lookAt(startPos.clone().add(dir));
+  scene.add(boltMesh);
+
+  const trailGeo = new THREE.BufferGeometry().setFromPoints([startPos.clone(), startPos.clone()]);
+  const trailLine = new THREE.Line(
+    trailGeo,
+    new THREE.LineBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.85 })
+  );
+  scene.add(trailLine);
+
+  projectiles.push({
+    mesh: boltMesh,
+    line: trailLine,
+    origin: startPos.clone(),
+    pos: startPos.clone(),
+    dir,
+    speed: 44,
+    life: 1.1
+  });
+}
+
+function fireEmpPulse() {
+  if (gameState.empCooldown > 0) return;
+  gameState.empCooldown = EMP_COOLDOWN;
+  AudioManager.playEmpPulse();
+  updateWeaponHUD();
+
+  const pPos = playerGroup.position.clone();
+  const ringMat = new THREE.MeshBasicMaterial({
+    color: 0x00f0ff,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.85,
+    depthWrite: false
+  });
+  const ringMesh = new THREE.Mesh(new THREE.RingGeometry(0.4, 0.85, 48), ringMat);
+  ringMesh.rotation.x = -Math.PI / 2;
+  ringMesh.position.set(pPos.x, 0.14, pPos.z);
+  scene.add(ringMesh);
+
+  empWaves.push({ mesh: ringMesh, mat: ringMat, radius: 1, maxRadius: 8.5 });
+
+  // Desativa instantaneamente todas as câmeras por 8s
+  securityCameras.forEach((camObj) => {
+    camObj.disabledTimer = Math.max(camObj.disabledTimer, 8.0);
+    camObj.coneMesh.visible = false;
+    camObj.mesh.userData.normalMaterial.emissive.setHex(0x331111);
+  });
+
+  // Atordoa guardas em um raio de 8m por 8 segundos
+  guards.forEach((g) => {
+    const d = Math.hypot(g.mesh.position.x - pPos.x, g.mesh.position.z - pPos.z);
+    if (d <= 8.0) {
+      stunGuard(g, 8.0);
+    }
+  });
+}
+
+function updateProjectiles(dt) {
+  if (gameState.taserCooldown > 0) {
+    gameState.taserCooldown = Math.max(0, gameState.taserCooldown - dt);
+  }
+  if (gameState.empCooldown > 0) {
+    gameState.empCooldown = Math.max(0, gameState.empCooldown - dt);
+  }
+  updateWeaponHUD();
+
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    const p = projectiles[i];
+    p.life -= dt;
+
+    const step = p.speed * dt;
+    raycaster.set(p.pos, p.dir);
+    raycaster.far = step + 0.2;
+    const hitObs = raycaster.intersectObjects(occluders, false);
+
+    p.pos.addScaledVector(p.dir, step);
+    p.mesh.position.copy(p.pos);
+
+    const trailTail = p.pos.clone().addScaledVector(p.dir, -Math.min(2.2, p.pos.distanceTo(p.origin)));
+    p.line.geometry.setFromPoints([trailTail, p.pos.clone()]);
+
+    let hitGuard = null;
+    for (const g of guards) {
+      if (g.state === GUARD_STATE.STUNNED) continue;
+      const distFlat = Math.hypot(p.pos.x - g.mesh.position.x, p.pos.z - g.mesh.position.z);
+      if (distFlat < 1.0 && p.pos.y >= 0 && p.pos.y <= 2.2) {
+        hitGuard = g;
+        break;
+      }
+    }
+
+    if (hitGuard) {
+      stunGuard(hitGuard, 12.0);
+      AudioManager.playElectricZap();
+      scene.remove(p.mesh);
+      scene.remove(p.line);
+      projectiles.splice(i, 1);
+      continue;
+    }
+
+    if (hitObs.length > 0 || p.life <= 0) {
+      scene.remove(p.mesh);
+      scene.remove(p.line);
+      projectiles.splice(i, 1);
+    }
+  }
+}
+
+function updateEmpWaves(dt) {
+  for (let i = empWaves.length - 1; i >= 0; i--) {
+    const w = empWaves[i];
+    w.radius += dt * 18;
+    w.mesh.scale.set(w.radius, w.radius, 1);
+    w.mat.opacity = Math.max(0, 0.85 * (1 - w.radius / w.maxRadius));
+    if (w.radius >= w.maxRadius) {
+      scene.remove(w.mesh);
+      empWaves.splice(i, 1);
+    }
+  }
 }
 
 function toggleDriveDedsecCar() {
@@ -2325,10 +2599,38 @@ function updateGuards(dt) {
   const rangeDelta = gameState.isSprinting ? 3.0 : gameState.isCrouching ? -1.5 : 0;
 
   guards.forEach((g) => {
-    if (g.stunTimer > 0) {
+    if (g.state === GUARD_STATE.STUNNED || g.stunTimer > 0) {
       g.stunTimer = Math.max(0, g.stunTimer - dt);
-      g.coneMat.color.setHex(0xff7700);
-      g.coneMat.opacity = 0.15;
+      g.coneMesh.visible = false;
+
+      if (g.sparkPoints) {
+        g.sparkPoints.visible = true;
+        const attr = g.sparkPoints.geometry.getAttribute('position');
+        for (let i = 0; i < g.sparkData.length; i++) {
+          const s = g.sparkData[i];
+          let sx = attr.getX(i) + s.vx * dt;
+          let sy = attr.getY(i) + s.vy * dt;
+          let sz = attr.getZ(i) + s.vz * dt;
+          if (sy > 1.4) {
+            sx = 0;
+            sy = 0.2;
+            sz = 0;
+          }
+          attr.setXYZ(i, sx, sy, sz);
+        }
+        attr.needsUpdate = true;
+      }
+
+      if (g.stunTimer === 0) {
+        g.mesh.rotation.x = 0;
+        g.mesh.position.y = 0;
+        g.coneMesh.visible = true;
+        if (g.sparkPoints) g.sparkPoints.visible = false;
+        g.state = GUARD_STATE.INVESTIGATE;
+        g.lastKnownPos = g.mesh.position.clone();
+        g.lookAroundTimer = 3.0;
+        g.lookBaseYaw = g.mesh.rotation.y;
+      }
       return;
     }
 
@@ -2628,6 +2930,9 @@ function resetWorldState() {
   gameState.detectionLevel = 0;
   gameState.maxDetection = 0;
   gameState.hacksUsed = 0;
+  gameState.taserCooldown = 0;
+  gameState.empCooldown = 0;
+  selectWeapon(WEAPON_TYPE.TASER);
   gameState.isSprinting = false;
   gameState.isCrouching = false;
   gameState.cameraYaw = 0;
@@ -2675,9 +2980,23 @@ function resetWorldState() {
 
   const preset = DIFFICULTY_PRESETS[gameState.difficulty];
 
+  // Limpar projéteis e ondas EMP ativos
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    scene.remove(projectiles[i].mesh);
+    scene.remove(projectiles[i].line);
+    projectiles.splice(i, 1);
+  }
+  for (let i = empWaves.length - 1; i >= 0; i--) {
+    scene.remove(empWaves[i].mesh);
+    empWaves.splice(i, 1);
+  }
+
   // Resetar guardas, câmeras e caixas elétricas
   guards.forEach((g) => {
     g.mesh.position.copy(g.initialPos);
+    g.mesh.rotation.x = 0;
+    g.coneMesh.visible = true;
+    if (g.sparkPoints) g.sparkPoints.visible = false;
     g.speed = g.baseSpeed * preset.guardSpeedMult;
     g.currentTarget = 1;
     g.state = GUARD_STATE.PATROL;
@@ -2974,6 +3293,8 @@ function animate() {
 
     updatePlayer(dt);
     updateCars(dt);
+    updateProjectiles(dt);
+    updateEmpWaves(dt);
     updateElectricBoxes(dt);
     updateGuards(dt);
     updateInteractionsAndMission(dt);

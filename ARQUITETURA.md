@@ -59,6 +59,7 @@ Cada guarda em `guards` opera com uma máquina de estados (`GUARD_STATE`):
 - **`PATROL`:** Patrulha em loop entre os `waypoints` com cone amarelo.
 - **`INVESTIGATE`:** Ativado quando o jogador entra no cone e atinge `detectionLevel >= 40%` antes de escapar. O cone muda para laranja (`0xff7700`), o guarda caminha até `lastKnownPos`, olha para os lados por `3.0s` e retorna a `PATROL`.
 - **`DISTRACTED`:** Ativado ao sobrecarregar uma caixa elétrica, atraindo o guarda mais próximo até o local por `6.0s` com cone laranja.
+- **`STUNNED`:** Ativado pelo Taser (`12.0s`), Pulso EMP (`8.0s`) ou impacto de carro (`6.0s`). O guarda inclina-se no chão com faíscas elétricas (`THREE.Points`) e cone desligado; ao terminar o tempo, levanta e entra em `INVESTIGATE`.
 
 1. **Cone Visual:** Um `THREE.CircleGeometry` plano no chão (`y = 0.06` nos guardas, `y = 0.05` nas câmeras), orientado para `+Z` local (`thetaStart = -Math.PI / 2 - visionHalfAngle`), acompanha a rotação do guarda ou a varredura periódica da câmera (`updateSecurityCameras`).
 2. **Teste Geométrico e Modificadores de Stealth:**
@@ -78,6 +79,9 @@ Cada guarda em `guards` opera com uma máquina de estados (`GUARD_STATE`):
 - **Caixas Elétricas de Distração (`buildElectricBoxes` / `triggerElectricBox`):** Duas caixas hackeáveis dentro do complexo (`CAIXA_ELETRICA_01` e `CAIXA_ELETRICA_02`). Pressionar `E` perto ou mirando na Visão NetHack gera faíscas (`THREE.Points`) e atrai o guarda mais próximo por `6.0s` (cooldown de `12.0s`).
 - **Hack e Sobrecarga de Câmeras (`cycleSecurityCamera` / `C` e `overloadActiveCamera` / `R`):** Transfere a `camera` principal para uma câmera do complexo (`securityCameras`), permitindo girar o ângulo com o mouse. Pressionar `R` durante o controle sobrecarrega e desativa a câmera (e seu cone de detecção verde) por `15.0s`.
 - **Minigame de Terminal (`openTerminal` / Tecla `E` no painel ou servidor):** Libera o Pointer Lock, exibe `#terminal-modal` com códigos variados (`HACK_CODES` para o portão em `10.0s`, `FIREWALL_CODES` para o firewall do servidor em `8.5s`) e executa `completeTerminalHack()` ao digitar o comando exato no `#hack-input`.
+- **Armas Táticas DedSec (`fireTaser` / `fireEmpPulse` / Teclas `1`, `2` e Clique Esquerdo):**
+  - **Taser Não-Letal (`1`):** Pistola 3D na mão direita do personagem; dispara projéteis elétricos (`updateProjectiles`) com rastro `THREE.Line`, colisão com `occluders` e guardas (aplicando `STUNNED` por `12.0s`), recarga de `2.5s` no HUD e áudio `playTaserShot()`.
+  - **Pulso EMP (`2`):** Gera onda expansiva `THREE.RingGeometry` no chão (`updateEmpWaves`), desativa câmeras por `8.0s` e atordoa guardas em raio de `8.0m` por `8.0s`, com cooldown de `15.0s` e áudio `playEmpPulse()`.
 
 ---
 
