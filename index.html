@@ -34,7 +34,7 @@
   <div id="damage-flash" class="screen-fx hidden"></div>
 
   <!-- HUD DedSec / ctOS -->
-  <div id="hud" class="hidden">
+  <div id="hud">
     <div class="hud-top">
       <div class="hud-panel mission-panel">
         <div class="panel-label">ctOS // OBJETIVO ATUAL</div>
@@ -51,6 +51,10 @@
         <div class="status-row">
           <span>TEMPO:</span>
           <span id="status-timer" class="neon-green">00:00</span>
+        </div>
+        <div class="status-row">
+          <span>CAIXA:</span>
+          <span id="status-money" class="neon-green">$500</span>
         </div>
         <div class="status-row">
           <span>ÁUDIO:</span>
@@ -120,8 +124,8 @@
     </div>
   </div>
 
-  <!-- Tela Inicial Minimalista -->
-  <div id="start-screen" class="overlay-screen">
+  <!-- Tela Inicial Minimalista (oculta por padrão no Mundo Aberto) -->
+  <div id="start-screen" class="overlay-screen hidden">
     <div class="terminal-card">
       <div class="brand-tag">DEDSEC // SAN FRANCISCO // PROJETO_HACKER</div>
       <h1 class="glitch-title">PROJETO HACKER</h1>
@@ -189,6 +193,28 @@
     </div>
   </div>
 
+  <!-- Modal Rápido de Gatilho de Missão no Mapa -->
+  <div id="mission-modal" class="overlay-screen hidden">
+    <div class="terminal-card">
+      <div class="brand-tag">DEDSEC // CONTRATO DISPONÍVEL</div>
+      <h2 id="mission-modal-title" class="status-title neon-cyan">MISSÃO 01 // COMPLEXO ctOS</h2>
+      <p id="mission-modal-desc" class="intro-desc">
+        Infiltre-se no complexo urbano, desative o firewall do servidor central e fuja para a zona de extração.
+      </p>
+      <div class="difficulty-selector">
+        <span class="diff-label">ESCOLHA A DIFICULDADE:</span>
+        <div class="diff-buttons">
+          <button type="button" class="diff-btn active" data-diff="INICIANTE">INICIANTE (12s)</button>
+          <button type="button" class="diff-btn" data-diff="DEDSEC_ELITE">DEDSEC ELITE (7s)</button>
+        </div>
+      </div>
+      <div class="diff-buttons">
+        <button id="btn-accept-mission" type="button" class="cyber-btn green-btn">ACEITAR CONTRATO</button>
+        <button id="btn-cancel-mission" type="button" class="cyber-btn danger-btn">VOLTAR</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Tela de Game Over -->
   <div id="gameover-screen" class="overlay-screen hidden">
     <div class="terminal-card danger-card">
@@ -211,10 +237,11 @@
         <div><span>TEMPO TOTAL:</span> <strong id="final-time" class="neon-cyan">00:00</strong></div>
         <div><span>DETECÇÃO MÁXIMA:</span> <strong id="final-detection" class="neon-magenta">0%</strong></div>
         <div><span>HACKS EXECUTADOS:</span> <strong id="final-hacks" class="neon-green">0</strong></div>
+        <div><span>RECOMPENSA:</span> <strong id="final-reward" class="neon-green">+$2.500</strong></div>
         <div><span>MAPA:</span> <strong id="final-map" class="neon-cyan">COMPLEXO ctOS</strong></div>
         <div><span>DIFICULDADE:</span> <strong id="final-difficulty" class="neon-cyan">INICIANTE</strong></div>
       </div>
-      <button id="btn-retry-victory" class="cyber-btn green-btn">JOGAR NOVAMENTE</button>
+      <button id="btn-retry-victory" class="cyber-btn green-btn">CONTINUAR NO MUNDO ABERTO</button>
     </div>
   </div>
 

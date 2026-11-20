@@ -4,6 +4,7 @@ import * as THREE from 'three';
 // CONSTANTES E ESTADO GLOBAL
 // ==========================================
 const MISSION_STATE = {
+  FREE_ROAM: 'FREE_ROAM',
   IDLE: 'IDLE',
   INFILTRATE: 'INFILTRATE',
   STEAL_DATA: 'STEAL_DATA',
@@ -38,13 +39,18 @@ const WEAPON_CONFIG = {
 const TASER_COOLDOWN = WEAPON_CONFIG.TASER.cooldown;
 const EMP_COOLDOWN = WEAPON_CONFIG.EMP.cooldown;
 
+const WORLD_BOUNDS = { minX: -1200, maxX: 1200, minZ: -1400, maxZ: 1400 };
+const DOCKS_OFFSET_X = 445;
+
 const MAPS_CONFIG = {
   COMPLEXO_CTOS: {
     key: 'COMPLEXO_CTOS',
-    label: 'COMPLEXO ctOS',
-    bounds: { minX: -64, maxX: 64, minZ: -64, maxZ: 74 },
-    radarScale: 1.55,
-    playerStart: [0, 0, 26],
+    label: 'MISSÃO 01 // COMPLEXO ctOS',
+    desc: 'Infiltre-se no Complexo ctOS do Centro Urbano, desative o firewall do servidor central e fuja para a praça.',
+    bounds: WORLD_BOUNDS,
+    radarScale: 1.5,
+    playerStart: [0, 0, 52],
+    markerPos: [0, 0.06, 15],
     extractPos: [0, 0.04, 52],
     serverPos: [0, 1.65, -40],
     gates: [
@@ -60,82 +66,39 @@ const MAPS_CONFIG = {
       { name: 'CAIXA_ALA_LESTE', pos: [20, 0.85, -26] }
     ],
     guards: [
-      {
-        waypoints: [[-22, 0, 2], [-22, 0, -36], [-6, 0, -36], [-6, 0, 2]],
-        speed: 2.9,
-        visionRange: 22
-      },
-      {
-        waypoints: [[22, 0, -36], [22, 0, 2], [6, 0, 2], [6, 0, -36]],
-        speed: 3.1,
-        visionRange: 22
-      },
-      {
-        waypoints: [[-14, 0, -42], [14, 0, -42], [14, 0, -14], [-14, 0, -14]],
-        speed: 3.2,
-        visionRange: 22
-      }
-    ],
-    cars: [
-      { x: -7, z: 32, yaw: Math.PI / 2, color: 0x111827, neon: 0x00f0ff, isDedsec: true },
-      { x: -40, z: 28, yaw: 0, color: 0x141720, neon: 0xff0044, isDedsec: false, isPatrol: true },
-      { x: 16, z: 16, yaw: -Math.PI / 2, color: 0x141720, neon: 0xff0044, isDedsec: false, isPatrol: true },
-      { x: -16, z: 16, yaw: Math.PI / 2, color: 0x26314a, neon: 0xffaa00, isDedsec: false },
-      { x: 24, z: 42, yaw: -Math.PI / 2, color: 0x2b1d38, neon: 0xff0055, isDedsec: false },
-      { x: -24, z: 46, yaw: 0, color: 0x1e2b3a, neon: 0x38bdf8, isDedsec: false },
-      { x: -40, z: 38, yaw: Math.PI, color: 0x202a3c, neon: 0x00f0ff, isDedsec: false },
-      { x: 40, z: 12, yaw: 0, color: 0x26314a, neon: 0xffaa00, isDedsec: false }
+      { waypoints: [[-22, 0, 2], [-22, 0, -36], [-6, 0, -36], [-6, 0, 2]], speed: 2.9, visionRange: 22 },
+      { waypoints: [[22, 0, -36], [22, 0, 2], [6, 0, 2], [6, 0, -36]], speed: 3.1, visionRange: 22 },
+      { waypoints: [[-14, 0, -42], [14, 0, -42], [14, 0, -14], [-14, 0, -14]], speed: 3.2, visionRange: 22 }
     ]
   },
   DOCAS_BAIA_SF: {
     key: 'DOCAS_BAIA_SF',
-    label: 'DOCAS DA BAÍA SF',
-    bounds: { minX: -41.5, maxX: 41.5, minZ: -52, maxZ: 62 },
-    radarScale: 1.75,
-    playerStart: [0, 0, 42],
-    extractPos: [0, 0.04, 54],
-    serverPos: [0, 1.65, -42],
+    label: 'MISSÃO 02 // DOCAS DA BAÍA SF',
+    desc: 'Atravesse a baía até o terminal portuário, passe pelas 2 barreiras e invada o cargueiro da Blume.',
+    bounds: WORLD_BOUNDS,
+    radarScale: 1.5,
+    playerStart: [DOCKS_OFFSET_X, 0, 62],
+    markerPos: [DOCKS_OFFSET_X, 0.06, 60],
+    extractPos: [DOCKS_OFFSET_X, 0.04, 72],
+    serverPos: [DOCKS_OFFSET_X, 1.65, -42],
     gates: [
-      { x: 0, y: 2.2, z: 18, w: 7, h: 4.4, d: 0.6, panelPos: [4.8, 0.75, 19.0], openX: -7.2 },
-      { x: 0, y: 2.2, z: -24, w: 7, h: 4.4, d: 0.6, panelPos: [-4.8, 0.75, -23.0], openX: 7.2 }
+      { x: DOCKS_OFFSET_X, y: 2.2, z: 18, w: 7, h: 4.4, d: 0.6, panelPos: [DOCKS_OFFSET_X + 4.8, 0.75, 19.0], openX: DOCKS_OFFSET_X - 7.2 },
+      { x: DOCKS_OFFSET_X, y: 2.2, z: -24, w: 7, h: 4.4, d: 0.6, panelPos: [DOCKS_OFFSET_X - 4.8, 0.75, -23.0], openX: DOCKS_OFFSET_X + 7.2 }
     ],
     cameras: [
-      { name: 'CAM_01 // ENTRADA_DOCAS', pos: [-32, 5.0, 14], baseYaw: -2.0, basePitch: -0.35 },
-      { name: 'CAM_02 // PATIO_CONTEINERES', pos: [32, 5.0, -6], baseYaw: 2.1, basePitch: -0.35 },
-      { name: 'CAM_03 // CONVES_BLUME', pos: [-18, 5.2, -32], baseYaw: -2.35, basePitch: -0.32 }
+      { name: 'CAM_01 // ENTRADA_DOCAS', pos: [DOCKS_OFFSET_X - 32, 5.0, 14], baseYaw: -2.0, basePitch: -0.35 },
+      { name: 'CAM_02 // PATIO_CONTEINERES', pos: [DOCKS_OFFSET_X + 32, 5.0, -6], baseYaw: 2.1, basePitch: -0.35 },
+      { name: 'CAM_03 // CONVES_BLUME', pos: [DOCKS_OFFSET_X - 18, 5.2, -32], baseYaw: -2.35, basePitch: -0.32 }
     ],
     electricBoxes: [
-      { name: 'CAIXA_DOCA_OESTE', pos: [-24, 0.85, 4] },
-      { name: 'CAIXA_DOCA_LESTE', pos: [24, 0.85, -14] }
+      { name: 'CAIXA_DOCA_OESTE', pos: [DOCKS_OFFSET_X - 24, 0.85, 4] },
+      { name: 'CAIXA_DOCA_LESTE', pos: [DOCKS_OFFSET_X + 24, 0.85, -14] }
     ],
     guards: [
-      {
-        waypoints: [[-30, 0, 10], [30, 0, 10], [30, 0, -6], [-30, 0, -6]],
-        speed: 2.8,
-        visionRange: 22
-      },
-      {
-        waypoints: [[30, 0, -16], [-30, 0, -16], [-30, 0, 2], [30, 0, 2]],
-        speed: 3.1,
-        visionRange: 22
-      },
-      {
-        waypoints: [[-16, 0, -30], [16, 0, -30], [16, 0, -44], [-16, 0, -44]],
-        speed: 3.2,
-        visionRange: 22
-      },
-      {
-        waypoints: [[-14, 0, 26], [14, 0, 26], [14, 0, 34], [-14, 0, 34]],
-        speed: 2.7,
-        visionRange: 22
-      }
-    ],
-    cars: [
-      { x: -10, z: 44, yaw: Math.PI / 2, color: 0x111827, neon: 0x00f0ff, isDedsec: true },
-      { x: 20, z: 30, yaw: -Math.PI / 2, color: 0x141720, neon: 0xff0044, isDedsec: false, isPatrol: true },
-      { x: -22, z: 28, yaw: Math.PI / 2, color: 0x26314a, neon: 0xffaa00, isDedsec: false },
-      { x: 26, z: -2, yaw: 0, color: 0x1e2b3a, neon: 0x38bdf8, isDedsec: false },
-      { x: -26, z: -12, yaw: Math.PI, color: 0x2b1d38, neon: 0xff0055, isDedsec: false }
+      { waypoints: [[DOCKS_OFFSET_X - 30, 0, 10], [DOCKS_OFFSET_X + 30, 0, 10], [DOCKS_OFFSET_X + 30, 0, -6], [DOCKS_OFFSET_X - 30, 0, -6]], speed: 2.8, visionRange: 22 },
+      { waypoints: [[DOCKS_OFFSET_X + 30, 0, -16], [DOCKS_OFFSET_X - 30, 0, -16], [DOCKS_OFFSET_X - 30, 0, 2], [DOCKS_OFFSET_X + 30, 0, 2]], speed: 3.1, visionRange: 22 },
+      { waypoints: [[DOCKS_OFFSET_X - 16, 0, -30], [DOCKS_OFFSET_X + 16, 0, -30], [DOCKS_OFFSET_X + 16, 0, -44], [DOCKS_OFFSET_X - 16, 0, -44]], speed: 3.2, visionRange: 22 },
+      { waypoints: [[DOCKS_OFFSET_X - 14, 0, 26], [DOCKS_OFFSET_X + 14, 0, 26], [DOCKS_OFFSET_X + 14, 0, 34], [DOCKS_OFFSET_X - 14, 0, 34]], speed: 2.7, visionRange: 22 }
     ]
   }
 };
@@ -206,7 +169,14 @@ const dom = {
   missionSub: document.getElementById('mission-sub'),
   statusMode: document.getElementById('status-mode'),
   statusTimer: document.getElementById('status-timer'),
+  statusMoney: document.getElementById('status-money'),
   statusHp: document.getElementById('status-hp'),
+  missionModal: document.getElementById('mission-modal'),
+  missionModalTitle: document.getElementById('mission-modal-title'),
+  missionModalDesc: document.getElementById('mission-modal-desc'),
+  btnAcceptMission: document.getElementById('btn-accept-mission'),
+  btnCancelMission: document.getElementById('btn-cancel-mission'),
+  finalReward: document.getElementById('final-reward'),
   hpBar: document.getElementById('hp-bar'),
   statusWeapon: document.getElementById('status-weapon'),
   gameoverTitle: document.getElementById('gameover-title'),
@@ -269,12 +239,20 @@ const impactFlashes = [];   // { light, life }
 const blinkingLights = [];  // { mat, phase }
 const sirenLights = [];     // { blueMat, redMat, phase }
 const netHackTagItems = []; // { el, getPos, getText }
+const missionMarkers = [];  // { key, ring, beam }
+const missionServers = {};  // { COMPLEXO_CTOS: { mesh, core, particles, particleData }, DOCAS_BAIA_SF: ... }
+const missionExtractions = {}; // { COMPLEXO_CTOS: { group, ring, beam }, DOCAS_BAIA_SF: ... }
 let dedsecCar = null;
 
 // Estado do jogo
 const gameState = {
-  mission: MISSION_STATE.IDLE,
+  mission: MISSION_STATE.FREE_ROAM,
   selectedMap: 'COMPLEXO_CTOS',
+  activeMissionKey: null,
+  pendingMissionKey: null,
+  missionModalOpen: false,
+  markerCooldown: 0,
+  money: 500,
   difficulty: 'INICIANTE',
   activeGateIndex: 0,
   elapsedTime: 0,
@@ -604,9 +582,9 @@ const AudioManager = {
 function initThree() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x090b1a);
-  scene.fog = new THREE.FogExp2(0x090b1a, 0.011);
+  scene.fog = new THREE.FogExp2(0x090b1a, 0.0022);
 
-  camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 300);
+  camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 950);
 
   renderer = new THREE.WebGLRenderer({ canvas: dom.canvas, antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -625,10 +603,17 @@ function initThree() {
   window.addEventListener('resize', onWindowResize);
 }
 
-function buildMap(mapKey) {
-  const cfg = MAPS_CONFIG[mapKey] || MAPS_CONFIG.COMPLEXO_CTOS;
-  gameState.selectedMap = cfg.key;
+function getSurfaceHeight(x, z) {
+  // Ponte Golden Gate atravessável (X: 80..400, Z: 26..44)
+  if (z >= 26 && z <= 44 && x >= 80 && x <= 400) {
+    if (x < 120) return ((x - 80) / 40) * 10;
+    if (x <= 360) return 10;
+    return ((400 - x) / 40) * 10;
+  }
+  return 0;
+}
 
+function buildMap() {
   while (worldGroup.children.length > 0) {
     worldGroup.remove(worldGroup.children[0]);
   }
@@ -648,20 +633,175 @@ function buildMap(mapKey) {
   serverParticleData.length = 0;
   blinkingLights.length = 0;
   sirenLights.length = 0;
+  missionMarkers.length = 0;
   waterMesh = null;
   dedsecCar = null;
 
-  if (cfg.key === 'DOCAS_BAIA_SF') {
-    buildDocksEnvironment(cfg);
-  } else {
-    buildEnvironment(cfg);
-  }
-  buildCars(cfg);
-  buildSecurityCameras(cfg);
-  buildElectricBoxes(cfg);
-  buildGuards(cfg);
+  // Água da Baía de São Francisco cobrindo todo o mundo aberto (X: -1200..1200, Z: -1400..1400)
+  const bayWaterMat = new THREE.MeshStandardMaterial({
+    color: 0x05182e,
+    emissive: 0x03223d,
+    emissiveIntensity: 0.7,
+    roughness: 0.12,
+    metalness: 0.85
+  });
+  waterMesh = new THREE.Mesh(new THREE.PlaneGeometry(2500, 2900), bayWaterMat);
+  waterMesh.rotation.x = -Math.PI / 2;
+  waterMesh.position.set(0, -0.55, 0);
+  worldGroup.add(waterMesh);
+
+  // Setor 1: Centro Urbano + Complexo ctOS
+  buildEnvironment(MAPS_CONFIG.COMPLEXO_CTOS);
+
+  // Ponte Golden Gate Atravessável ligando Centro Urbano (X=80) às Docas da Baía SF (X=400)
+  buildTraversableGoldenGate();
+
+  // Setor 2: Docas da Baía SF (X ~ 445)
+  buildDocksEnvironment(MAPS_CONFIG.DOCAS_BAIA_SF);
+
+  // Marcadores Holográficos de Missão no Mapa
+  buildMissionMarkers();
+
+  // Veículos do Mundo Aberto
+  buildCars();
+
+  // Câmeras, Caixas Elétricas e Guardas das duas missões
+  ['COMPLEXO_CTOS', 'DOCAS_BAIA_SF'].forEach((mKey) => {
+    const mCfg = MAPS_CONFIG[mKey];
+    buildSecurityCameras(mCfg, mKey);
+    buildElectricBoxes(mCfg);
+    buildGuards(mCfg, mKey);
+  });
+
   buildNetworkLines();
   buildNetHackLabels();
+}
+
+function buildTraversableGoldenGate() {
+  const zCenter = 35;
+  const deckW = 18;
+  const bridgeGroup = new THREE.Group();
+
+  const neonOrangeMat = new THREE.MeshBasicMaterial({ color: 0xff5a1f, fog: false });
+  const roadMat = new THREE.MeshStandardMaterial({ color: 0x161e2e, roughness: 0.85 });
+  const steelMat = new THREE.MeshStandardMaterial({
+    color: 0x3b1812,
+    emissive: 0xff4500,
+    emissiveIntensity: 0.65,
+    roughness: 0.5
+  });
+
+  // Tabuleiro principal elevado (X: 120..360, y = 10)
+  const mainDeck = new THREE.Mesh(new THREE.BoxGeometry(240, 0.8, deckW), roadMat);
+  mainDeck.position.set(240, 9.6, zCenter);
+  mainDeck.receiveShadow = true;
+  bridgeGroup.add(mainDeck);
+
+  // Rampas suaves (Oeste: X=80..120, Leste: X=360..400)
+  const rampLen = Math.hypot(40, 10);
+  const rampAngle = Math.atan2(10, 40);
+
+  const rampWest = new THREE.Mesh(new THREE.BoxGeometry(rampLen, 0.8, deckW), roadMat);
+  rampWest.position.set(100, 4.6, zCenter);
+  rampWest.rotation.z = rampAngle;
+  rampWest.receiveShadow = true;
+  bridgeGroup.add(rampWest);
+
+  const rampEast = new THREE.Mesh(new THREE.BoxGeometry(rampLen, 0.8, deckW), roadMat);
+  rampEast.position.set(380, 4.6, zCenter);
+  rampEast.rotation.z = -rampAngle;
+  rampEast.receiveShadow = true;
+  bridgeGroup.add(rampEast);
+
+  // Faixas laranja-neon e linhas centrais da pista
+  const trimN = new THREE.Mesh(new THREE.BoxGeometry(240, 0.3, 0.4), neonOrangeMat);
+  trimN.position.set(240, 10.2, zCenter - deckW / 2);
+  const trimS = new THREE.Mesh(new THREE.BoxGeometry(240, 0.3, 0.4), neonOrangeMat);
+  trimS.position.set(240, 10.2, zCenter + deckW / 2);
+  bridgeGroup.add(trimN, trimS);
+
+  // Guard-rails laterais com colisão para não cair na baía
+  addStaticBox(320, 12, 0.8, 240, 6, zCenter - deckW / 2 - 0.5, 0x26314a, { occlude: false });
+  addStaticBox(320, 12, 0.8, 240, 6, zCenter + deckW / 2 + 0.5, 0x26314a, { occlude: false });
+
+  // Duas torres monumentais da Golden Gate (X = 185 e X = 295)
+  const towerXs = [185, 295];
+  towerXs.forEach((tx) => {
+    [-deckW / 2 - 0.6, deckW / 2 + 0.6].forEach((oz) => {
+      const pillar = new THREE.Mesh(new THREE.BoxGeometry(2.4, 48, 2.2), steelMat);
+      pillar.position.set(tx, 24, zCenter + oz);
+      bridgeGroup.add(pillar);
+    });
+    [22, 34, 46].forEach((cy) => {
+      const cross = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.2, deckW + 2.4), neonOrangeMat);
+      cross.position.set(tx, cy, zCenter);
+      bridgeGroup.add(cross);
+    });
+  });
+
+  // Cabos catenários e pendurais em ambos os lados da ponte
+  const cableMat = new THREE.LineBasicMaterial({ color: 0xff6b2b, fog: false });
+  [-deckW / 2 - 0.6, deckW / 2 + 0.6].forEach((oz) => {
+    const cablePts = [];
+    const samples = 28;
+    for (let i = 0; i <= samples; i++) {
+      const x = THREE.MathUtils.lerp(120, 360, i / samples);
+      let y;
+      if (x < towerXs[0]) {
+        const t = (x - 120) / (towerXs[0] - 120);
+        y = THREE.MathUtils.lerp(10.5, 46, t * t);
+      } else if (x <= towerXs[1]) {
+        const midT = ((x - towerXs[0]) / (towerXs[1] - towerXs[0])) * 2 - 1;
+        y = 14 + 32 * (midT * midT);
+      } else {
+        const t = (360 - x) / (360 - towerXs[1]);
+        y = THREE.MathUtils.lerp(10.5, 46, t * t);
+      }
+      cablePts.push(new THREE.Vector3(x, y, zCenter + oz));
+      if (i % 2 === 0 && Math.abs(x - towerXs[0]) > 3 && Math.abs(x - towerXs[1]) > 3) {
+        const hGeo = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(x, 10.2, zCenter + oz),
+          new THREE.Vector3(x, y, zCenter + oz)
+        ]);
+        bridgeGroup.add(new THREE.Line(hGeo, cableMat));
+      }
+    }
+    bridgeGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(cablePts), cableMat));
+  });
+
+  worldGroup.add(bridgeGroup);
+}
+
+function buildMissionMarkers() {
+  ['COMPLEXO_CTOS', 'DOCAS_BAIA_SF'].forEach((mKey) => {
+    const mCfg = MAPS_CONFIG[mKey];
+    const [mx, my, mz] = mCfg.markerPos;
+    const color = mKey === 'COMPLEXO_CTOS' ? 0x00f0ff : 0xffaa00;
+
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(1.8, 2.3, 32),
+      new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, transparent: true, opacity: 0.9 })
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(mx, my, mz);
+    worldGroup.add(ring);
+
+    const beam = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.8, 2.0, 7.5, 24, 1, true),
+      new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.16,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending
+      })
+    );
+    beam.position.set(mx, 3.75, mz);
+    worldGroup.add(beam);
+
+    missionMarkers.push({ key: mKey, pos: new THREE.Vector3(mx, 0, mz), ring, beam });
+  });
 }
 
 function setupLighting() {
@@ -971,9 +1111,6 @@ function buildEnvironment(cfg) {
   buildDetailedBuilding(24, -70, 16, 40, 14, { accent: 0xff0055, collide: false, occlude: false });
   buildDetailedBuilding(0, -74, 18, 46, 14, { accent: 0x38bdf8, collide: false, occlude: false });
 
-  // Ponte Golden Gate estilizada ao fundo
-  buildGoldenGateBridge();
-
   // Base ctOS Ampliada (X: -28..28, Z: -48..8) com Ala Oeste, Ala Leste e Pátio Amplo
   addStaticBox(24.5, 5.2, 1.2, -15.75, 2.6, 8, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.45 });
   addStaticBox(24.5, 5.2, 1.2, 15.75, 5.2 - 2.6, 8, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.45 });
@@ -1036,7 +1173,7 @@ function buildEnvironment(cfg) {
     { x1: 28, z1: 8, x2: 3.5, z2: 8 }
   );
 
-  buildMapGates(cfg);
+  buildMapGates(cfg, 'COMPLEXO_CTOS');
 
   // Caixas de cobertura dentro da base (Ala Oeste, Pátio Central e Ala Leste)
   const crates = [
@@ -1058,15 +1195,16 @@ function buildEnvironment(cfg) {
     });
   });
 
-  buildServerUnit(cfg.serverPos[0], cfg.serverPos[2]);
-  buildExtractionZone(cfg.extractPos[0], cfg.extractPos[2]);
+  buildServerUnit(cfg.serverPos[0], cfg.serverPos[2], 'COMPLEXO_CTOS');
+  buildExtractionZone(cfg.extractPos[0], cfg.extractPos[2], 'COMPLEXO_CTOS');
 }
 
-function buildMapGates(cfg) {
+function buildMapGates(cfg, missionKey) {
   cfg.gates.forEach((gCfg, idx) => {
+    const gIdx = gates.length;
     const gMesh = addStaticBox(gCfg.w, gCfg.h, gCfg.d, gCfg.x, gCfg.y, gCfg.z, 0x26314a, {
       isGate: true,
-      gateIndex: idx,
+      gateIndex: gIdx,
       emissive: 0xff0055,
       emissiveIntensity: 0.45,
       edgesColor: 0xff0055,
@@ -1080,10 +1218,11 @@ function buildMapGates(cfg) {
       gCfg.panelPos[1],
       gCfg.panelPos[2],
       0x00f0ff,
-      `PAINEL_PORTAO_${idx + 1}`
+      `PAINEL_${missionKey}_${idx + 1}`
     );
     gates.push({
-      index: idx,
+      index: gIdx,
+      missionKey,
       gateMesh: gMesh,
       panelMesh: pMesh,
       unlocked: false,
@@ -1091,32 +1230,37 @@ function buildMapGates(cfg) {
       initialX: gCfg.x,
       openX: gCfg.openX
     });
-    if (idx === 0) {
+    if (gIdx === 0) {
       gateMesh = gMesh;
       gatePanelMesh = pMesh;
     }
   });
 }
 
-function buildServerUnit(sx, sz) {
+function buildServerUnit(sx, sz, missionKey) {
   addStaticBox(4.4, 0.3, 3.6, sx, 0.15, sz, 0x182238, { occlude: false, collide: false });
-  serverMesh = createHackableDevice(2.0, 3.0, 1.4, sx, 1.65, sz, 0xff0055, 'SERVIDOR_CTOS');
+  const sMesh = createHackableDevice(2.0, 3.0, 1.4, sx, 1.65, sz, 0xff0055, `SERVIDOR_${missionKey}`);
 
-  serverCoreMesh = new THREE.Mesh(
+  const core = new THREE.Mesh(
     new THREE.OctahedronGeometry(0.55, 0),
     new THREE.MeshBasicMaterial({ color: 0x00f0ff, wireframe: true })
   );
-  serverCoreMesh.position.set(sx, 3.9, sz);
-  worldGroup.add(serverCoreMesh);
+  core.position.set(sx, 3.9, sz);
+  worldGroup.add(core);
 
   buildServerParticles(sx, sz);
+  missionServers[missionKey] = { mesh: sMesh, core };
+  if (missionKey === 'COMPLEXO_CTOS') {
+    serverMesh = sMesh;
+    serverCoreMesh = core;
+  }
 }
 
-function buildExtractionZone(ex, ez) {
-  extractionZoneGroup = new THREE.Group();
-  extractionZoneGroup.position.set(ex, 0.04, ez);
+function buildExtractionZone(ex, ez, missionKey) {
+  const group = new THREE.Group();
+  group.position.set(ex, 0.04, ez);
 
-  extractionRing = new THREE.Mesh(
+  const ring = new THREE.Mesh(
     new THREE.RingGeometry(2.1, 2.6, 36),
     new THREE.MeshBasicMaterial({
       color: 0x00ff88,
@@ -1125,10 +1269,10 @@ function buildExtractionZone(ex, ez) {
       opacity: 0.85
     })
   );
-  extractionRing.rotation.x = -Math.PI / 2;
-  extractionZoneGroup.add(extractionRing);
+  ring.rotation.x = -Math.PI / 2;
+  group.add(ring);
 
-  const extractionInner = new THREE.Mesh(
+  const inner = new THREE.Mesh(
     new THREE.CircleGeometry(2.1, 36),
     new THREE.MeshBasicMaterial({
       color: 0x00ff88,
@@ -1137,10 +1281,10 @@ function buildExtractionZone(ex, ez) {
       opacity: 0.18
     })
   );
-  extractionInner.rotation.x = -Math.PI / 2;
-  extractionZoneGroup.add(extractionInner);
+  inner.rotation.x = -Math.PI / 2;
+  group.add(inner);
 
-  extractionBeam = new THREE.Mesh(
+  const beam = new THREE.Mesh(
     new THREE.CylinderGeometry(2.05, 2.25, 9, 32, 1, true),
     new THREE.MeshBasicMaterial({
       color: 0x00ff88,
@@ -1151,50 +1295,45 @@ function buildExtractionZone(ex, ez) {
       blending: THREE.AdditiveBlending
     })
   );
-  extractionBeam.position.y = 4.5;
-  extractionZoneGroup.add(extractionBeam);
+  beam.position.y = 4.5;
+  group.add(beam);
 
   const extractionLight = new THREE.PointLight(0x00ff88, 1.8, 12);
   extractionLight.position.set(0, 1.8, 0);
-  extractionZoneGroup.add(extractionLight);
+  group.add(extractionLight);
 
-  worldGroup.add(extractionZoneGroup);
+  worldGroup.add(group);
+  missionExtractions[missionKey] = { group, ring, beam };
+  if (missionKey === 'COMPLEXO_CTOS') {
+    extractionZoneGroup = group;
+    extractionRing = ring;
+    extractionBeam = beam;
+  }
 }
 
 function buildDocksEnvironment(cfg) {
-  // Água escura brilhante ao redor do píer ampliado
-  const waterMat = new THREE.MeshStandardMaterial({
-    color: 0x05182e,
-    emissive: 0x03223d,
-    emissiveIntensity: 0.7,
-    roughness: 0.12,
-    metalness: 0.85
-  });
-  waterMesh = new THREE.Mesh(new THREE.PlaneGeometry(320, 320), waterMat);
-  waterMesh.rotation.x = -Math.PI / 2;
-  waterMesh.position.set(0, -0.42, 0);
-  worldGroup.add(waterMesh);
+  const dx = DOCKS_OFFSET_X;
 
-  // Plataforma principal do Píer ampliado (X: -43..43, Z: -26..64)
-  addStaticBox(86, 0.6, 90, 0, -0.3, 19, 0x182030, {
+  // Plataforma principal do Píer em X: dx-43..dx+43 (conectada à rampa leste da ponte em X=400)
+  addStaticBox(90, 0.6, 120, dx, -0.3, 25, 0x182030, {
     collide: false,
     occlude: false,
     edgesColor: 0x00f0ff,
     edgesOpacity: 0.3
   });
 
-  const grid = new THREE.GridHelper(86, 43, 0x00f0ff, 0x162442);
-  grid.position.set(0, 0.015, 19);
+  const grid = new THREE.GridHelper(90, 45, 0x00f0ff, 0x162442);
+  grid.position.set(dx, 0.015, 25);
   grid.material.opacity = 0.18;
   grid.material.transparent = true;
   worldGroup.add(grid);
 
-  // Muros laterais com pilares, guard-rail sul (z = 63) e divisórias dos 2 portões (Z=18 e Z=-24)
-  addStaticBox(1.2, 3.6, 88, -42.5, 1.8, 19, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.4 });
-  addStaticBox(1.2, 3.6, 88, 42.5, 1.8, 19, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.4 });
-  addStaticBox(86, 1.1, 0.8, 0, 0.55, 63, 0x26314a, { edgesColor: 0xffaa00, edgesOpacity: 0.75 });
+  // Muros laterais com guard-rail e divisórias dos 2 portões (Z=18 e Z=-24)
+  addStaticBox(1.2, 3.6, 108, dx - 44, 1.8, 30, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.4 });
+  addStaticBox(1.2, 3.6, 108, dx + 44, 1.8, 30, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.4 });
+  addStaticBox(88, 1.1, 0.8, dx, 0.55, 84, 0x26314a, { edgesColor: 0xffaa00, edgesOpacity: 0.75 });
   [-30, -15, 0, 15, 30].forEach((lx) => {
-    addStaticBox(0.6, 0.28, 0.28, lx, 1.2, 63, 0xffaa00, {
+    addStaticBox(0.6, 0.28, 0.28, dx + lx, 1.2, 84, 0xffaa00, {
       collide: false,
       occlude: false,
       emissive: 0xffaa00,
@@ -1202,62 +1341,61 @@ function buildDocksEnvironment(cfg) {
     });
   });
 
-  addStaticBox(38, 4.8, 1.2, -22.5, 2.4, 18, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.45 });
-  addStaticBox(38, 4.8, 1.2, 22.5, 2.4, 18, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.45 });
-  addStaticBox(38, 4.8, 1.2, -22.5, 2.4, -24, 0x1b2236, { edgesColor: 0xff0055, edgesOpacity: 0.45 });
-  addStaticBox(38, 4.8, 1.2, 22.5, 2.4, -24, 0x1b2236, { edgesColor: 0xff0055, edgesOpacity: 0.45 });
+  addStaticBox(40, 4.8, 1.2, dx - 23.5, 2.4, 18, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.45 });
+  addStaticBox(40, 4.8, 1.2, dx + 23.5, 2.4, 18, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.45 });
+  addStaticBox(40, 4.8, 1.2, dx - 23.5, 2.4, -24, 0x1b2236, { edgesColor: 0xff0055, edgesOpacity: 0.45 });
+  addStaticBox(40, 4.8, 1.2, dx + 23.5, 2.4, -24, 0x1b2236, { edgesColor: 0xff0055, edgesOpacity: 0.45 });
 
   radarWalls.push(
-    { x1: -42.5, z1: 63, x2: -42.5, z2: -25 },
-    { x1: 42.5, z1: 63, x2: 42.5, z2: -25 },
-    { x1: -42, z1: 18, x2: -3.5, z2: 18 },
-    { x1: 3.5, z1: 18, x2: 42, z2: 18 },
-    { x1: -42, z1: -24, x2: -3.5, z2: -24 },
-    { x1: 3.5, z1: -24, x2: 42, z2: -24 }
+    { x1: dx - 44, z1: 84, x2: dx - 44, z2: -25 },
+    { x1: dx + 44, z1: 84, x2: dx + 44, z2: -25 },
+    { x1: dx - 43, z1: 18, x2: dx - 3.5, z2: 18 },
+    { x1: dx + 3.5, z1: 18, x2: dx + 43, z2: 18 },
+    { x1: dx - 43, z1: -24, x2: dx - 3.5, z2: -24 },
+    { x1: dx + 3.5, z1: -24, x2: dx + 43, z2: -24 }
   );
 
-  // Corredores e múltiplas rotas com contêineres empilhados (Ala Oeste, Centro e Ala Leste)
+  // Corredores com contêineres empilhados
   const containers = [
-    [-20, 1.35, 8, 7.2, 2.7, 2.8, 0x8b1e24, 0xff4455],
-    [-20, 4.05, 8, 7.2, 2.7, 2.8, 0x1b3b6f, 0x00f0ff],
-    [20, 1.35, 8, 7.2, 2.7, 2.8, 0x0e5a6f, 0x00f0ff],
-    [0, 1.35, -2, 6.8, 2.7, 2.8, 0x1b3b6f, 0x38bdf8],
-    [-22, 1.35, -12, 7.2, 2.7, 2.8, 0x0e5a6f, 0x00f0ff],
-    [22, 1.35, -12, 7.2, 2.7, 2.8, 0x8b1e24, 0xff4455],
-    [22, 4.05, -12, 7.2, 2.7, 2.8, 0x1b3b6f, 0x00f0ff],
-    [-12, 1.35, -34, 4.8, 2.7, 2.6, 0x8b1e24, 0xff4455],
-    [12, 1.35, -34, 4.8, 2.7, 2.6, 0x0e5a6f, 0x00f0ff]
+    [dx - 20, 1.35, 8, 7.2, 2.7, 2.8, 0x8b1e24, 0xff4455],
+    [dx - 20, 4.05, 8, 7.2, 2.7, 2.8, 0x1b3b6f, 0x00f0ff],
+    [dx + 20, 1.35, 8, 7.2, 2.7, 2.8, 0x0e5a6f, 0x00f0ff],
+    [dx, 1.35, -2, 6.8, 2.7, 2.8, 0x1b3b6f, 0x38bdf8],
+    [dx - 22, 1.35, -12, 7.2, 2.7, 2.8, 0x0e5a6f, 0x00f0ff],
+    [dx + 22, 1.35, -12, 7.2, 2.7, 2.8, 0x8b1e24, 0xff4455],
+    [dx + 22, 4.05, -12, 7.2, 2.7, 2.8, 0x1b3b6f, 0x00f0ff],
+    [dx - 12, 1.35, -34, 4.8, 2.7, 2.6, 0x8b1e24, 0xff4455],
+    [dx + 12, 1.35, -34, 4.8, 2.7, 2.6, 0x0e5a6f, 0x00f0ff]
   ];
   containers.forEach(([x, y, z, w, h, d, col, edgeCol]) => {
     if (y < 2.0) radarCrates.push({ x, z, w, d });
     addStaticBox(w, h, d, x, y, z, col, { edgesColor: edgeCol, edgesOpacity: 0.55 });
   });
 
-  // Navio / Cargueiro da Blume ampliado ancorado ao fundo (Z: -56..-24)
-  addStaticBox(52, 0.7, 30, 0, -0.2, -39, 0x141b2d, {
+  // Navio / Cargueiro da Blume ancorado ao fundo (Z: -56..-24)
+  addStaticBox(52, 0.7, 30, dx, -0.2, -39, 0x141b2d, {
     collide: false,
     occlude: false,
     edgesColor: 0x00f0ff,
     edgesOpacity: 0.45
   });
-  addStaticBox(1.8, 4.5, 30, -26, 2.25, -39, 0x161d2f, { edgesColor: 0xff0055, edgesOpacity: 0.6 });
-  addStaticBox(1.8, 4.5, 30, 26, 2.25, -39, 0x161d2f, { edgesColor: 0xff0055, edgesOpacity: 0.6 });
-  addStaticBox(54, 11, 6, 0, 5.5, -51, 0x101726, { edgesColor: 0x00f0ff, edgesOpacity: 0.55 });
-  addStaticBox(18, 0.7, 0.3, 0, 8.5, -47.8, 0x00f0ff, {
+  addStaticBox(1.8, 4.5, 30, dx - 26, 2.25, -39, 0x161d2f, { edgesColor: 0xff0055, edgesOpacity: 0.6 });
+  addStaticBox(1.8, 4.5, 30, dx + 26, 2.25, -39, 0x161d2f, { edgesColor: 0xff0055, edgesOpacity: 0.6 });
+  addStaticBox(54, 11, 6, dx, 5.5, -51, 0x101726, { edgesColor: 0x00f0ff, edgesOpacity: 0.55 });
+  addStaticBox(18, 0.7, 0.3, dx, 8.5, -47.8, 0x00f0ff, {
     collide: false,
     occlude: false,
     emissive: 0x00f0ff,
     emissiveIntensity: 1.4
   });
 
-  // Armazém portuário detalhado na borda leste do píer
-  buildDetailedBuilding(-34, 34, 10, 14, 12, { accent: 0xffaa00 });
-  buildDetailedBuilding(34, 34, 10, 14, 12, { accent: 0x00f0ff });
+  // Armazéns portuários detalhados
+  buildDetailedBuilding(dx - 34, 58, 10, 14, 12, { accent: 0xffaa00 });
+  buildDetailedBuilding(dx + 34, 58, 10, 14, 12, { accent: 0x00f0ff });
 
-  buildGoldenGateBridge();
-  buildMapGates(cfg);
-  buildServerUnit(cfg.serverPos[0], cfg.serverPos[2]);
-  buildExtractionZone(cfg.extractPos[0], cfg.extractPos[2]);
+  buildMapGates(cfg, 'DOCAS_BAIA_SF');
+  buildServerUnit(cfg.serverPos[0], cfg.serverPos[2], 'DOCAS_BAIA_SF');
+  buildExtractionZone(cfg.extractPos[0], cfg.extractPos[2], 'DOCAS_BAIA_SF');
 }
 
 function buildGoldenGateBridge() {
@@ -1565,8 +1703,20 @@ function buildCarMesh(color, neonTrim, isPatrol = false) {
   return { carGroup, bodyMesh: body };
 }
 
-function buildCars(cfg) {
-  cfg.cars.forEach((carCfg, idx) => {
+function buildCars() {
+  const worldCars = [
+    { x: -10, z: 42, yaw: Math.PI / 2, color: 0x111827, neon: 0x00f0ff, isDedsec: true },
+    { x: -40, z: 28, yaw: 0, color: 0x141720, neon: 0xff0044, isDedsec: false, isPatrol: true },
+    { x: 16, z: 16, yaw: -Math.PI / 2, color: 0x141720, neon: 0xff0044, isDedsec: false, isPatrol: true },
+    { x: -16, z: 16, yaw: Math.PI / 2, color: 0x26314a, neon: 0xffaa00, isDedsec: false },
+    { x: 24, z: 42, yaw: -Math.PI / 2, color: 0x2b1d38, neon: 0xff0055, isDedsec: false },
+    { x: -24, z: 46, yaw: 0, color: 0x1e2b3a, neon: 0x38bdf8, isDedsec: false },
+    { x: -40, z: 38, yaw: Math.PI, color: 0x202a3c, neon: 0x00f0ff, isDedsec: false },
+    { x: DOCKS_OFFSET_X + 20, z: 36, yaw: -Math.PI / 2, color: 0x141720, neon: 0xff0044, isDedsec: false, isPatrol: true },
+    { x: DOCKS_OFFSET_X - 22, z: 38, yaw: Math.PI / 2, color: 0x26314a, neon: 0xffaa00, isDedsec: false }
+  ];
+
+  worldCars.forEach((carCfg, idx) => {
     const { carGroup, bodyMesh } = buildCarMesh(carCfg.color, carCfg.neon, !!carCfg.isPatrol);
     carGroup.position.set(carCfg.x, 0, carCfg.z);
     carGroup.rotation.y = carCfg.yaw;
@@ -1608,7 +1758,7 @@ function buildCars(cfg) {
 // ==========================================
 function buildPlayer() {
   playerGroup = new THREE.Group();
-  playerGroup.position.set(0, 0, 14);
+  playerGroup.position.set(0, 0, 52);
 
   const coatMat = new THREE.MeshStandardMaterial({ color: 0x171c2b, roughness: 0.7 });
   const hoodMat = new THREE.MeshStandardMaterial({ color: 0x101420, roughness: 0.8 });
@@ -1740,8 +1890,9 @@ function buildPlayer() {
 // ==========================================
 // CÂMERAS DE SEGURANÇA HACKEÁVEIS
 // ==========================================
-function buildSecurityCameras(cfg) {
-  cfg.cameras.forEach((camCfg, idx) => {
+function buildSecurityCameras(cfg, missionKey = 'COMPLEXO_CTOS') {
+  cfg.cameras.forEach((camCfg) => {
+    const idx = securityCameras.length;
     const pos = new THREE.Vector3(camCfg.pos[0], camCfg.pos[1], camCfg.pos[2]);
     const normalMat = new THREE.MeshStandardMaterial({
       color: 0x222c42,
@@ -1760,6 +1911,7 @@ function buildSecurityCameras(cfg) {
     hackableMeshes.push(mesh);
     securityCameras.push({
       id: idx,
+      missionKey,
       name: camCfg.name,
       mesh,
       pos: pos.clone(),
@@ -1827,7 +1979,7 @@ function buildElectricBoxes(cfg) {
 // ==========================================
 // GUARDAS ARMADOS E IA DE COMBATE
 // ==========================================
-function buildGuards(cfg) {
+function buildGuards(cfg, missionKey = 'COMPLEXO_CTOS') {
   const visionHalfAngle = (55 * Math.PI) / 180; // 110 graus totais
   cfg.guards.forEach((gCfg) => {
     const waypoints = gCfg.waypoints.map(([wx, wy, wz]) => new THREE.Vector3(wx, wy, wz));
@@ -1897,6 +2049,7 @@ function buildGuards(cfg) {
     group.add(sparkPoints);
 
     guards.push({
+      missionKey,
       mesh: group,
       waypoints,
       initialPos: waypoints[0].clone(),
@@ -2058,13 +2211,17 @@ function setupInputs() {
       return;
     }
 
-    if (
-      gameState.mission !== MISSION_STATE.INFILTRATE &&
-      gameState.mission !== MISSION_STATE.STEAL_DATA &&
-      gameState.mission !== MISSION_STATE.ESCAPE
-    ) {
+    if (gameState.missionModalOpen) {
+      if (code === 'Escape') closeMissionModal();
       return;
     }
+
+    const activeMode =
+      gameState.mission === MISSION_STATE.FREE_ROAM ||
+      gameState.mission === MISSION_STATE.INFILTRATE ||
+      gameState.mission === MISSION_STATE.STEAL_DATA ||
+      gameState.mission === MISSION_STATE.ESCAPE;
+    if (!activeMode) return;
 
     if (code === 'KeyV') {
       toggleNetHack();
@@ -2116,10 +2273,12 @@ function setupInputs() {
 
   dom.canvas.addEventListener('click', () => {
     const playing =
+      gameState.mission === MISSION_STATE.FREE_ROAM ||
       gameState.mission === MISSION_STATE.INFILTRATE ||
       gameState.mission === MISSION_STATE.STEAL_DATA ||
       gameState.mission === MISSION_STATE.ESCAPE;
-    if (playing && !gameState.terminalOpen && document.pointerLockElement !== dom.canvas) {
+    if (playing && !gameState.terminalOpen && !gameState.missionModalOpen && document.pointerLockElement !== dom.canvas) {
+      AudioManager.init();
       dom.canvas.requestPointerLock();
     }
   });
@@ -2128,8 +2287,9 @@ function setupInputs() {
     if (e.button !== 0) return;
     gameState.mouseDown = true;
     if (document.pointerLockElement !== dom.canvas) return;
-    if (gameState.terminalOpen || gameState.activeCamIndex >= 0 || gameState.drivingCar) return;
+    if (gameState.terminalOpen || gameState.missionModalOpen || gameState.activeCamIndex >= 0 || gameState.drivingCar) return;
     const playing =
+      gameState.mission === MISSION_STATE.FREE_ROAM ||
       gameState.mission === MISSION_STATE.INFILTRATE ||
       gameState.mission === MISSION_STATE.STEAL_DATA ||
       gameState.mission === MISSION_STATE.ESCAPE;
@@ -2143,9 +2303,11 @@ function setupInputs() {
   });
 
   // Botões de UI
-  dom.btnStart.addEventListener('click', startMission);
-  dom.btnRetryGameover.addEventListener('click', restartMission);
-  dom.btnRetryVictory.addEventListener('click', restartMission);
+  if (dom.btnStart) dom.btnStart.addEventListener('click', startMission);
+  dom.btnRetryGameover.addEventListener('click', returnToFreeRoam);
+  dom.btnRetryVictory.addEventListener('click', returnToFreeRoam);
+  if (dom.btnAcceptMission) dom.btnAcceptMission.addEventListener('click', acceptPendingMission);
+  if (dom.btnCancelMission) dom.btnCancelMission.addEventListener('click', closeMissionModal);
   if (dom.btnMute) {
     dom.btnMute.addEventListener('click', () => AudioManager.toggleMute());
   }
@@ -2806,15 +2968,12 @@ function toggleDriveDedsecCar() {
     if (car.headlight) car.headlight.intensity = 0;
     AudioManager.stopEngineSound();
 
-    // Posicionar jogador ao lado do carro respeitando os limites do mapa atual
-    const bounds = (MAPS_CONFIG[gameState.selectedMap] || MAPS_CONFIG.COMPLEXO_CTOS).bounds;
+    // Posicionar jogador ao lado do carro respeitando os limites do mundo aberto e altura da pista
     const sideX = Math.cos(car.mesh.rotation.y) * 1.9;
     const sideZ = -Math.sin(car.mesh.rotation.y) * 1.9;
-    playerGroup.position.set(
-      THREE.MathUtils.clamp(car.mesh.position.x + sideX, bounds.minX, bounds.maxX),
-      0,
-      THREE.MathUtils.clamp(car.mesh.position.z + sideZ, bounds.minZ, bounds.maxZ)
-    );
+    const outX = THREE.MathUtils.clamp(car.mesh.position.x + sideX, WORLD_BOUNDS.minX, WORLD_BOUNDS.maxX);
+    const outZ = THREE.MathUtils.clamp(car.mesh.position.z + sideZ, WORLD_BOUNDS.minZ, WORLD_BOUNDS.maxZ);
+    playerGroup.position.set(outX, getSurfaceHeight(outX, outZ), outZ);
     playerGroup.visible = true;
     car.mesh.updateMatrixWorld(true);
     car.colliderObj.box.setFromObject(car.mesh);
@@ -2835,7 +2994,6 @@ function toggleDriveDedsecCar() {
 // MOVIMENTAÇÃO, COLISÃO, CARROS E CÂMERA
 // ==========================================
 function updateCars(dt) {
-  const bounds = (MAPS_CONFIG[gameState.selectedMap] || MAPS_CONFIG.COMPLEXO_CTOS).bounds;
   cars.forEach((car) => {
     if (car.isDedsec || car.hackedTimer <= 0) return;
 
@@ -2846,14 +3004,15 @@ function updateCars(dt) {
     const nextZ = car.mesh.position.z + forwardZ * car.speed * dt;
 
     if (
-      nextX > bounds.minX + 0.5 &&
-      nextX < bounds.maxX - 0.5 &&
-      nextZ > bounds.minZ + 0.5 &&
-      nextZ < bounds.maxZ - 0.5 &&
+      nextX > WORLD_BOUNDS.minX + 1 &&
+      nextX < WORLD_BOUNDS.maxX - 1 &&
+      nextZ > WORLD_BOUNDS.minZ + 1 &&
+      nextZ < WORLD_BOUNDS.maxZ - 1 &&
       !checkCollision(nextX, nextZ, 1.5, car)
     ) {
       car.mesh.position.x = nextX;
       car.mesh.position.z = nextZ;
+      car.mesh.position.y = getSurfaceHeight(nextX, nextZ);
       car.mesh.updateMatrixWorld(true);
       car.colliderObj.box.setFromObject(car.mesh);
     } else {
@@ -2920,9 +3079,9 @@ function updatePlayer(dt) {
       car.speed *= 0.2;
     }
 
-    const bounds = (MAPS_CONFIG[gameState.selectedMap] || MAPS_CONFIG.COMPLEXO_CTOS).bounds;
-    cPos.x = THREE.MathUtils.clamp(cPos.x, bounds.minX + 0.5, bounds.maxX - 0.5);
-    cPos.z = THREE.MathUtils.clamp(cPos.z, bounds.minZ + 0.5, bounds.maxZ - 0.5);
+    cPos.x = THREE.MathUtils.clamp(cPos.x, WORLD_BOUNDS.minX + 1, WORLD_BOUNDS.maxX - 1);
+    cPos.z = THREE.MathUtils.clamp(cPos.z, WORLD_BOUNDS.minZ + 1, WORLD_BOUNDS.maxZ - 1);
+    cPos.y = getSurfaceHeight(cPos.x, cPos.z);
 
     car.mesh.updateMatrixWorld(true);
     car.colliderObj.box.setFromObject(car.mesh);
@@ -2994,10 +3153,10 @@ function updatePlayer(dt) {
       pos.z += stepZ;
     }
 
-    // Limites do mapa jogável atual (mapCfg.bounds)
-    const bounds = (MAPS_CONFIG[gameState.selectedMap] || MAPS_CONFIG.COMPLEXO_CTOS).bounds;
-    pos.x = THREE.MathUtils.clamp(pos.x, bounds.minX, bounds.maxX);
-    pos.z = THREE.MathUtils.clamp(pos.z, bounds.minZ, bounds.maxZ);
+    // Limites do mundo aberto unificado e altura da superfície (chão ou Ponte Golden Gate)
+    pos.x = THREE.MathUtils.clamp(pos.x, WORLD_BOUNDS.minX, WORLD_BOUNDS.maxX);
+    pos.z = THREE.MathUtils.clamp(pos.z, WORLD_BOUNDS.minZ, WORLD_BOUNDS.maxZ);
+    pos.y = getSurfaceHeight(pos.x, pos.z);
 
     // Rotação suave na direção do movimento
     const targetRot = Math.atan2(moveX, moveZ);
@@ -3259,7 +3418,10 @@ function updateGuards(dt) {
     const effectiveRange = g.visionRange + rangeDelta;
 
     let guardSeesPlayer = false;
-    if (distToPlayer <= effectiveRange && distToPlayer > 0.1) {
+    const isContractGuard =
+      gameState.mission !== MISSION_STATE.FREE_ROAM && g.missionKey === gameState.activeMissionKey;
+
+    if (isContractGuard && distToPlayer <= effectiveRange && distToPlayer > 0.1) {
       const dirFlat = toPlayer.clone().normalize();
       const angle = Math.acos(THREE.MathUtils.clamp(guardForward.dot(dirFlat), -1, 1));
       if (angle <= g.visionHalfAngle) {
@@ -3279,7 +3441,7 @@ function updateGuards(dt) {
       g.state = GUARD_STATE.COMBAT;
       g.lastKnownPos = new THREE.Vector3(playerPos.x, 0, playerPos.z);
       g.lookAroundTimer = 0;
-    } else if (gameState.baseAlert) {
+    } else if (isContractGuard && gameState.baseAlert) {
       g.state = GUARD_STATE.COMBAT;
       g.lastKnownPos = new THREE.Vector3(playerPos.x, 0, playerPos.z);
     }
@@ -3416,7 +3578,10 @@ function updateGuards(dt) {
 function setMissionState(newState) {
   gameState.mission = newState;
 
-  if (newState === MISSION_STATE.INFILTRATE) {
+  if (newState === MISSION_STATE.FREE_ROAM) {
+    dom.missionObjective.textContent = 'MUNDO ABERTO // SÃO FRANCISCO';
+    dom.missionSub.textContent = 'Explore a cidade, atravesse a Golden Gate ou pise em um marcador de missão';
+  } else if (newState === MISSION_STATE.INFILTRATE) {
     dom.missionObjective.textContent = 'HACKEIE O PORTÃO DE ENTRADA';
     dom.missionSub.textContent = 'Aproxime-se do painel na entrada e pressione [E]';
   } else if (newState === MISSION_STATE.STEAL_DATA) {
@@ -3463,6 +3628,21 @@ function updateInteractionsAndMission(dt) {
 
   const pPos = playerGroup.position;
   let promptText = '';
+
+  if (gameState.markerCooldown > 0) {
+    gameState.markerCooldown = Math.max(0, gameState.markerCooldown - dt);
+  }
+
+  // Verificar gatilhos de missão em FREE_ROAM
+  if (gameState.mission === MISSION_STATE.FREE_ROAM && !gameState.missionModalOpen && gameState.markerCooldown === 0) {
+    for (const m of missionMarkers) {
+      const distMarker = Math.hypot(pPos.x - m.pos.x, pPos.z - m.pos.z);
+      if (distMarker < 2.8) {
+        openMissionModal(m.key);
+        return;
+      }
+    }
+  }
 
   // Prompt dos painéis de portão
   for (let i = 0; i < gates.length; i++) {
@@ -3565,7 +3745,7 @@ function formatTime(seconds) {
 // ==========================================
 // CONTROLE DE TELAS E CICLO PRINCIPAL
 // ==========================================
-function resetWorldState() {
+function resetWorldState(keepPlayerPos = false) {
   gameState.elapsedTime = 0;
   gameState.hp = 100;
   gameState.damageFlashTimer = 0;
@@ -3599,22 +3779,28 @@ function resetWorldState() {
   gameState.drivingCar = null;
   AudioManager.stopEngineSound();
   const mapCfg = MAPS_CONFIG[gameState.selectedMap] || MAPS_CONFIG.COMPLEXO_CTOS;
-  playerGroup.visible = true;
-  playerGroup.position.set(mapCfg.playerStart[0], mapCfg.playerStart[1], mapCfg.playerStart[2]);
-  playerGroup.rotation.y = 0;
-  playerGroup.scale.y = 1;
+  if (!keepPlayerPos) {
+    gameState.drivingCar = null;
+    AudioManager.stopEngineSound();
+    playerGroup.visible = true;
+    playerGroup.position.set(mapCfg.playerStart[0], mapCfg.playerStart[1], mapCfg.playerStart[2]);
+    playerGroup.rotation.y = 0;
+    playerGroup.scale.y = 1;
+  }
 
-  // Resetar carros
-  cars.forEach((car) => {
-    car.mesh.position.copy(car.initialPos);
-    car.mesh.rotation.y = car.initialYaw;
-    car.speed = 0;
-    car.hackedTimer = 0;
-    car.hackedUsed = false;
-    if (car.headlight) car.headlight.intensity = 0;
-    car.mesh.updateMatrixWorld(true);
-    car.colliderObj.box.setFromObject(car.mesh);
-  });
+  // Resetar carros (exceto quando mantendo posição em FREE_ROAM)
+  if (!keepPlayerPos) {
+    cars.forEach((car) => {
+      car.mesh.position.copy(car.initialPos);
+      car.mesh.rotation.y = car.initialYaw;
+      car.speed = 0;
+      car.hackedTimer = 0;
+      car.hackedUsed = false;
+      if (car.headlight) car.headlight.intensity = 0;
+      car.mesh.updateMatrixWorld(true);
+      car.colliderObj.box.setFromObject(car.mesh);
+    });
+  }
 
   // Restaurar portões e colisores caso tenham sido abertos
   gates.forEach((g) => {
@@ -3640,7 +3826,10 @@ function resetWorldState() {
       occluders.push(g.gateMesh);
     }
   });
-  serverMesh.userData.normalMaterial.emissive.setHex(0xff0055);
+  Object.values(missionServers).forEach((s) => {
+    if (s && s.mesh) s.mesh.userData.normalMaterial.emissive.setHex(0xff0055);
+  });
+  if (serverMesh) serverMesh.userData.normalMaterial.emissive.setHex(0xff0055);
 
   const preset = DIFFICULTY_PRESETS[gameState.difficulty];
 
@@ -3700,21 +3889,83 @@ function resetWorldState() {
   dom.statusTimer.textContent = '00:00';
 }
 
-function startMission() {
+function updateMoneyHUD() {
+  if (dom.statusMoney) {
+    dom.statusMoney.textContent = `$${gameState.money.toLocaleString('pt-BR')}`;
+  }
+}
+
+function openMissionModal(missionKey) {
+  const mCfg = MAPS_CONFIG[missionKey];
+  if (!mCfg || !dom.missionModal) return;
+  gameState.pendingMissionKey = missionKey;
+  gameState.missionModalOpen = true;
+  if (dom.missionModalTitle) dom.missionModalTitle.textContent = mCfg.label;
+  if (dom.missionModalDesc) dom.missionModalDesc.textContent = mCfg.desc;
+  dom.missionModal.classList.remove('hidden');
+  if (document.pointerLockElement === dom.canvas) {
+    document.exitPointerLock();
+  }
+}
+
+function closeMissionModal() {
+  gameState.missionModalOpen = false;
+  gameState.pendingMissionKey = null;
+  gameState.markerCooldown = 3.0;
+  if (dom.missionModal) dom.missionModal.classList.add('hidden');
+  dom.canvas.requestPointerLock();
+}
+
+function acceptPendingMission() {
+  const mKey = gameState.pendingMissionKey || 'COMPLEXO_CTOS';
+  gameState.missionModalOpen = false;
+  if (dom.missionModal) dom.missionModal.classList.add('hidden');
+  startContract(mKey);
+}
+
+function startContract(missionKey) {
   AudioManager.init();
-  resetWorldState();
-  dom.startScreen.classList.add('hidden');
+  gameState.activeMissionKey = missionKey;
+  gameState.selectedMap = missionKey;
+
+  if (missionServers[missionKey]) {
+    serverMesh = missionServers[missionKey].mesh;
+    serverCoreMesh = missionServers[missionKey].core;
+  }
+  if (missionExtractions[missionKey]) {
+    extractionZoneGroup = missionExtractions[missionKey].group;
+    extractionRing = missionExtractions[missionKey].ring;
+    extractionBeam = missionExtractions[missionKey].beam;
+  }
+
+  resetWorldState(false);
   dom.gameoverScreen.classList.add('hidden');
   dom.victoryScreen.classList.add('hidden');
   dom.hud.classList.remove('hidden');
-
   setMissionState(MISSION_STATE.INFILTRATE);
   AudioManager.startMusic(96);
   dom.canvas.requestPointerLock();
 }
 
+function returnToFreeRoam() {
+  AudioManager.stopMusic();
+  AudioManager.stopEngineSound();
+  gameState.activeMissionKey = null;
+  gameState.markerCooldown = 3.5;
+  resetWorldState(true);
+  dom.gameoverScreen.classList.add('hidden');
+  dom.victoryScreen.classList.add('hidden');
+  dom.hud.classList.remove('hidden');
+  setMissionState(MISSION_STATE.FREE_ROAM);
+  dom.canvas.requestPointerLock();
+}
+
+function startMission() {
+  returnToFreeRoam();
+}
+
 function restartMission() {
-  startMission();
+  returnToFreeRoam();
 }
 
 function triggerGameOver(
@@ -3754,9 +4005,21 @@ function triggerVictory() {
   if (document.pointerLockElement === dom.canvas) {
     document.exitPointerLock();
   }
+  const rank = calculateMissionRank();
+  const rewardMap = {
+    'RANK S - FANTASMA': 2500,
+    'RANK A - INFILTRADOR': 1800,
+    'RANK B - OPERATIVO': 1300,
+    'RANK C': 1000
+  };
+  const reward = rewardMap[rank] || 1000;
+  gameState.money += reward;
+  updateMoneyHUD();
+
   dom.hud.classList.add('hidden');
   dom.finalTime.textContent = formatTime(gameState.elapsedTime);
-  if (dom.finalRank) dom.finalRank.textContent = calculateMissionRank();
+  if (dom.finalRank) dom.finalRank.textContent = rank;
+  if (dom.finalReward) dom.finalReward.textContent = `+$${reward.toLocaleString('pt-BR')}`;
   if (dom.finalDetection) dom.finalDetection.textContent = `${Math.round(gameState.maxDetection)}%`;
   if (dom.finalHacks) dom.finalHacks.textContent = String(gameState.hacksUsed);
   if (dom.finalMap) {
@@ -3863,6 +4126,26 @@ function updateRadar() {
   const toRadar = (wx, wz) => ({
     x: (wx - pPos.x) * scale,
     y: (wz - pPos.z) * scale
+  });
+
+  // Ponte Golden Gate no radar (X: 80..400, Z: 35)
+  const bStart = toRadar(80, 35);
+  const bEnd = toRadar(400, 35);
+  ctx.strokeStyle = 'rgba(255, 90, 31, 0.75)';
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(bStart.x, bStart.y);
+  ctx.lineTo(bEnd.x, bEnd.y);
+  ctx.stroke();
+
+  // Marcadores de missão no radar
+  missionMarkers.forEach((m) => {
+    const mp = toRadar(m.pos.x, m.pos.z);
+    ctx.strokeStyle = m.key === 'COMPLEXO_CTOS' ? '#00f0ff' : '#ffaa00';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(mp.x, mp.y, 4.5, 0, Math.PI * 2);
+    ctx.stroke();
   });
 
   // Planta baixa dos muros do mapa atual
@@ -3976,14 +4259,17 @@ function animate() {
 
   updateVisualEffects(dt, nowSec);
 
-  const isPlaying =
+  const isContract =
     gameState.mission === MISSION_STATE.INFILTRATE ||
     gameState.mission === MISSION_STATE.STEAL_DATA ||
     gameState.mission === MISSION_STATE.ESCAPE;
+  const isPlaying = isContract || gameState.mission === MISSION_STATE.FREE_ROAM;
 
   if (isPlaying) {
-    gameState.elapsedTime += dt;
-    dom.statusTimer.textContent = formatTime(gameState.elapsedTime);
+    if (isContract) {
+      gameState.elapsedTime += dt;
+      dom.statusTimer.textContent = formatTime(gameState.elapsedTime);
+    }
 
     updatePlayer(dt);
     updateCars(dt);
@@ -4008,4 +4294,7 @@ function animate() {
 // ==========================================
 initThree();
 setupInputs();
+setMissionState(MISSION_STATE.FREE_ROAM);
+updateMoneyHUD();
+updateHpHUD();
 animate();
