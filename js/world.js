@@ -324,8 +324,8 @@ export function buildMap() {
   buildCars();
   buildBoatPiersAndBoats();
 
-  // Câmeras, Caixas Elétricas e Guardas das duas missões
-  ['COMPLEXO_CTOS', 'DOCAS_BAIA_SF'].forEach((mKey) => {
+  // Câmeras, Caixas Elétricas e Guardas das missões e contratos VIP
+  ['COMPLEXO_CTOS', 'DOCAS_BAIA_SF', 'VIP_CAR_01', 'VIP_CAR_02'].forEach((mKey) => {
     const mCfg = MAPS_CONFIG[mKey];
     buildSecurityCameras(mCfg, mKey);
     buildElectricBoxes(mCfg);

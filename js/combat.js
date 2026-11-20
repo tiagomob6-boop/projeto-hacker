@@ -334,8 +334,10 @@ export function explodeCar(car) {
   if (gameState.drivingCar === car) {
     gameState.drivingCar = null;
     AudioManager.stopEngineSound();
-    const sideX = Math.cos(car.mesh.rotation.y) * 2.4;
-    const sideZ = -Math.sin(car.mesh.rotation.y) * 2.4;
+    car.mesh.updateMatrixWorld(true);
+    car.colliderObj.box.setFromObject(car.mesh);
+    const sideX = Math.cos(car.mesh.rotation.y) * 2.8;
+    const sideZ = -Math.sin(car.mesh.rotation.y) * 2.8;
     const outX = THREE.MathUtils.clamp(car.mesh.position.x + sideX, WORLD_BOUNDS.minX, WORLD_BOUNDS.maxX);
     const outZ = THREE.MathUtils.clamp(car.mesh.position.z + sideZ, WORLD_BOUNDS.minZ, WORLD_BOUNDS.maxZ);
     refs.playerGroup.position.set(outX, getSurfaceHeight(outX, outZ), outZ);

@@ -571,15 +571,38 @@ export function toggleDriveDedsecCar() {
     if (car.headlight) car.headlight.intensity = 0;
     AudioManager.stopEngineSound();
 
-    // Posicionar jogador ao lado do carro respeitando os limites do mundo aberto e altura da pista
-    const sideX = Math.cos(car.mesh.rotation.y) * 1.9;
-    const sideZ = -Math.sin(car.mesh.rotation.y) * 1.9;
-    const outX = THREE.MathUtils.clamp(car.mesh.position.x + sideX, WORLD_BOUNDS.minX, WORLD_BOUNDS.maxX);
-    const outZ = THREE.MathUtils.clamp(car.mesh.position.z + sideZ, WORLD_BOUNDS.minZ, WORLD_BOUNDS.maxZ);
-    refs.playerGroup.position.set(outX, getSurfaceHeight(outX, outZ), outZ);
-    refs.playerGroup.visible = true;
     car.mesh.updateMatrixWorld(true);
     car.colliderObj.box.setFromObject(car.mesh);
+
+    // Encontrar posição segura ao lado/trás do carro sem colidir com a Box3 do veículo ou paredes
+    const yaw = car.mesh.rotation.y;
+    const rightX = Math.cos(yaw);
+    const rightZ = -Math.sin(yaw);
+    const fwdX = Math.sin(yaw);
+    const fwdZ = Math.cos(yaw);
+    const candidates = [
+      [rightX * 2.7, rightZ * 2.7],
+      [-rightX * 2.7, -rightZ * 2.7],
+      [-fwdX * 3.4, -fwdZ * 3.4],
+      [fwdX * 3.4, fwdZ * 3.4],
+      [rightX * 3.6, rightZ * 3.6],
+      [-rightX * 3.6, -rightZ * 3.6]
+    ];
+
+    let outX = THREE.MathUtils.clamp(car.mesh.position.x + rightX * 2.8, WORLD_BOUNDS.minX, WORLD_BOUNDS.maxX);
+    let outZ = THREE.MathUtils.clamp(car.mesh.position.z + rightZ * 2.8, WORLD_BOUNDS.minZ, WORLD_BOUNDS.maxZ);
+    for (const [ox, oz] of candidates) {
+      const cx = THREE.MathUtils.clamp(car.mesh.position.x + ox, WORLD_BOUNDS.minX, WORLD_BOUNDS.maxX);
+      const cz = THREE.MathUtils.clamp(car.mesh.position.z + oz, WORLD_BOUNDS.minZ, WORLD_BOUNDS.maxZ);
+      if (!checkCollision(cx, cz, PLAYER_RADIUS) && (!isWaterArea(cx, cz) || getSurfaceHeight(cx, cz) > 0)) {
+        outX = cx;
+        outZ = cz;
+        break;
+      }
+    }
+
+    refs.playerGroup.position.set(outX, getSurfaceHeight(outX, outZ), outZ);
+    refs.playerGroup.visible = true;
     updateVehicleHpHUD();
     return;
   }
