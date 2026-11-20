@@ -12,13 +12,13 @@ Protótipo funcional de um jogo 3D em terceira pessoa de infiltração e hacking
 
 ---
 
-## 🗺️ Mapas e Dificuldade
+## 🗺️ Mundo Aberto 50x (4 Distritos de São Francisco)
 
-Na tela inicial, escolha o mapa da operação e o nível de dificuldade antes de iniciar:
-- **MAPA 01: COMPLEXO ctOS (Centro Urbano Ampliado):** Cidade em escala 2x (`X: -64..64`, `Z: -64..74`) com quarteirões detalhados, becos, praça central, estacionamento coberto, viaturas ctOS com giroflex, carro esporte DedSec dirigível, base ctOS com Ala Oeste/Leste, passarela elevada, guarita na entrada, 3 guardas e 3 câmeras.
-- **MAPA 02: DOCAS DA BAÍA SF (Terminal Portuário Ampliado):** Píer portuário (`X: -41.5..41.5`, `Z: -52..62`) com armazéns detalhados, múltiplos corredores de contêineres, 2 barreiras eletrônicas, 4 guardas, 3 câmeras, 5 veículos e o navio cargueiro da Blume ancorado ao fundo.
-- **INICIANTE:** Guardas mais lentos, varredura de câmeras moderada e `12.0s` no terminal.
-- **DEDSEC ELITE:** Guardas mais rápidos, varredura de câmeras acelerada e `7.0s` no terminal.
+Explore livremente o mapa contínuo (`-30000..30000`) com `$500` iniciais e ative as missões nos marcadores holográficos:
+- **Distrito Downtown & Financial (Oeste/Norte):** Quarteirões detalhados, parques, estacionamento e o **Complexo ctOS (Missão 01)**.
+- **Baía de São Francisco & Ponte Golden Gate:** Canal navegável com 4 píeres, 4 lanchas DedSec (`F`) e a Ponte Golden Gate atravessável a pé ou de carro.
+- **Distrito Portuário & Industrial (Leste):** **Docas da Baía SF (Missão 02)**, galpões, pátio de contêineres e o cargueiro da Blume.
+- **Distrito Residencial & Colinas (Sul):** Ruas largas, garagem clandestina da DedSec e Ponte Sul ligando ao setor portuário.
 
 ---
 

@@ -142,7 +142,7 @@ export function toggleNetHack(forceState) {
     if (refs.skyDome) refs.skyDome.visible = true;
     refs.scene.background.setHex(0x1c1430);
     refs.scene.fog.color.setHex(0x1c1430);
-    refs.scene.fog.density = 0.0020;
+    refs.scene.fog.density = 0.00085;
     refs.ambientLight.intensity = BASE_AMBIENT_INTENSITY;
     dom.nethackOverlay.classList.add('hidden');
     dom.statusMode.textContent = gameState.activeCamIndex >= 0 ? 'CÂMERA' : 'FURTIVO';
@@ -434,15 +434,22 @@ export function updateRadar() {
     y: (wz - pPos.z) * scale
   });
 
-  // Ponte Golden Gate no radar (X: 80..400, Z: 35)
-  const bStart = toRadar(80, 35);
-  const bEnd = toRadar(400, 35);
-  ctx.strokeStyle = 'rgba(255, 90, 31, 0.75)';
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.moveTo(bStart.x, bStart.y);
-  ctx.lineTo(bEnd.x, bEnd.y);
-  ctx.stroke();
+  // Ponte Golden Gate (Z: 35) e Ponte Sul (Z: 320) no radar
+  [35, 320].forEach((bz, idx) => {
+    const bStart = toRadar(80, bz);
+    const bEnd = toRadar(400, bz);
+    ctx.strokeStyle = idx === 0 ? 'rgba(255, 90, 31, 0.75)' : 'rgba(0, 240, 255, 0.65)';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(bStart.x, bStart.y);
+    ctx.lineTo(bEnd.x, bEnd.y);
+    ctx.stroke();
+  });
+
+  // Garagem DedSec no Distrito Sul
+  const garPos = toRadar(-120, 320);
+  ctx.fillStyle = 'rgba(0, 255, 136, 0.35)';
+  ctx.fillRect(garPos.x - 6, garPos.y - 5, 12, 10);
 
   // Marcadores de missão no radar
   missionMarkers.forEach((m) => {

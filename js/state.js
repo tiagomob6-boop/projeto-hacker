@@ -39,7 +39,7 @@ export const WEAPON_CONFIG = {
 export const TASER_COOLDOWN = WEAPON_CONFIG.TASER.cooldown;
 export const EMP_COOLDOWN = WEAPON_CONFIG.EMP.cooldown;
 
-export const WORLD_BOUNDS = { minX: -1200, maxX: 1200, minZ: -1400, maxZ: 1400 };
+export const WORLD_BOUNDS = { minX: -30000, maxX: 30000, minZ: -30000, maxZ: 30000 };
 export const DOCKS_OFFSET_X = 445;
 
 export const MAPS_CONFIG = {
@@ -48,7 +48,7 @@ export const MAPS_CONFIG = {
     label: 'MISSÃO 01 // COMPLEXO ctOS',
     desc: 'Infiltre-se no Complexo ctOS do Centro Urbano, desative o firewall do servidor central e fuja para a praça.',
     bounds: WORLD_BOUNDS,
-    radarScale: 1.5,
+    radarScale: 0.95,
     playerStart: [0, 0, 52],
     markerPos: [0, 0.06, 15],
     extractPos: [0, 0.04, 52],
@@ -76,7 +76,7 @@ export const MAPS_CONFIG = {
     label: 'MISSÃO 02 // DOCAS DA BAÍA SF',
     desc: 'Atravesse a baía até o terminal portuário, passe pelas 2 barreiras e invada o cargueiro da Blume.',
     bounds: WORLD_BOUNDS,
-    radarScale: 1.5,
+    radarScale: 0.95,
     playerStart: [DOCKS_OFFSET_X, 0, 62],
     markerPos: [DOCKS_OFFSET_X - 28, 0.06, 35],
     extractPos: [DOCKS_OFFSET_X, 0.04, 72],
@@ -315,7 +315,7 @@ export const raycaster = new THREE.Raycaster();
 // TEXTURAS PROCEDURAIS (HTML5 CANVAS -> CanvasTexture)
 
 export function getSurfaceHeight(x, z) {
-  // Ponte Golden Gate atravessável (X: 80..400, Z: 26..44)
+  // Ponte Golden Gate atravessável (X: 80..400, Z: 26.5..43.5)
   if (z >= 26.5 && z <= 43.5 && x >= 78 && x <= 402) {
     if (x <= 80) return 0;
     if (x < 120) return ((x - 80) / 40) * 10;
@@ -323,13 +323,21 @@ export function getSurfaceHeight(x, z) {
     if (x <= 400) return ((400 - x) / 40) * 10;
     return 0;
   }
-  // Píer de embarque Oeste (X: 64..76, Z: 57..67)
-  if (z >= 57 && z <= 67 && x >= 64 && x <= 76) {
+  // Ponte Sul ligando Distrito Residencial ao Portuário (X: 80..400, Z: 312..328)
+  if (z >= 312 && z <= 328 && x >= 78 && x <= 402) {
+    if (x <= 80) return 0;
+    if (x < 120) return ((x - 80) / 40) * 7;
+    if (x <= 360) return 7;
+    if (x <= 400) return ((400 - x) / 40) * 7;
+    return 0;
+  }
+  // Píeres de embarque Oeste (X: 64..76, Z: 57..67 e Z: 215..225)
+  if ((z >= 57 && z <= 67 || z >= 215 && z <= 225) && x >= 64 && x <= 76) {
     if (x <= 68) return ((x - 64) / 4) * -0.35;
     return -0.35;
   }
-  // Píer de embarque Leste (X: 394..404, Z: 57..67)
-  if (z >= 57 && z <= 67 && x >= 394 && x <= 404) {
+  // Píeres de embarque Leste (X: 394..404, Z: 57..67 e Z: -125..-115)
+  if ((z >= 57 && z <= 67 || z >= -125 && z <= -115) && x >= 394 && x <= 404) {
     if (x >= 400) return ((404 - x) / 4) * -0.35;
     return -0.35;
   }
@@ -368,12 +376,13 @@ export function createHackableDevice(w, h, d, x, y, z, glowColor, name) {
 // CARROS 3D PROCEDURAIS (ESTACIONADOS + DEDSEC)
 
 export function isWaterArea(x, z) {
-  // Centro Urbano (X: -82..68, Z: -90..95)
-  if (x >= -82 && x <= 68 && z >= -90 && z <= 95) return false;
-  // Docas da Baía SF (X: 400..490, Z: -56..86)
-  if (x >= 400 && x <= 490 && z >= -56 && z <= 86) return false;
+  // Distrito Downtown & Financial + Residencial & Colinas (Oeste/Sul: X: -540..80, Z: -480..780)
+  if (x >= -540 && x <= 80 && z >= -480 && z <= 780) return false;
+  // Distrito Portuário & Industrial (Leste: X: 400..960, Z: -280..360)
+  if (x >= 400 && x <= 960 && z >= -280 && z <= 360) return false;
   // Píeres de embarque
-  if (z >= 57 && z <= 67 && ((x >= 64 && x <= 76) || (x >= 394 && x <= 404))) return false;
+  if ((z >= 57 && z <= 67 || z >= 215 && z <= 225) && x >= 64 && x <= 76) return false;
+  if ((z >= 57 && z <= 67 || z >= -125 && z <= -115) && x >= 394 && x <= 404) return false;
   return true;
 }
 

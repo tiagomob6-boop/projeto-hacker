@@ -226,9 +226,9 @@ export const TextureGenerator = {
 export function initThree() {
   refs.scene = new THREE.Scene();
   refs.scene.background = new THREE.Color(0x1c1430);
-  refs.scene.fog = new THREE.FogExp2(0x1c1430, 0.0020);
+  refs.scene.fog = new THREE.FogExp2(0x1c1430, 0.00085);
 
-  refs.camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 950);
+  refs.camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 2400);
 
   refs.renderer = new THREE.WebGLRenderer({ canvas: dom.canvas, antialias: true });
   refs.renderer.setSize(window.innerWidth, window.innerHeight);
@@ -242,7 +242,7 @@ export function initThree() {
 
   // Cúpula de céu de entardecer cyberpunk de São Francisco
   refs.skyDome = new THREE.Mesh(
-    new THREE.SphereGeometry(780, 32, 20),
+    new THREE.SphereGeometry(2000, 32, 20),
     new THREE.MeshBasicMaterial({
       map: TextureGenerator.getSunsetSkyTexture(),
       side: THREE.BackSide,
@@ -283,8 +283,9 @@ export function buildMap() {
   refs.waterMesh = null;
   refs.dedsecCar = null;
 
-  // Água da Baía de São Francisco cobrindo todo o mundo aberto (X: -1200..1200, Z: -1400..1400)
+  // Água da Baía de São Francisco cobrindo todo o mundo aberto 50x (WORLD_BOUNDS: -30000..30000)
   refs.waterTexture = TextureGenerator.getWaterTexture();
+  refs.waterTexture.repeat.set(900, 900);
   const bayWaterMat = new THREE.MeshStandardMaterial({
     color: 0x0b3a66,
     map: refs.waterTexture,
@@ -294,19 +295,25 @@ export function buildMap() {
     roughness: 0.14,
     metalness: 0.82
   });
-  refs.waterMesh = new THREE.Mesh(new THREE.PlaneGeometry(2500, 2900), bayWaterMat);
+  refs.waterMesh = new THREE.Mesh(new THREE.PlaneGeometry(60000, 60000), bayWaterMat);
   refs.waterMesh.rotation.x = -Math.PI / 2;
   refs.waterMesh.position.set(0, -0.55, 0);
   refs.worldGroup.add(refs.waterMesh);
 
-  // Setor 1: Centro Urbano + Complexo ctOS
+  // Setor 1: Distrito Downtown & Financial + Complexo ctOS
   buildEnvironment(MAPS_CONFIG.COMPLEXO_CTOS);
 
-  // Ponte Golden Gate Atravessável ligando Centro Urbano (X=80) às Docas da Baía SF (X=400)
+  // Setor 2: Baía de São Francisco & Ponte Golden Gate Atravessável
   buildTraversableGoldenGate();
 
-  // Setor 2: Docas da Baía SF (X ~ 445)
+  // Setor 3: Distrito Portuário & Industrial (Docas da Baía SF + Terminal Marítimo Leste)
   buildDocksEnvironment(MAPS_CONFIG.DOCAS_BAIA_SF);
+
+  // Setor 4: Distrito Residencial & Colinas Sul + Ponte Sul
+  buildSouthDistrictAndBridge();
+
+  // Elementos repetitivos otimizados via THREE.InstancedMesh (60 FPS)
+  buildInstancedWorldElements();
 
   // Marcadores Holográficos de Missão no Mapa
   buildMissionMarkers();
@@ -327,7 +334,196 @@ export function buildMap() {
   buildNetHackLabels();
 }
 
-export function buildTraversableGoldenGate() {
+export function buildSouthDistrictAndBridge() {
+  const asphaltTex = TextureGenerator.getAsphaltTexture(40, 45);
+  const roadMat = new THREE.MeshStandardMaterial({ color: 0xffffff, map: asphaltTex, roughness: 0.88 });
+
+  // Expansão do solo de Downtown Norte/Oeste (X: -540..80, Z: -480..120)
+  const downtownExt = new THREE.Mesh(new THREE.PlaneGeometry(620, 600), roadMat);
+  downtownExt.rotation.x = -Math.PI / 2;
+  downtownExt.position.set(-230, -0.02, -180);
+  downtownExt.receiveShadow = true;
+  refs.worldGroup.add(downtownExt);
+
+  // Distrito Residencial & Colinas Sul (X: -540..80, Z: 120..780)
+  const southGround = new THREE.Mesh(new THREE.PlaneGeometry(620, 660), roadMat);
+  southGround.rotation.x = -Math.PI / 2;
+  southGround.position.set(-230, -0.01, 450);
+  southGround.receiveShadow = true;
+  refs.worldGroup.add(southGround);
+
+  // Extensão do Distrito Portuário & Industrial Leste (X: 400..960, Z: -280..360)
+  const eastExt = new THREE.Mesh(new THREE.PlaneGeometry(560, 640), roadMat);
+  eastExt.rotation.x = -Math.PI / 2;
+  eastExt.position.set(680, -0.02, 40);
+  eastExt.receiveShadow = true;
+  refs.worldGroup.add(eastExt);
+
+  // Ponte Sul conectando Distrito Residencial (X=80) ao Portuário (X=400) em Z = 320
+  const zS = 320;
+  const deckMat = new THREE.MeshStandardMaterial({ color: 0x161e2e, roughness: 0.85 });
+  const mainDeck = new THREE.Mesh(new THREE.BoxGeometry(240, 0.8, 16), deckMat);
+  mainDeck.position.set(240, 6.6, zS);
+  refs.worldGroup.add(mainDeck);
+
+  const rampLen = Math.hypot(40, 7);
+  const rampAng = Math.atan2(7, 40);
+  const rampW = new THREE.Mesh(new THREE.BoxGeometry(rampLen, 0.8, 16), deckMat);
+  rampW.position.set(100, 3.1, zS);
+  rampW.rotation.z = rampAng;
+  const rampE = new THREE.Mesh(new THREE.BoxGeometry(rampLen, 0.8, 16), deckMat);
+  rampE.position.set(380, 3.1, zS);
+  rampE.rotation.z = -rampAng;
+  refs.worldGroup.add(rampW, rampE);
+
+  addStaticBox(240, 1.1, 0.6, 240, 7.55, zS - 8.3, 0x26314a, { occlude: false, edgesColor: 0x00f0ff, edgesOpacity: 0.65 });
+  addStaticBox(240, 1.1, 0.6, 240, 7.55, zS + 8.3, 0x26314a, { occlude: false, edgesColor: 0x00f0ff, edgesOpacity: 0.65 });
+
+  // Garagem Clandestina DedSec no Distrito Sul (X: -120, Z: 320)
+  addStaticBox(26, 0.4, 22, -120, 4.8, 320, 0x141d2e, { collide: false, occlude: false, edgesColor: 0x00ff88, edgesOpacity: 0.8 });
+  [[-132, 310], [-108, 310], [-132, 330], [-108, 330]].forEach(([px, pz]) => {
+    addStaticBox(0.8, 4.8, 0.8, px, 2.4, pz, 0x24324c, { occlude: false });
+  });
+  addStaticBox(14, 0.4, 0.3, -120, 4.2, 309, 0x00ff88, { collide: false, occlude: false, emissive: 0x00ff88, emissiveIntensity: 1.4 });
+
+  // Quarteirões variados de Downtown & Financial e Residencial Sul + Galpões Industriais Leste
+  [
+    [-110, -40, 22, 32, 20, 0x00f0ff],
+    [-160, 20, 24, 38, 22, 0xff0055],
+    [-110, 180, 20, 24, 18, 0x38bdf8],
+    [-180, 260, 22, 22, 20, 0xffaa00],
+    [-80, 420, 24, 18, 22, 0x00ff88],
+    [-180, 460, 22, 20, 20, 0xff0055],
+    [560, -40, 26, 16, 24, 0xffaa00],
+    [620, 120, 28, 18, 26, 0x00f0ff],
+    [560, 240, 24, 15, 22, 0xff0055]
+  ].forEach(([bx, bz, bw, bh, bd, acc]) => {
+    buildDetailedBuilding(bx, bz, bw, bh, bd, { accent: acc });
+  });
+
+  // Colinas estilizadas ao sul do Distrito Residencial
+  [[-260, 660, 140, 28, 90], [-60, 690, 160, 36, 100], [10, 640, 110, 22, 80]].forEach(([hx, hz, hw, hh, hd]) => {
+    addStaticBox(hw, hh, hd, hx, hh / 2 - 2, hz, 0x142228, {
+      collide: false,
+      occlude: false,
+      edgesColor: 0x00ff88,
+      edgesOpacity: 0.22
+    });
+  });
+}
+
+export function buildInstancedWorldElements() {
+  const dummy = new THREE.Object3D();
+
+  // 1. Postes de Luz (InstancedMesh) ao longo das avenidas dos 4 distritos
+  const lampPositions = [];
+  for (let z = -220; z <= 520; z += 45) {
+    lampPositions.push([-32, z], [32, z], [-95, z], [DOCKS_OFFSET_X + 65, z > 320 ? 320 : z]);
+  }
+  for (let x = -320; x <= 740; x += 65) {
+    if (x > 75 && x < 405) continue;
+    lampPositions.push([x, 100], [x, 290]);
+  }
+  const poleMesh = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(0.35, 5.8, 0.35),
+    new THREE.MeshStandardMaterial({ color: 0x1e2538, roughness: 0.6 }),
+    lampPositions.length
+  );
+  const headMesh = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(1.1, 0.22, 0.45),
+    new THREE.MeshBasicMaterial({ color: 0x00f0ff }),
+    lampPositions.length
+  );
+  lampPositions.forEach(([lx, lz], i) => {
+    dummy.position.set(lx, 2.9, lz);
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.set(1, 1, 1);
+    dummy.updateMatrix();
+    poleMesh.setMatrixAt(i, dummy.matrix);
+    dummy.position.set(lx, 5.85, lz);
+    dummy.updateMatrix();
+    headMesh.setMatrixAt(i, dummy.matrix);
+  });
+  refs.worldGroup.add(poleMesh, headMesh);
+
+  // 2. Árvores Estilizadas nos Parques (InstancedMesh: troncos + copas)
+  const treePositions = [];
+  for (let i = 0; i < 140; i++) {
+    const tx = i % 2 === 0 ? -130 - (i % 7) * 28 : -50 - (i % 6) * 32;
+    const tz = i % 2 === 0 ? -120 - Math.floor(i / 7) * 24 : 150 + Math.floor(i / 6) * 24;
+    treePositions.push([tx, tz, 0.8 + (i % 4) * 0.22]);
+  }
+  const trunkMesh = new THREE.InstancedMesh(
+    new THREE.CylinderGeometry(0.28, 0.38, 2.6, 6),
+    new THREE.MeshStandardMaterial({ color: 0x3b281e, roughness: 0.9 }),
+    treePositions.length
+  );
+  const crownMesh = new THREE.InstancedMesh(
+    new THREE.OctahedronGeometry(2.1, 0),
+    new THREE.MeshStandardMaterial({ color: 0x0e4d3e, emissive: 0x042820, emissiveIntensity: 0.45, roughness: 0.7 }),
+    treePositions.length
+  );
+  treePositions.forEach(([tx, tz, sc], i) => {
+    dummy.position.set(tx, 1.3 * sc, tz);
+    dummy.scale.set(sc, sc, sc);
+    dummy.updateMatrix();
+    trunkMesh.setMatrixAt(i, dummy.matrix);
+    dummy.position.set(tx, 3.6 * sc, tz);
+    dummy.updateMatrix();
+    crownMesh.setMatrixAt(i, dummy.matrix);
+  });
+  refs.worldGroup.add(trunkMesh, crownMesh);
+
+  // 3. Barreiras Urbanas (InstancedMesh)
+  const barrierPositions = [];
+  for (let x = -280; x <= 700; x += 48) {
+    if (x > 70 && x < 410) continue;
+    barrierPositions.push([x, 110], [x, 275]);
+  }
+  const barrierMesh = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(3.4, 1.0, 0.75),
+    new THREE.MeshStandardMaterial({ color: 0x364156, roughness: 0.75 }),
+    barrierPositions.length
+  );
+  barrierPositions.forEach(([bx, bz], i) => {
+    dummy.position.set(bx, 0.5, bz);
+    dummy.scale.set(1, 1, 1);
+    dummy.updateMatrix();
+    barrierMesh.setMatrixAt(i, dummy.matrix);
+  });
+  refs.worldGroup.add(barrierMesh);
+
+  // 4. Prédios Distantes de Horizonte (1 única InstancedMesh com CanvasTexture)
+  const skyBuildings = [];
+  for (let x = -720; x <= 980; x += 72) {
+    skyBuildings.push([x, -420, 28 + (Math.abs(x) % 5) * 10]);
+    skyBuildings.push([x, 860, 24 + (Math.abs(x) % 4) * 9]);
+  }
+  for (let z = -340; z <= 780; z += 76) {
+    skyBuildings.push([-580, z, 30 + (Math.abs(z) % 5) * 8]);
+    skyBuildings.push([980, z, 26 + (Math.abs(z) % 4) * 8]);
+  }
+  const skyTex = TextureGenerator.getBuildingFacadeTexture(2, 4);
+  const horizonMesh = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(26, 1, 26),
+    new THREE.MeshStandardMaterial({
+      color: 0xd0dcf5,
+      map: skyTex,
+      emissive: 0x162238,
+      emissiveMap: skyTex,
+      emissiveIntensity: 0.65,
+      roughness: 0.65
+    }),
+    skyBuildings.length
+  );
+  skyBuildings.forEach(([hx, hz, hh], i) => {
+    dummy.position.set(hx, hh / 2, hz);
+    dummy.scale.set(1, hh, 1);
+    dummy.updateMatrix();
+    horizonMesh.setMatrixAt(i, dummy.matrix);
+  });
+  refs.worldGroup.add(horizonMesh);
+}
   const zCenter = 35;
   const deckW = 18;
   const bridgeGroup = new THREE.Group();
@@ -1496,8 +1692,14 @@ export function buildBoatPiersAndBoats() {
 
   const boatConfigs = [
     { x: 78, z: 62, yaw: Math.PI / 2, color: 0x111a2e, neon: 0x00f0ff },
-    { x: 391, z: 62, yaw: -Math.PI / 2, color: 0x111a2e, neon: 0x00ff88 }
+    { x: 391, z: 62, yaw: -Math.PI / 2, color: 0x111a2e, neon: 0x00ff88 },
+    { x: 78, z: 220, yaw: Math.PI / 2, color: 0x141f36, neon: 0xffaa00 },
+    { x: 391, z: -120, yaw: -Math.PI / 2, color: 0x141f36, neon: 0xff0055 }
   ];
+
+  // Píeres extras (Sul Downtown X=72, Z=220 e Industrial Norte X=398, Z=-120)
+  addStaticBox(8, 0.35, 10, 72, -0.42, 220, 0x1c263b, { collide: false, occlude: false, edgesColor: 0xffaa00, edgesOpacity: 0.5 });
+  addStaticBox(8, 0.35, 10, 398, -0.42, -120, 0x1c263b, { collide: false, occlude: false, edgesColor: 0xff0055, edgesOpacity: 0.5 });
 
   boatConfigs.forEach((bCfg, idx) => {
     const mesh = buildBoatMesh(bCfg.color, bCfg.neon);
@@ -1776,6 +1978,9 @@ export function onWindowResize() {
 }
 
 export function updateVisualEffects(dt, nowSec) {
+  if (refs.skyDome && refs.camera) {
+    refs.skyDome.position.copy(refs.camera.position);
+  }
   if (refs.serverParticles) {
     const posAttr = refs.serverParticles.geometry.getAttribute('position');
     for (let i = 0; i < serverParticleData.length; i++) {
