@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Projeto Hacker // DedSec ctOS Prototype</title>
+  <link rel="stylesheet" href="style.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+      }
+    }
+  </script>
+</head>
+<body>
+  <!-- Canvas 3D Principal -->
+  <canvas id="game-canvas"></canvas>
+
+  <!-- Efeitos de Filtro (NetHack / Câmera / Alerta) -->
+  <div id="nethack-overlay" class="screen-fx hidden">
+    <div class="fx-scanlines"></div>
+    <div class="nethack-badge">[ VISÃO NETHACK ATIVA // TOPOLOGIA ctOS ]</div>
+  </div>
+
+  <div id="camera-overlay" class="screen-fx hidden">
+    <div class="fx-scanlines"></div>
+    <div class="cam-rec">● REC // <span id="cam-name">CAM_01</span></div>
+    <div class="cam-hint">Mova o mouse para girar a câmera | [C] Próxima / Sair</div>
+  </div>
+
+  <div id="alert-vignette" class="screen-fx hidden"></div>
+
+  <!-- HUD DedSec / ctOS -->
+  <div id="hud" class="hidden">
+    <div class="hud-top">
+      <div class="hud-panel mission-panel">
+        <div class="panel-label">ctOS // OBJETIVO ATUAL</div>
+        <div id="mission-objective" class="mission-text">HACKEIE O PORTÃO DE ENTRADA</div>
+        <div id="mission-sub" class="mission-sub">Aproxime-se do painel na entrada e pressione [E]</div>
+      </div>
+
+      <div class="hud-panel status-panel">
+        <div class="panel-label">SISTEMA // DEDSEC_OS</div>
+        <div class="status-row">
+          <span>MODO:</span>
+          <span id="status-mode" class="neon-cyan">FURTIVO</span>
+        </div>
+        <div class="status-row">
+          <span>TEMPO:</span>
+          <span id="status-timer" class="neon-green">00:00</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Barra de Detecção -->
+    <div id="detection-container" class="hidden">
+      <div class="detection-label">⚠ DETECÇÃO HOSTIL</div>
+      <div class="progress-track danger-track">
+        <div id="detection-bar" class="progress-fill danger-fill"></div>
+      </div>
+    </div>
+
+    <!-- Barra de Download do Servidor -->
+    <div id="download-container" class="hidden">
+      <div class="download-label">BAIXANDO DADOS ctOS... <span id="download-percent">0%</span></div>
+      <div class="progress-track cyan-track">
+        <div id="download-bar" class="progress-fill cyan-fill"></div>
+      </div>
+    </div>
+
+    <!-- Prompt Contextual de Interação -->
+    <div id="interact-prompt" class="hidden"></div>
+
+    <!-- Mira Central -->
+    <div id="crosshair"></div>
+
+    <!-- Controles Rápidos -->
+    <div class="hud-controls">
+      <span><kbd>WASD</kbd> Mover</span>
+      <span><kbd>Mouse</kbd> Câmera</span>
+      <span><kbd>E</kbd> Hackear / Baixar</span>
+      <span><kbd>V</kbd> Visão NetHack</span>
+      <span><kbd>C</kbd> Câmeras</span>
+    </div>
+  </div>
+
+  <!-- Tela Inicial Minimalista -->
+  <div id="start-screen" class="overlay-screen">
+    <div class="terminal-card">
+      <div class="brand-tag">DEDSEC // SAN FRANCISCO // PROJETO_HACKER</div>
+      <h1 class="glitch-title">PROJETO HACKER</h1>
+      <p class="intro-desc">
+        Infiltre-se no complexo protegido da <strong>ctOS</strong>, desative o portão eletrônico,
+        use cobertura e câmeras de segurança para evitar os guardas, baixe os dados confidenciais
+        e fuja para a zona de extração.
+      </p>
+      <div class="controls-grid">
+        <div><kbd>WASD</kbd> Movimentação</div>
+        <div><kbd>Mouse</kbd> Câmera 3ª Pessoa</div>
+        <div><kbd>V</kbd> Visão NetHack</div>
+        <div><kbd>C</kbd> Hackear Câmeras</div>
+        <div><kbd>E</kbd> Hackear Portão / Servidor</div>
+      </div>
+      <button id="btn-start" class="cyber-btn">INICIAR MISSÃO</button>
+    </div>
+  </div>
+
+  <!-- Modal de Terminal para Minigame de Digitação -->
+  <div id="terminal-modal" class="overlay-screen hidden">
+    <div class="terminal-window">
+      <div class="terminal-header">
+        <span>ROOT@DEDSEC:~# ctOS_GATE_OVERRIDE.sh</span>
+        <span id="hack-timer" class="neon-magenta">10.0s</span>
+      </div>
+      <div class="terminal-body">
+        <p class="terminal-log">&gt; CONEXÃO ESTABELECIDA COM O PAINEL DO PORTÃO.</p>
+        <p class="terminal-log">&gt; DIGITE O COMANDO DE DESBLOQUEIO ANTES DO TIMEOUT:</p>
+        <div id="hack-target-code" class="target-code">OVERRIDE_GATE_77</div>
+        <div class="input-line">
+          <span class="prompt-arrow">&gt;_</span>
+          <input
+            type="text"
+            id="hack-input"
+            autocomplete="off"
+            autocapitalize="characters"
+            spellcheck="false"
+            placeholder="DIGITE O CÓDIGO AQUI..."
+          />
+        </div>
+        <div id="hack-feedback" class="terminal-feedback"></div>
+      </div>
+      <div class="terminal-footer">
+        <span>Pressione <kbd>ESC</kbd> para cancelar</span>
+        <span>Pressione <kbd>ENTER</kbd> para confirmar</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tela de Game Over -->
+  <div id="gameover-screen" class="overlay-screen hidden">
+    <div class="terminal-card danger-card">
+      <div class="brand-tag neon-magenta">ctOS // ALERTA DE SEGURANÇA</div>
+      <h1 class="status-title neon-magenta">VOCÊ FOI DETECTADO</h1>
+      <p class="intro-desc">
+        Os guardas do complexo identificaram sua posição e bloquearam o perímetro.
+      </p>
+      <button id="btn-retry-gameover" class="cyber-btn danger-btn">REINICIAR MISSÃO</button>
+    </div>
+  </div>
+
+  <!-- Tela de Vitória -->
+  <div id="victory-screen" class="overlay-screen hidden">
+    <div class="terminal-card victory-card">
+      <div class="brand-tag neon-green">DEDSEC // EXTRAÇÃO BEM-SUCEDIDA</div>
+      <h1 class="status-title neon-green">MISSÃO CONCLUÍDA - DADOS EXTRAÍDOS</h1>
+      <p class="intro-desc">
+        Os arquivos confidenciais da ctOS foram copiados com sucesso. Tempo total:
+        <strong id="final-time" class="neon-cyan">00:00</strong>.
+      </p>
+      <button id="btn-retry-victory" class="cyber-btn green-btn">JOGAR NOVAMENTE</button>
+    </div>
+  </div>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>
