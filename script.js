@@ -9,29 +9,56 @@ const MISSION_STATE = {
   GAMEOVER: 'GAMEOVER'
 };
 
+const HACK_CODES = [
+  'OVERRIDE_GATE_77',
+  'BYPASS_CTOS_404',
+  'ROOT_ACCESS_88',
+  'DECRYPT_NODE_19',
+  'UNLOCK_SECTOR_09',
+  'INJECT_DEDSEC_21'
+];
+
 const PLAYER_RADIUS = 0.55;
 const PLAYER_SPEED = 7.4;
+const GATE_HACK_TIME = 10.0;
 
 const dom = {
   canvas: document.getElementById('game-canvas'),
   hud: document.getElementById('hud'),
   startScreen: document.getElementById('start-screen'),
+  terminalModal: document.getElementById('terminal-modal'),
+  nethackOverlay: document.getElementById('nethack-overlay'),
+  cameraOverlay: document.getElementById('camera-overlay'),
+  statusMode: document.getElementById('status-mode'),
+  camName: document.getElementById('cam-name'),
+  hackTimer: document.getElementById('hack-timer'),
+  hackTargetCode: document.getElementById('hack-target-code'),
+  hackInput: document.getElementById('hack-input'),
+  hackFeedback: document.getElementById('hack-feedback'),
   btnStart: document.getElementById('btn-start')
 };
 
 let scene, camera, renderer, clock;
 let ambientLight, dirLight;
 let playerGroup, playerParts = {};
-let gateMesh, gatePanelMesh, serverMesh, serverCoreMesh, extractionZoneGroup, extractionRing;
+let gateMesh, gatePanelMesh, serverMesh, serverCoreMesh, networkLinesGroup;
 
 const colliders = [];
 const occluders = [];
 const structureMeshes = [];
 const hackableMeshes = [];
+const securityCameras = [];
 
 const gameState = {
   mission: MISSION_STATE.IDLE,
   elapsedTime: 0,
+  netHackActive: false,
+  activeCamIndex: -1,
+  gateUnlocked: false,
+  gateOpenProgress: 0,
+  terminalOpen: false,
+  hackTimeLeft: GATE_HACK_TIME,
+  hackCode: '',
   cameraYaw: 0,
   cameraPitch: 0.34,
   keys: {}
@@ -57,6 +84,8 @@ function initThree() {
   setupLighting();
   buildEnvironment();
   buildPlayer();
+  buildSecurityCameras();
+  buildNetworkLines();
 
   window.addEventListener('resize', onWindowResize);
 }
@@ -68,27 +97,7 @@ function setupLighting() {
   dirLight = new THREE.DirectionalLight(0x88bbff, 0.95);
   dirLight.position.set(18, 28, 16);
   dirLight.castShadow = true;
-  dirLight.shadow.mapSize.set(2048, 2048);
-  dirLight.shadow.camera.near = 2;
-  dirLight.shadow.camera.far = 85;
-  const d = 32;
-  dirLight.shadow.camera.left = -d;
-  dirLight.shadow.camera.right = d;
-  dirLight.shadow.camera.top = d;
-  dirLight.shadow.camera.bottom = -d;
   scene.add(dirLight);
-
-  const streetNeonCyan = new THREE.PointLight(0x00f0ff, 2.2, 26);
-  streetNeonCyan.position.set(-10, 5, 16);
-  scene.add(streetNeonCyan);
-
-  const streetNeonMagenta = new THREE.PointLight(0xff0055, 2.2, 26);
-  streetNeonMagenta.position.set(10, 5, 16);
-  scene.add(streetNeonMagenta);
-
-  const serverLight = new THREE.PointLight(0x00f0ff, 2.6, 20);
-  serverLight.position.set(0, 4.2, -20);
-  scene.add(serverLight);
 }
 
 function addStaticBox(w, h, d, x, y, z, color, options = {}) {
@@ -99,11 +108,8 @@ function addStaticBox(w, h, d, x, y, z, color, options = {}) {
     emissive: options.emissive ?? 0x000000,
     emissiveIntensity: options.emissiveIntensity ?? 0
   });
-
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
   mesh.position.set(x, y, z);
-  mesh.castShadow = options.castShadow ?? true;
-  mesh.receiveShadow = options.receiveShadow ?? true;
   scene.add(mesh);
 
   mesh.userData.normalMaterial = mat;
@@ -114,16 +120,12 @@ function addStaticBox(w, h, d, x, y, z, color, options = {}) {
     opacity: 0.35
   });
 
-  if (options.isStructure !== false) {
-    structureMeshes.push(mesh);
-  }
+  if (options.isStructure !== false) structureMeshes.push(mesh);
   if (options.collide !== false) {
     mesh.updateMatrixWorld(true);
     colliders.push({ box: new THREE.Box3().setFromObject(mesh), mesh, isGate: !!options.isGate });
   }
-  if (options.occlude !== false) {
-    occluders.push(mesh);
-  }
+  if (options.occlude !== false) occluders.push(mesh);
   return mesh;
 }
 
@@ -131,16 +133,12 @@ function createHackableDevice(w, h, d, x, y, z, glowColor, name) {
   const normalMat = new THREE.MeshStandardMaterial({
     color: 0x121b2d,
     emissive: glowColor,
-    emissiveIntensity: 0.65,
-    roughness: 0.35,
-    metalness: 0.5
+    emissiveIntensity: 0.65
   });
-  const nethackMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff, wireframe: false });
+  const nethackMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
 
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), normalMat);
   mesh.position.set(x, y, z);
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
   mesh.name = name;
   mesh.userData.normalMaterial = normalMat;
   mesh.userData.nethackMaterial = nethackMat;
@@ -153,17 +151,12 @@ function createHackableDevice(w, h, d, x, y, z, glowColor, name) {
 }
 
 function buildEnvironment() {
-  const groundMat = new THREE.MeshStandardMaterial({ color: 0x101422, roughness: 0.88, metalness: 0.15 });
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(70, 80), groundMat);
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(70, 80),
+    new THREE.MeshStandardMaterial({ color: 0x101422, roughness: 0.88 })
+  );
   ground.rotation.x = -Math.PI / 2;
-  ground.receiveShadow = true;
   scene.add(ground);
-
-  const grid = new THREE.GridHelper(70, 35, 0x00f0ff, 0x162442);
-  grid.position.y = 0.015;
-  grid.material.opacity = 0.25;
-  grid.material.transparent = true;
-  scene.add(grid);
 
   addStaticBox(13, 5, 1, -9.5, 2.5, 6, 0x1b2236);
   addStaticBox(13, 5, 1, 9.5, 2.5, 6, 0x1b2236);
@@ -178,83 +171,130 @@ function buildEnvironment() {
   });
   gatePanelMesh = createHackableDevice(0.7, 1.5, 0.5, 4.2, 0.75, 6.9, 0x00f0ff, 'PAINEL_PORTAO');
   serverMesh = createHackableDevice(2.0, 3.0, 1.4, 0, 1.65, -21.5, 0xff0055, 'SERVIDOR_CTOS');
-
-  serverCoreMesh = new THREE.Mesh(
-    new THREE.OctahedronGeometry(0.55, 0),
-    new THREE.MeshBasicMaterial({ color: 0x00f0ff, wireframe: true })
-  );
-  serverCoreMesh.position.set(0, 3.9, -21.5);
-  scene.add(serverCoreMesh);
 }
 
 function buildPlayer() {
   playerGroup = new THREE.Group();
   playerGroup.position.set(0, 0, 14);
-
-  const coatMat = new THREE.MeshStandardMaterial({ color: 0x171c2b, roughness: 0.7 });
-  const hoodMat = new THREE.MeshStandardMaterial({ color: 0x101420, roughness: 0.8 });
-  const visorMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
-
-  const legGeo = new THREE.BoxGeometry(0.24, 0.75, 0.24);
-  const legL = new THREE.Mesh(legGeo, coatMat);
-  legL.position.set(-0.16, 0.38, 0);
-  const legR = new THREE.Mesh(legGeo, coatMat);
-  legR.position.set(0.16, 0.38, 0);
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.82, 0.38), coatMat);
-  torso.position.y = 1.15;
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.44, 0.44), hoodMat);
-  head.position.y = 1.8;
-  const visor = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.12, 0.08), visorMat);
-  visor.position.set(0, 1.82, 0.22);
-
-  playerParts = { legL, legR };
-  playerGroup.add(legL, legR, torso, head, visor);
   scene.add(playerGroup);
 }
 
-function checkCollision(x, z) {
-  for (const col of colliders) {
-    const b = col.box;
-    const closestX = THREE.MathUtils.clamp(x, b.min.x, b.max.x);
-    const closestZ = THREE.MathUtils.clamp(z, b.min.z, b.max.z);
-    const dx = x - closestX;
-    const dz = z - closestZ;
-    if (dx * dx + dz * dz < PLAYER_RADIUS * PLAYER_RADIUS) return true;
-  }
-  return false;
+function buildSecurityCameras() {
+  const camConfigs = [
+    { name: 'CAM_01 // PÁTIO_OESTE', pos: new THREE.Vector3(-14.6, 4.3, -1), baseYaw: -2.15, basePitch: -0.35 },
+    { name: 'CAM_02 // SETOR_SERVIDOR', pos: new THREE.Vector3(14.6, 4.3, -17), baseYaw: 1.95, basePitch: -0.32 }
+  ];
+
+  camConfigs.forEach((cfg, idx) => {
+    const normalMat = new THREE.MeshStandardMaterial({ color: 0x222c42, emissive: 0x00ff88, emissiveIntensity: 0.7 });
+    const nethackMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.4, 0.8), normalMat);
+    mesh.position.copy(cfg.pos);
+    mesh.userData.normalMaterial = normalMat;
+    mesh.userData.nethackMaterial = nethackMat;
+    scene.add(mesh);
+
+    hackableMeshes.push(mesh);
+    securityCameras.push({
+      id: idx,
+      name: cfg.name,
+      mesh,
+      pos: cfg.pos.clone(),
+      baseYaw: cfg.baseYaw,
+      basePitch: cfg.basePitch,
+      yawOffset: 0,
+      pitchOffset: 0
+    });
+  });
 }
 
-function updatePlayer(dt) {
-  let inputZ = 0, inputX = 0;
-  if (gameState.keys['KeyW']) inputZ += 1;
-  if (gameState.keys['KeyS']) inputZ -= 1;
-  if (gameState.keys['KeyA']) inputX -= 1;
-  if (gameState.keys['KeyD']) inputX += 1;
+function buildNetworkLines() {
+  networkLinesGroup = new THREE.Group();
+  networkLinesGroup.visible = false;
+  const points = [
+    gatePanelMesh.position.clone(),
+    securityCameras[0].pos.clone(),
+    serverMesh.position.clone().setY(2.2),
+    securityCameras[1].pos.clone(),
+    gatePanelMesh.position.clone()
+  ];
+  const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+  const lineMat = new THREE.LineBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.9 });
+  networkLinesGroup.add(new THREE.Line(lineGeo, lineMat));
+  scene.add(networkLinesGroup);
+}
 
-  if (inputX !== 0 || inputZ !== 0) {
-    const yaw = gameState.cameraYaw;
-    let moveX = -Math.sin(yaw) * inputZ + Math.cos(yaw) * inputX;
-    let moveZ = -Math.cos(yaw) * inputZ - Math.sin(yaw) * inputX;
-    const len = Math.hypot(moveX, moveZ) || 1;
-    moveX /= len;
-    moveZ /= len;
+function toggleNetHack(forceState) {
+  gameState.netHackActive = forceState !== undefined ? forceState : !gameState.netHackActive;
+  if (gameState.netHackActive) {
+    scene.background.setHex(0x020611);
+    scene.fog.color.setHex(0x020611);
+    ambientLight.intensity = 0.55;
+    dom.nethackOverlay.classList.remove('hidden');
+    dom.statusMode.textContent = 'NETHACK';
+    networkLinesGroup.visible = true;
+  } else {
+    scene.background.setHex(0x090b1a);
+    scene.fog.color.setHex(0x090b1a);
+    ambientLight.intensity = 1.35;
+    dom.nethackOverlay.classList.add('hidden');
+    dom.statusMode.textContent = gameState.activeCamIndex >= 0 ? 'CÂMERA' : 'FURTIVO';
+    networkLinesGroup.visible = false;
+  }
 
-    const pos = playerGroup.position;
-    if (!checkCollision(pos.x + moveX * PLAYER_SPEED * dt, pos.z)) pos.x += moveX * PLAYER_SPEED * dt;
-    if (!checkCollision(pos.x, pos.z + moveZ * PLAYER_SPEED * dt)) pos.z += moveZ * PLAYER_SPEED * dt;
+  structureMeshes.forEach((m) => {
+    m.material = gameState.netHackActive ? m.userData.nethackMaterial : m.userData.normalMaterial;
+  });
+  hackableMeshes.forEach((m) => {
+    m.material = gameState.netHackActive ? m.userData.nethackMaterial : m.userData.normalMaterial;
+  });
+}
+
+function cycleSecurityCamera(specificIndex = null) {
+  if (specificIndex !== null) {
+    gameState.activeCamIndex = gameState.activeCamIndex === specificIndex ? -1 : specificIndex;
+  } else {
+    gameState.activeCamIndex += 1;
+    if (gameState.activeCamIndex >= securityCameras.length) gameState.activeCamIndex = -1;
+  }
+
+  if (gameState.activeCamIndex >= 0) {
+    const camObj = securityCameras[gameState.activeCamIndex];
+    camObj.yawOffset = 0;
+    camObj.pitchOffset = 0;
+    dom.camName.textContent = camObj.name;
+    dom.cameraOverlay.classList.remove('hidden');
+  } else {
+    dom.cameraOverlay.classList.add('hidden');
   }
 }
 
-function updateCamera() {
-  const target = new THREE.Vector3(playerGroup.position.x, playerGroup.position.y + 1.55, playerGroup.position.z);
-  const dist = 5.4;
-  const idealPos = new THREE.Vector3(
-    target.x + Math.sin(gameState.cameraYaw) * Math.cos(gameState.cameraPitch) * dist,
-    target.y + Math.sin(gameState.cameraPitch) * dist,
-    target.z + Math.cos(gameState.cameraYaw) * Math.cos(gameState.cameraPitch) * dist
-  );
-  camera.position.copy(idealPos);
-  camera.lookAt(target);
+function openGateTerminal() {
+  gameState.terminalOpen = true;
+  gameState.hackTimeLeft = GATE_HACK_TIME;
+  gameState.hackCode = HACK_CODES[Math.floor(Math.random() * HACK_CODES.length)];
+  dom.hackTargetCode.textContent = gameState.hackCode;
+  dom.hackInput.value = '';
+  dom.hackFeedback.textContent = '';
+  dom.terminalModal.classList.remove('hidden');
+  if (document.pointerLockElement === dom.canvas) document.exitPointerLock();
+  setTimeout(() => dom.hackInput.focus(), 50);
+}
+
+function closeGateTerminal() {
+  gameState.terminalOpen = false;
+  dom.terminalModal.classList.add('hidden');
+  dom.canvas.requestPointerLock();
+}
+
+function completeGateHack() {
+  gameState.gateUnlocked = true;
+  dom.hackFeedback.textContent = '> ACESSO CONCEDIDO // PORTÃO DESTRAVADO!';
+  dom.hackFeedback.style.color = '#00ff88';
+  for (let i = colliders.length - 1; i >= 0; i--) {
+    if (colliders[i].isGate) colliders.splice(i, 1);
+  }
+  setTimeout(() => closeGateTerminal(), 450);
 }
 
 function onWindowResize() {
@@ -265,11 +305,6 @@ function onWindowResize() {
 
 function animate() {
   requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), 0.05);
-  if (gameState.mission === MISSION_STATE.INFILTRATE) {
-    updatePlayer(dt);
-  }
-  updateCamera();
   renderer.render(scene, camera);
 }
 
