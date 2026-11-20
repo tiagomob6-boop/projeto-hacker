@@ -1,4 +1,4 @@
-﻿import * as THREE from 'three';
+import * as THREE from 'three';
 
 // ==========================================
 // CONSTANTES E ESTADO GLOBAL
@@ -18,13 +18,30 @@ const HACK_CODES = [
   'ROOT_ACCESS_88',
   'DECRYPT_NODE_19',
   'UNLOCK_SECTOR_09',
-  'INJECT_DEDSEC_21'
+  'INJECT_DEDSEC_21',
+  'BREACH_PROXY_64',
+  'SPOOF_TOKEN_33'
+];
+
+const FIREWALL_CODES = [
+  'BYPASS_FW_99',
+  'KILL_DAEMON_04',
+  'CRACK_AES_256',
+  'PURGE_TRACE_71',
+  'SUDO_DUMP_42',
+  'DROP_FILTER_18'
 ];
 
 const PLAYER_RADIUS = 0.55;
 const PLAYER_SPEED = 7.4;
+const PLAYER_SPRINT_SPEED = 11.2;
+const PLAYER_CROUCH_SPEED = 4.5;
 const GATE_HACK_TIME = 10.0;
+const FIREWALL_HACK_TIME = 8.5;
 const DOWNLOAD_DURATION = 3.5;
+const CAMERA_OVERLOAD_DURATION = 15.0;
+const ELECTRIC_COOLDOWN = 12.0;
+const ELECTRIC_INVESTIGATE_TIME = 6.0;
 const BASE_AMBIENT_INTENSITY = 2.15;
 
 // Referências DOM
@@ -53,6 +70,7 @@ const dom = {
   hackTargetCode: document.getElementById('hack-target-code'),
   hackInput: document.getElementById('hack-input'),
   hackFeedback: document.getElementById('hack-feedback'),
+  terminalLogAction: document.getElementById('terminal-log-action'),
   finalTime: document.getElementById('final-time'),
   btnStart: document.getElementById('btn-start'),
   btnRetryGameover: document.getElementById('btn-retry-gameover'),
@@ -72,8 +90,9 @@ const colliders = [];   // { box: THREE.Box3, mesh, isGate?: boolean }
 const occluders = [];   // Meshes que bloqueiam visão dos guardas
 const structureMeshes = []; // Meshes afetados pelo wireframe NetHack
 const hackableMeshes = [];  // Dispositivos destacáveis no NetHack
-const securityCameras = []; // { id, name, mesh, pos, baseYaw, basePitch, yawOffset, pitchOffset }
-const guards = [];          // { mesh, waypoints, currentTarget, speed, visionRange, visionHalfAngle, coneMesh, coneMat, detection }
+const securityCameras = []; // { id, name, mesh, pos, baseYaw, basePitch, yawOffset, pitchOffset, coneMesh, coneMat, disabledTimer, sweepPhase, currentYaw }
+const guards = [];          // { mesh, waypoints, currentTarget, speed, visionRange, visionHalfAngle, coneMesh, coneMat, investigateTarget, investigateTimer }
+const electricBoxes = [];   // { id, name, mesh, cooldown, sparkTimer, sparkPoints, sparkData }
 
 // Estado do jogo
 const gameState = {
@@ -83,11 +102,15 @@ const gameState = {
   activeCamIndex: -1, // -1 = câmera 3ª pessoa do jogador
   gateUnlocked: false,
   gateOpenProgress: 0,
+  serverFirewallDisabled: false,
   terminalOpen: false,
+  terminalTarget: 'GATE',
   hackTimeLeft: GATE_HACK_TIME,
   hackCode: '',
   downloadProgress: 0,
   detectionLevel: 0,
+  isSprinting: false,
+  isCrouching: false,
   cameraYaw: 0,
   cameraPitch: 0.34,
   keys: {}
@@ -117,6 +140,7 @@ function initThree() {
   buildEnvironment();
   buildPlayer();
   buildSecurityCameras();
+  buildElectricBoxes();
   buildGuards();
   buildNetworkLines();
 
@@ -686,9 +710,32 @@ function buildSecurityCameras() {
 
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.4, 0.8), normalMat);
     mesh.position.copy(cfg.pos);
+    mesh.rotation.y = cfg.baseYaw;
     mesh.userData.normalMaterial = normalMat;
     mesh.userData.nethackMaterial = nethackMat;
     scene.add(mesh);
+
+    // Cone de visão verde no chão para varredura da câmera
+    const camVisionRange = 11.5;
+    const camVisionHalfAngle = Math.PI / 6;
+    const coneGeo = new THREE.CircleGeometry(
+      camVisionRange,
+      26,
+      -Math.PI / 2 - camVisionHalfAngle,
+      camVisionHalfAngle * 2
+    );
+    const coneMat = new THREE.MeshBasicMaterial({
+      color: 0x00ff88,
+      transparent: true,
+      opacity: 0.18,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+    const coneMesh = new THREE.Mesh(coneGeo, coneMat);
+    coneMesh.rotation.x = -Math.PI / 2;
+    coneMesh.rotation.z = cfg.baseYaw;
+    coneMesh.position.set(cfg.pos.x, 0.05, cfg.pos.z);
+    scene.add(coneMesh);
 
     hackableMeshes.push(mesh);
     securityCameras.push({
@@ -699,7 +746,66 @@ function buildSecurityCameras() {
       baseYaw: cfg.baseYaw,
       basePitch: cfg.basePitch,
       yawOffset: 0,
-      pitchOffset: 0
+      pitchOffset: 0,
+      coneMesh,
+      coneMat,
+      visionRange: camVisionRange,
+      visionHalfAngle: camVisionHalfAngle,
+      disabledTimer: 0,
+      sweepPhase: idx * 1.5,
+      currentYaw: cfg.baseYaw
+    });
+  });
+}
+
+// ==========================================
+// CAIXAS ELÉTRICAS DE DISTRAÇÃO
+// ==========================================
+function buildElectricBoxes() {
+  const boxConfigs = [
+    { name: 'CAIXA_ELETRICA_01', pos: new THREE.Vector3(-11.5, 0.85, -1.5) },
+    { name: 'CAIXA_ELETRICA_02', pos: new THREE.Vector3(11.5, 0.85, -12.5) }
+  ];
+
+  boxConfigs.forEach((cfg, idx) => {
+    const mesh = createHackableDevice(0.75, 1.3, 0.55, cfg.pos.x, cfg.pos.y, cfg.pos.z, 0xffaa00, cfg.name);
+
+    const sparkCount = 24;
+    const sparkPositions = new Float32Array(sparkCount * 3);
+    const sparkData = [];
+    for (let i = 0; i < sparkCount; i++) {
+      sparkPositions[i * 3] = cfg.pos.x;
+      sparkPositions[i * 3 + 1] = cfg.pos.y + 0.5;
+      sparkPositions[i * 3 + 2] = cfg.pos.z;
+      sparkData.push({
+        vx: (Math.random() - 0.5) * 3.4,
+        vy: 1.2 + Math.random() * 2.8,
+        vz: (Math.random() - 0.5) * 3.4
+      });
+    }
+
+    const sparkGeo = new THREE.BufferGeometry();
+    sparkGeo.setAttribute('position', new THREE.BufferAttribute(sparkPositions, 3));
+    const sparkMat = new THREE.PointsMaterial({
+      color: 0xffd000,
+      size: 0.16,
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const sparkPoints = new THREE.Points(sparkGeo, sparkMat);
+    sparkPoints.visible = false;
+    scene.add(sparkPoints);
+
+    electricBoxes.push({
+      id: idx,
+      name: cfg.name,
+      mesh,
+      cooldown: 0,
+      sparkTimer: 0,
+      sparkPoints,
+      sparkData
     });
   });
 }
@@ -772,7 +878,9 @@ function buildGuards() {
       visionRange: cfg.visionRange,
       visionHalfAngle: cfg.visionHalfAngle,
       coneMesh,
-      coneMat
+      coneMat,
+      investigateTarget: null,
+      investigateTimer: 0
     });
   });
 }
@@ -786,9 +894,11 @@ function buildNetworkLines() {
 
   const points = [
     gatePanelMesh.position.clone(),
+    electricBoxes[0].mesh.position.clone(),
     securityCameras[0].pos.clone(),
     serverMesh.position.clone().setY(2.2),
     securityCameras[1].pos.clone(),
+    electricBoxes[1].mesh.position.clone(),
     gatePanelMesh.position.clone()
   ];
 
@@ -833,6 +943,12 @@ function setupInputs() {
       cycleSecurityCamera();
     } else if (code === 'KeyE') {
       handleInteractPress();
+    } else if (code === 'KeyR' && gameState.activeCamIndex >= 0) {
+      overloadActiveCamera();
+    }
+
+    if (e.ctrlKey && ['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(code)) {
+      e.preventDefault();
     }
   });
 
@@ -878,7 +994,7 @@ function setupInputs() {
   dom.hackInput.addEventListener('input', () => {
     const typed = dom.hackInput.value.trim().toUpperCase();
     if (typed === gameState.hackCode) {
-      completeGateHack();
+      completeTerminalHack();
     }
   });
 
@@ -886,7 +1002,7 @@ function setupInputs() {
     if (e.key === 'Enter') {
       const typed = dom.hackInput.value.trim().toUpperCase();
       if (typed === gameState.hackCode) {
-        completeGateHack();
+        completeTerminalHack();
       } else {
         dom.hackFeedback.textContent = '> ERRO DE SINTAXE // VERIFIQUE O COMANDO';
         dom.hackFeedback.style.color = '#ff0055';
@@ -932,10 +1048,23 @@ function cycleSecurityCamera(specificIndex = null) {
   if (specificIndex !== null) {
     gameState.activeCamIndex = gameState.activeCamIndex === specificIndex ? -1 : specificIndex;
   } else {
-    gameState.activeCamIndex += 1;
-    if (gameState.activeCamIndex >= securityCameras.length) {
-      gameState.activeCamIndex = -1;
-    }
+    let attempts = 0;
+    do {
+      gameState.activeCamIndex += 1;
+      if (gameState.activeCamIndex >= securityCameras.length) {
+        gameState.activeCamIndex = -1;
+        break;
+      }
+      attempts += 1;
+    } while (
+      gameState.activeCamIndex >= 0 &&
+      securityCameras[gameState.activeCamIndex].disabledTimer > 0 &&
+      attempts <= securityCameras.length
+    );
+  }
+
+  if (gameState.activeCamIndex >= 0 && securityCameras[gameState.activeCamIndex].disabledTimer > 0) {
+    gameState.activeCamIndex = -1;
   }
 
   if (gameState.activeCamIndex >= 0) {
@@ -951,6 +1080,45 @@ function cycleSecurityCamera(specificIndex = null) {
   }
 }
 
+function overloadActiveCamera() {
+  if (gameState.activeCamIndex < 0) return;
+  const camObj = securityCameras[gameState.activeCamIndex];
+  camObj.disabledTimer = CAMERA_OVERLOAD_DURATION;
+  camObj.coneMesh.visible = false;
+  camObj.mesh.userData.normalMaterial.emissive.setHex(0x331111);
+  cycleSecurityCamera(-1);
+}
+
+function triggerElectricBox(box) {
+  if (box.cooldown > 0) return;
+  box.cooldown = ELECTRIC_COOLDOWN;
+  box.sparkTimer = 1.6;
+  box.sparkPoints.visible = true;
+  box.mesh.userData.normalMaterial.emissive.setHex(0x00f0ff);
+
+  const posAttr = box.sparkPoints.geometry.getAttribute('position');
+  for (let i = 0; i < box.sparkData.length; i++) {
+    posAttr.setXYZ(i, box.mesh.position.x, box.mesh.position.y + 0.5, box.mesh.position.z);
+  }
+  posAttr.needsUpdate = true;
+
+  // Atrair o guarda mais próximo para investigar por 6 segundos
+  let nearestGuard = null;
+  let nearestDist = Infinity;
+  guards.forEach((g) => {
+    const d = g.mesh.position.distanceTo(box.mesh.position);
+    if (d < nearestDist) {
+      nearestDist = d;
+      nearestGuard = g;
+    }
+  });
+
+  if (nearestGuard) {
+    nearestGuard.investigateTarget = new THREE.Vector3(box.mesh.position.x, 0, box.mesh.position.z);
+    nearestGuard.investigateTimer = ELECTRIC_INVESTIGATE_TIME;
+  }
+}
+
 function handleInteractPress() {
   // Se já está em uma câmera, E também pode sair
   if (gameState.activeCamIndex >= 0) {
@@ -962,16 +1130,39 @@ function handleInteractPress() {
 
   // 1. Checar proximidade do painel do portão
   if (!gameState.gateUnlocked && pPos.distanceTo(gatePanelMesh.position) < 3.6) {
-    openGateTerminal();
+    openTerminal('GATE');
     return;
   }
 
-  // 2. Checar se o jogador está olhando/próximo a uma câmera de segurança
+  // 2. Checar firewall do servidor central antes do download
+  if (
+    gameState.mission === MISSION_STATE.STEAL_DATA &&
+    !gameState.serverFirewallDisabled &&
+    pPos.distanceTo(serverMesh.position) < 3.8
+  ) {
+    openTerminal('FIREWALL');
+    return;
+  }
+
+  // 3. Checar caixas elétricas de distração (perto ou olhando na Visão NetHack)
+  const camDir = new THREE.Vector3();
+  camera.getWorldDirection(camDir);
+
+  for (const box of electricBoxes) {
+    const distBox = pPos.distanceTo(box.mesh.position);
+    const toBox = box.mesh.position.clone().sub(camera.position).normalize();
+    const lookingInNetHack = gameState.netHackActive && distBox < 28 && camDir.dot(toBox) > 0.90;
+    if (distBox < 3.6 || lookingInNetHack) {
+      triggerElectricBox(box);
+      return;
+    }
+  }
+
+  // 4. Checar se o jogador está olhando/próximo a uma câmera de segurança
   for (let i = 0; i < securityCameras.length; i++) {
     const camObj = securityCameras[i];
+    if (camObj.disabledTimer > 0) continue;
     if (pPos.distanceTo(camObj.pos) < 12) {
-      const camDir = new THREE.Vector3();
-      camera.getWorldDirection(camDir);
       const toSecurityCam = camObj.pos.clone().sub(camera.position).normalize();
       if (camDir.dot(toSecurityCam) > 0.92) {
         cycleSecurityCamera(i);
@@ -981,15 +1172,27 @@ function handleInteractPress() {
   }
 }
 
-function openGateTerminal() {
+function openTerminal(targetType = 'GATE') {
   gameState.terminalOpen = true;
-  gameState.hackTimeLeft = GATE_HACK_TIME;
-  gameState.hackCode = HACK_CODES[Math.floor(Math.random() * HACK_CODES.length)];
+  gameState.terminalTarget = targetType;
+
+  const isFirewall = targetType === 'FIREWALL';
+  const duration = isFirewall ? FIREWALL_HACK_TIME : GATE_HACK_TIME;
+  const pool = isFirewall ? FIREWALL_CODES : HACK_CODES;
+
+  gameState.hackTimeLeft = duration;
+  gameState.hackCode = pool[Math.floor(Math.random() * pool.length)];
+
+  if (dom.terminalLogAction) {
+    dom.terminalLogAction.textContent = isFirewall
+      ? '> FIREWALL ATIVO NO SERVIDOR CENTRAL ctOS.'
+      : '> CONEXÃO ESTABELECIDA COM O PAINEL DO PORTÃO.';
+  }
 
   dom.hackTargetCode.textContent = gameState.hackCode;
   dom.hackInput.value = '';
   dom.hackFeedback.textContent = '';
-  dom.hackTimer.textContent = `${GATE_HACK_TIME.toFixed(1)}s`;
+  dom.hackTimer.textContent = `${duration.toFixed(1)}s`;
   dom.terminalModal.classList.remove('hidden');
 
   if (document.pointerLockElement === dom.canvas) {
@@ -1004,7 +1207,18 @@ function closeGateTerminal() {
   dom.canvas.requestPointerLock();
 }
 
-function completeGateHack() {
+function completeTerminalHack() {
+  if (gameState.terminalTarget === 'FIREWALL') {
+    gameState.serverFirewallDisabled = true;
+    serverMesh.userData.normalMaterial.emissive.setHex(0x00f0ff);
+    dom.hackFeedback.textContent = '> FIREWALL DESATIVADO // DOWNLOAD LIBERADO!';
+    dom.hackFeedback.style.color = '#00ff88';
+    setTimeout(() => {
+      closeGateTerminal();
+    }, 450);
+    return;
+  }
+
   gameState.gateUnlocked = true;
   gateMesh.userData.normalMaterial.emissive.setHex(0x00ff88);
   if (gateMesh.userData.edgesMaterial) {
@@ -1044,7 +1258,28 @@ function updatePlayer(dt) {
   if (gameState.keys['KeyA'] || gameState.keys['ArrowLeft']) inputX -= 1;
   if (gameState.keys['KeyD'] || gameState.keys['ArrowRight']) inputX += 1;
 
-  if (inputX !== 0 || inputZ !== 0) {
+  const isMoving = inputX !== 0 || inputZ !== 0;
+  gameState.isCrouching = !!(gameState.keys['ControlLeft'] || gameState.keys['ControlRight']);
+  gameState.isSprinting = !!(gameState.keys['ShiftLeft'] || gameState.keys['ShiftRight']) && !gameState.isCrouching && isMoving;
+
+  const targetScaleY = gameState.isCrouching ? 0.62 : 1.0;
+  playerGroup.scale.y = THREE.MathUtils.lerp(playerGroup.scale.y, targetScaleY, Math.min(1, dt * 14));
+
+  if (!gameState.netHackActive && gameState.activeCamIndex < 0) {
+    dom.statusMode.textContent = gameState.isCrouching
+      ? 'AGACHADO'
+      : gameState.isSprinting
+      ? 'CORRENDO'
+      : 'FURTIVO';
+  }
+
+  const currentSpeed = gameState.isCrouching
+    ? PLAYER_CROUCH_SPEED
+    : gameState.isSprinting
+    ? PLAYER_SPRINT_SPEED
+    : PLAYER_SPEED;
+
+  if (isMoving) {
     const yaw = gameState.cameraYaw;
     const forwardX = -Math.sin(yaw);
     const forwardZ = -Math.cos(yaw);
@@ -1057,8 +1292,8 @@ function updatePlayer(dt) {
     moveX /= len;
     moveZ /= len;
 
-    const stepX = moveX * PLAYER_SPEED * dt;
-    const stepZ = moveZ * PLAYER_SPEED * dt;
+    const stepX = moveX * currentSpeed * dt;
+    const stepZ = moveZ * currentSpeed * dt;
 
     // Tentativa separada nos eixos X e Z para deslizar suavemente nas paredes
     const pos = playerGroup.position;
@@ -1080,8 +1315,10 @@ function updatePlayer(dt) {
     while (diff < -Math.PI) diff += Math.PI * 2;
     playerGroup.rotation.y += diff * Math.min(1, dt * 12);
 
-    // Animação simples de caminhada nas pernas
-    const swing = Math.sin(gameState.elapsedTime * 12) * 0.35;
+    // Animação simples de caminhada/corrida nas pernas
+    const swingFreq = gameState.isSprinting ? 18 : 12;
+    const swingAmp = gameState.isSprinting ? 0.5 : 0.35;
+    const swing = Math.sin(gameState.elapsedTime * swingFreq) * swingAmp;
     playerParts.legL.rotation.x = swing;
     playerParts.legR.rotation.x = -swing;
   } else {
@@ -1121,7 +1358,7 @@ function updateCamera() {
 
   const target = new THREE.Vector3(
     playerGroup.position.x,
-    playerGroup.position.y + 1.55,
+    playerGroup.position.y + (gameState.isCrouching ? 1.05 : 1.55),
     playerGroup.position.z
   );
 
@@ -1151,30 +1388,148 @@ function updateCamera() {
 }
 
 // ==========================================
-// IA DOS GUARDAS E DETECÇÃO DE VISÃO
+// IA DOS GUARDAS, CÂMERAS ATIVAS E DETECÇÃO
 // ==========================================
+function updateElectricBoxes(dt) {
+  electricBoxes.forEach((box) => {
+    if (box.cooldown > 0) {
+      box.cooldown = Math.max(0, box.cooldown - dt);
+      if (box.cooldown === 0) {
+        box.mesh.userData.normalMaterial.emissive.setHex(0xffaa00);
+      }
+    }
+
+    if (box.sparkTimer > 0) {
+      box.sparkTimer = Math.max(0, box.sparkTimer - dt);
+      const posAttr = box.sparkPoints.geometry.getAttribute('position');
+      for (let i = 0; i < box.sparkData.length; i++) {
+        const s = box.sparkData[i];
+        let x = posAttr.getX(i) + s.vx * dt;
+        let y = posAttr.getY(i) + s.vy * dt;
+        let z = posAttr.getZ(i) + s.vz * dt;
+        if (y > box.mesh.position.y + 1.8) {
+          x = box.mesh.position.x;
+          y = box.mesh.position.y + 0.4;
+          z = box.mesh.position.z;
+        }
+        posAttr.setXYZ(i, x, y, z);
+      }
+      posAttr.needsUpdate = true;
+
+      if (box.sparkTimer === 0) {
+        box.sparkPoints.visible = false;
+      }
+    }
+  });
+}
+
+function updateSecurityCameras(dt, playerPos, playerCenter) {
+  let camSpotted = false;
+
+  securityCameras.forEach((camObj, idx) => {
+    if (camObj.disabledTimer > 0) {
+      camObj.disabledTimer = Math.max(0, camObj.disabledTimer - dt);
+      camObj.coneMesh.visible = false;
+      if (camObj.disabledTimer === 0) {
+        camObj.coneMesh.visible = true;
+        camObj.mesh.userData.normalMaterial.emissive.setHex(0x00ff88);
+      }
+      return;
+    }
+
+    let yaw;
+    if (gameState.activeCamIndex === idx) {
+      yaw = camObj.baseYaw + camObj.yawOffset;
+    } else {
+      camObj.sweepPhase += dt * 0.65;
+      yaw = camObj.baseYaw + Math.sin(camObj.sweepPhase) * 0.6;
+    }
+    camObj.currentYaw = yaw;
+    camObj.mesh.rotation.y = yaw;
+    camObj.coneMesh.rotation.z = yaw;
+
+    // Verificar se o jogador está no cone verde da câmera
+    const camForward = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+    const toPlayer = playerPos.clone().sub(camObj.pos);
+    toPlayer.y = 0;
+    const dist = toPlayer.length();
+
+    let seesPlayer = false;
+    if (dist <= camObj.visionRange && dist > 0.2) {
+      const angle = Math.acos(THREE.MathUtils.clamp(camForward.dot(toPlayer.normalize()), -1, 1));
+      if (angle <= camObj.visionHalfAngle) {
+        const rayDir = playerCenter.clone().sub(camObj.pos).normalize();
+        raycaster.set(camObj.pos, rayDir);
+        raycaster.far = Math.max(0.1, camObj.pos.distanceTo(playerCenter) - 0.3);
+        const blocked = raycaster.intersectObjects(occluders, false);
+        if (blocked.length === 0) {
+          seesPlayer = true;
+        }
+      }
+    }
+
+    if (seesPlayer) {
+      camSpotted = true;
+      camObj.coneMat.color.setHex(0xff0055);
+      camObj.coneMat.opacity = 0.35;
+    } else {
+      camObj.coneMat.color.setHex(0x00ff88);
+      camObj.coneMat.opacity = 0.18;
+    }
+  });
+
+  return camSpotted;
+}
+
 function updateGuards(dt) {
-  let spottedThisFrame = false;
   const playerPos = playerGroup.position;
-  const playerCenter = new THREE.Vector3(playerPos.x, 1.0, playerPos.z);
+  const playerCenter = new THREE.Vector3(
+    playerPos.x,
+    gameState.isCrouching ? 0.58 : 1.05,
+    playerPos.z
+  );
+
+  let spottedThisFrame = updateSecurityCameras(dt, playerPos, playerCenter);
+
+  const rangeDelta = gameState.isSprinting ? 3.0 : gameState.isCrouching ? -1.5 : 0;
 
   guards.forEach((g) => {
-    // Patrulha ida e volta
-    const target = g.waypoints[g.currentTarget];
-    const toTarget = target.clone().sub(g.mesh.position);
-    toTarget.y = 0;
-    const distToWp = toTarget.length();
-
-    if (distToWp < 0.2) {
-      g.currentTarget = (g.currentTarget + 1) % g.waypoints.length;
+    // Investigação de caixa elétrica ou patrulha normal
+    if (g.investigateTimer > 0 && g.investigateTarget) {
+      g.investigateTimer = Math.max(0, g.investigateTimer - dt);
+      const toInv = g.investigateTarget.clone().sub(g.mesh.position);
+      toInv.y = 0;
+      const distInv = toInv.length();
+      if (distInv > 1.7) {
+        toInv.normalize();
+        g.mesh.position.addScaledVector(toInv, g.speed * 1.15 * dt);
+        const desiredYaw = Math.atan2(toInv.x, toInv.z);
+        let diff = desiredYaw - g.mesh.rotation.y;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        g.mesh.rotation.y += diff * Math.min(1, dt * 8);
+      }
+      if (g.investigateTimer === 0) {
+        g.investigateTarget = null;
+      }
     } else {
-      toTarget.normalize();
-      g.mesh.position.addScaledVector(toTarget, g.speed * dt);
-      const desiredYaw = Math.atan2(toTarget.x, toTarget.z);
-      let diff = desiredYaw - g.mesh.rotation.y;
-      while (diff > Math.PI) diff -= Math.PI * 2;
-      while (diff < -Math.PI) diff += Math.PI * 2;
-      g.mesh.rotation.y += diff * Math.min(1, dt * 8);
+      // Patrulha ida e volta
+      const target = g.waypoints[g.currentTarget];
+      const toTarget = target.clone().sub(g.mesh.position);
+      toTarget.y = 0;
+      const distToWp = toTarget.length();
+
+      if (distToWp < 0.2) {
+        g.currentTarget = (g.currentTarget + 1) % g.waypoints.length;
+      } else {
+        toTarget.normalize();
+        g.mesh.position.addScaledVector(toTarget, g.speed * dt);
+        const desiredYaw = Math.atan2(toTarget.x, toTarget.z);
+        let diff = desiredYaw - g.mesh.rotation.y;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        g.mesh.rotation.y += diff * Math.min(1, dt * 8);
+      }
     }
 
     // Checar se o jogador está no cone de visão + linha de visão livre
@@ -1186,9 +1541,10 @@ function updateGuards(dt) {
     const toPlayer = playerPos.clone().sub(g.mesh.position);
     toPlayer.y = 0;
     const distToPlayer = toPlayer.length();
+    const effectiveRange = g.visionRange + rangeDelta;
 
     let guardSeesPlayer = false;
-    if (distToPlayer <= g.visionRange && distToPlayer > 0.1) {
+    if (distToPlayer <= effectiveRange && distToPlayer > 0.1) {
       const dirFlat = toPlayer.clone().normalize();
       const angle = Math.acos(THREE.MathUtils.clamp(guardForward.dot(dirFlat), -1, 1));
       if (angle <= g.visionHalfAngle) {
@@ -1196,7 +1552,7 @@ function updateGuards(dt) {
         const eyePos = new THREE.Vector3(g.mesh.position.x, 1.45, g.mesh.position.z);
         const rayDir = playerCenter.clone().sub(eyePos).normalize();
         raycaster.set(eyePos, rayDir);
-        raycaster.far = eyePos.distanceTo(playerCenter) - 0.25;
+        raycaster.far = Math.max(0.1, eyePos.distanceTo(playerCenter) - 0.25);
         const blocked = raycaster.intersectObjects(occluders, false);
         if (blocked.length === 0) {
           guardSeesPlayer = true;
@@ -1289,30 +1645,53 @@ function updateInteractionsAndMission(dt) {
     promptText = '[E] HACKEAR PAINEL DO PORTÃO';
   }
 
-  // Download dos dados no Servidor Central (Segurar E)
+  // Prompt de caixas elétricas (perto ou mirando na Visão NetHack)
+  if (!promptText && gameState.activeCamIndex < 0) {
+    const camDir = new THREE.Vector3();
+    camera.getWorldDirection(camDir);
+    for (const box of electricBoxes) {
+      const distBox = pPos.distanceTo(box.mesh.position);
+      const toBox = box.mesh.position.clone().sub(camera.position).normalize();
+      const lookingInNetHack = gameState.netHackActive && distBox < 28 && camDir.dot(toBox) > 0.90;
+      if (distBox < 3.6 || lookingInNetHack) {
+        promptText =
+          box.cooldown > 0
+            ? `CAIXA ELÉTRICA EM RECARGA (${Math.ceil(box.cooldown)}s)`
+            : '[E] SOBRECARREGAR CAIXA ELÉTRICA (DISTRAÇÃO)';
+        break;
+      }
+    }
+  }
+
+  // Firewall e Download dos dados no Servidor Central
   if (gameState.mission === MISSION_STATE.STEAL_DATA) {
     const distServer = pPos.distanceTo(serverMesh.position);
     if (distServer < 3.8 && gameState.activeCamIndex < 0) {
-      promptText = '[SEGURE E] BAIXAR DADOS ctOS';
-      dom.downloadContainer.classList.remove('hidden');
-
-      if (gameState.keys['KeyE']) {
-        gameState.downloadProgress = Math.min(
-          100,
-          gameState.downloadProgress + (100 / DOWNLOAD_DURATION) * dt
-        );
-      } else {
-        gameState.downloadProgress = Math.max(0, gameState.downloadProgress - dt * 10);
-      }
-
-      const pct = Math.floor(gameState.downloadProgress);
-      dom.downloadBar.style.width = `${pct}%`;
-      dom.downloadPercent.textContent = `${pct}%`;
-
-      if (gameState.downloadProgress >= 100) {
+      if (!gameState.serverFirewallDisabled) {
+        promptText = '[E] DESATIVAR FIREWALL DO SERVIDOR';
         dom.downloadContainer.classList.add('hidden');
-        serverMesh.userData.normalMaterial.emissive.setHex(0x00ff88);
-        setMissionState(MISSION_STATE.ESCAPE);
+      } else {
+        promptText = '[SEGURE E] BAIXAR DADOS ctOS';
+        dom.downloadContainer.classList.remove('hidden');
+
+        if (gameState.keys['KeyE']) {
+          gameState.downloadProgress = Math.min(
+            100,
+            gameState.downloadProgress + (100 / DOWNLOAD_DURATION) * dt
+          );
+        } else {
+          gameState.downloadProgress = Math.max(0, gameState.downloadProgress - dt * 10);
+        }
+
+        const pct = Math.floor(gameState.downloadProgress);
+        dom.downloadBar.style.width = `${pct}%`;
+        dom.downloadPercent.textContent = `${pct}%`;
+
+        if (gameState.downloadProgress >= 100) {
+          dom.downloadContainer.classList.add('hidden');
+          serverMesh.userData.normalMaterial.emissive.setHex(0x00ff88);
+          setMissionState(MISSION_STATE.ESCAPE);
+        }
       }
     } else {
       dom.downloadContainer.classList.add('hidden');
@@ -1352,9 +1731,13 @@ function resetWorldState() {
   gameState.elapsedTime = 0;
   gameState.gateUnlocked = false;
   gameState.gateOpenProgress = 0;
+  gameState.serverFirewallDisabled = false;
   gameState.terminalOpen = false;
+  gameState.terminalTarget = 'GATE';
   gameState.downloadProgress = 0;
   gameState.detectionLevel = 0;
+  gameState.isSprinting = false;
+  gameState.isCrouching = false;
   gameState.cameraYaw = 0;
   gameState.cameraPitch = 0.34;
   gameState.keys = {};
@@ -1364,6 +1747,7 @@ function resetWorldState() {
 
   playerGroup.position.set(0, 0, 14);
   playerGroup.rotation.y = 0;
+  playerGroup.scale.y = 1;
 
   // Restaurar portão e colisor caso tenha sido aberto
   gateMesh.position.set(0, 2.2, 6);
@@ -1382,12 +1766,30 @@ function resetWorldState() {
     occluders.push(gateMesh);
   }
 
-  // Resetar guardas
+  // Resetar guardas, câmeras e caixas elétricas
   guards.forEach((g) => {
     g.mesh.position.copy(g.initialPos);
     g.currentTarget = 1;
+    g.investigateTarget = null;
+    g.investigateTimer = 0;
     g.coneMat.color.setHex(0xffd000);
     g.coneMat.opacity = 0.24;
+  });
+
+  securityCameras.forEach((camObj, idx) => {
+    camObj.disabledTimer = 0;
+    camObj.sweepPhase = idx * 1.5;
+    camObj.coneMesh.visible = true;
+    camObj.coneMat.color.setHex(0x00ff88);
+    camObj.coneMat.opacity = 0.18;
+    camObj.mesh.userData.normalMaterial.emissive.setHex(0x00ff88);
+  });
+
+  electricBoxes.forEach((box) => {
+    box.cooldown = 0;
+    box.sparkTimer = 0;
+    box.sparkPoints.visible = false;
+    box.mesh.userData.normalMaterial.emissive.setHex(0xffaa00);
   });
 
   dom.detectionContainer.classList.add('hidden');
@@ -1475,6 +1877,7 @@ function animate() {
     dom.statusTimer.textContent = formatTime(gameState.elapsedTime);
 
     updatePlayer(dt);
+    updateElectricBoxes(dt);
     updateGuards(dt);
     updateInteractionsAndMission(dt);
   }

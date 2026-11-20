@@ -26,7 +26,7 @@
   <div id="camera-overlay" class="screen-fx hidden">
     <div class="fx-scanlines"></div>
     <div class="cam-rec">● REC // <span id="cam-name">CAM_01</span></div>
-    <div class="cam-hint">Mova o mouse para girar a câmera | [C] Próxima / Sair</div>
+    <div class="cam-hint">Mova o mouse para girar | [R] Sobrecarregar (15s) | [C] Próxima / Sair</div>
   </div>
 
   <div id="alert-vignette" class="screen-fx hidden"></div>
@@ -78,6 +78,8 @@
     <!-- Controles Rápidos -->
     <div class="hud-controls">
       <span><kbd>WASD</kbd> Mover</span>
+      <span><kbd>Shift</kbd> Correr</span>
+      <span><kbd>Ctrl</kbd> Agachar</span>
       <span><kbd>Mouse</kbd> Câmera</span>
       <span><kbd>E</kbd> Hackear / Baixar</span>
       <span><kbd>V</kbd> Visão NetHack</span>
@@ -97,10 +99,11 @@
       </p>
       <div class="controls-grid">
         <div><kbd>WASD</kbd> Movimentação</div>
+        <div><kbd>Shift</kbd> Correr / <kbd>Ctrl</kbd> Agachar</div>
         <div><kbd>Mouse</kbd> Câmera 3ª Pessoa</div>
         <div><kbd>V</kbd> Visão NetHack</div>
-        <div><kbd>C</kbd> Hackear Câmeras</div>
-        <div><kbd>E</kbd> Hackear Portão / Servidor</div>
+        <div><kbd>C</kbd> Câmeras / <kbd>R</kbd> Sobrecarregar</div>
+        <div><kbd>E</kbd> Hackear / Distrair / Baixar</div>
       </div>
       <button id="btn-start" class="cyber-btn">INICIAR MISSÃO</button>
     </div>
@@ -114,7 +117,7 @@
         <span id="hack-timer" class="neon-magenta">10.0s</span>
       </div>
       <div class="terminal-body">
-        <p class="terminal-log">&gt; CONEXÃO ESTABELECIDA COM O PAINEL DO PORTÃO.</p>
+        <p id="terminal-log-action" class="terminal-log">&gt; CONEXÃO ESTABELECIDA COM O PAINEL DO PORTÃO.</p>
         <p class="terminal-log">&gt; DIGITE O COMANDO DE DESBLOQUEIO ANTES DO TIMEOUT:</p>
         <div id="hack-target-code" class="target-code">OVERRIDE_GATE_77</div>
         <div class="input-line">

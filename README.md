@@ -7,8 +7,8 @@ Protótipo funcional de um jogo 3D em terceira pessoa de infiltração e hacking
 ## 🎯 Objetivos da Missão
 
 1. **Infiltração:** Aproxime-se do painel eletrônico do portão de entrada do complexo ctOS, pressione `E` e complete o minigame de digitação dentro do tempo limite para destravar e abrir o portão.
-2. **Furtividade e Coleta de Dados:** Utilize caixas de cobertura, a **Visão NetHack** e o **hack de câmeras de segurança** para evitar os cones de visão dos guardas. Chegue ao **Servidor Central ctOS** no fundo do complexo e segure `E` até concluir o download (`100%`).
-3. **Extração:** Com os dados em mãos, fuja do complexo e pise na **Zona de Extração** (anel verde na rua) para concluir a missão.
+2. **Furtividade e Coleta de Dados:** Utilize caixas de cobertura (agachando com `Ctrl`), a **Visão NetHack** (`V`), **caixas elétricas de distração** (`E`) e o **hack/sobrecarga de câmeras** (`C` / `R`) para evitar os cones de visão dos guardas e das câmeras. Chegue ao **Servidor Central ctOS**, desative o firewall (`E`) e segure `E` até concluir o download (`100%`).
+3. **Extração:** Com os dados em mãos, fuja do complexo (use `Shift` para correr) e pise na **Zona de Extração** (anel verde na rua) para concluir a missão.
 
 ---
 
@@ -17,10 +17,13 @@ Protótipo funcional de um jogo 3D em terceira pessoa de infiltração e hacking
 | Tecla / Ação | Função |
 | :--- | :--- |
 | `W` `A` `S` `D` (ou Setas) | Movimentar o personagem |
+| `Shift` | Correr mais rápido (aumenta o alcance de detecção dos guardas) |
+| `Ctrl` | Agachar (reduz altura para cobertura atrás de caixas e diminui detecção) |
 | `Mouse` (Pointer Lock) | Orbitar câmera em 3ª pessoa / Girar câmera de segurança |
 | `V` | Alternar **Visão NetHack** (muros wireframe e rede ctOS em neon) |
 | `C` | Hackear / alternar entre **Câmeras de Segurança** e voltar ao agente |
-| `E` | Hackear Painel do Portão / Olhar câmera + `E` / Segurar `E` no Servidor |
+| `R` | Sobrecarregar e desativar por `15s` a câmera controlada no momento |
+| `E` | Hackear Portão / Firewall, sobrecarregar Caixa Elétrica ou baixar Servidor |
 | `ESC` | Cancelar terminal de hack / liberar cursor do mouse |
 
 ---

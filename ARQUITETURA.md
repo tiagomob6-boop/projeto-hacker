@@ -44,28 +44,29 @@ IDLE ──(Iniciar Missão)──▶ INFILTRATE ──(Hack do Portão)──�
 ```
 
 - **`INFILTRATE`:** Portão trancado. Objetivo aponta para o painel na entrada.
-- **`STEAL_DATA`:** Portão desliza abrindo passagem. Jogador deve infiltrar-se até o servidor central e segurar `E` para completar `downloadProgress` (`0%` a `100%` em `3.5s`).
+- **`STEAL_DATA`:** Portão desliza abrindo passagem. Jogador deve infiltrar-se até o servidor central, desativar o **Firewall** via terminal (`E`) e então segurar `E` para completar `downloadProgress` (`0%` a `100%` em `3.5s`).
 - **`ESCAPE`:** Objetivo muda para fugir até a Zona de Extração na rua.
 - **`VICTORY` / `GAMEOVER`:** Liberam o Pointer Lock e exibem a tela final correspondente com opção de reinício (`resetWorldState()`).
 
 ---
 
-## 4. Detecção de Visão dos Guardas (Cone + Oclusão)
+## 4. Detecção de Visão (Guardas e Câmeras) + Stealth
 
-Cada guarda em `guards` patrulha entre dois `waypoints` em loop, rotacionando suavemente na direção do deslocamento.
+Cada guarda em `guards` patrulha entre dois `waypoints` em loop (ou desvia para investigar caixas elétricas acionadas por `6.0s`), rotacionando suavemente na direção do deslocamento.
 
-1. **Cone Visual:** Um `THREE.CircleGeometry` plano no chão (`y = 0.06`), orientado para `+Z` local (`thetaStart = -Math.PI / 2 - visionHalfAngle`), acompanha a rotação do guarda.
-2. **Teste Geométrico:**
-   - Verifica se a distância horizontal até o jogador é menor ou igual a `visionRange` (`9.5`).
-   - Calcula o produto escalar entre o vetor frontal do guarda e a direção até o jogador para validar se o ângulo está dentro de `visionHalfAngle` (`36°` para cada lado).
+1. **Cone Visual:** Um `THREE.CircleGeometry` plano no chão (`y = 0.06` nos guardas, `y = 0.05` nas câmeras), orientado para `+Z` local (`thetaStart = -Math.PI / 2 - visionHalfAngle`), acompanha a rotação do guarda ou a varredura periódica da câmera (`updateSecurityCameras`).
+2. **Teste Geométrico e Modificadores de Stealth:**
+   - Verifica se a distância horizontal até o jogador é menor ou igual ao alcance efetivo (`visionRange`, ajustado em `+3.0` ao correr com `Shift` ou `-1.5` ao agachar com `Ctrl`).
+   - Calcula o produto escalar entre o vetor frontal (guarda ou câmera) e a direção até o jogador para validar se o ângulo está dentro de `visionHalfAngle` (`36°` nos guardas, `30°` nas câmeras).
 3. **Teste de Oclusão (Cobertura):**
-   - Dispara um `THREE.Raycaster` da altura dos olhos do guarda (`y = 1.45`) até o centro do jogador (`y = 1.0`) contra a lista `occluders` (muros, portão fechado e caixas de cobertura).
-   - Se `blocked.length === 0`, o guarda tem linha de visão limpa: o cone muda para vermelho e `gameState.detectionLevel` sobe rapidamente até `100%` (Game Over). Caso o jogador entre atrás de uma caixa ou saia do cone, o medidor reduz gradualmente.
+   - Dispara um `THREE.Raycaster` da altura dos olhos do guarda (`y = 1.45`) ou da posição da câmera até o centro do jogador (`y = 1.05` em pé, `y = 0.58` agachado com `Ctrl`) contra a lista `occluders` (muros, portão fechado e caixas de cobertura).
+   - Se `blocked.length === 0`, há linha de visão limpa: o cone muda para vermelho e `gameState.detectionLevel` sobe rapidamente até `100%` (Game Over). Caso o jogador entre atrás de uma caixa ou saia do cone, o medidor reduz gradualmente.
 
 ---
 
 ## 5. Mecânicas de Hack
 
-- **Visão NetHack (`toggleNetHack` / Tecla `V`):** Escurece a cena e a neblina, alterna os materiais de `structureMeshes` para wireframe translúcido, destaca dispositivos em `hackableMeshes` em ciano neon e exibe `networkLinesGroup` (`THREE.Line`) conectando Painel do Portão, Câmeras e Servidor.
-- **Hack de Câmeras (`cycleSecurityCamera` / Tecla `C` ou olhar + `E`):** Transfere a `camera` principal para a posição elevada de uma das câmeras do complexo (`securityCameras`), permitindo observar e girar o ângulo com o mouse sem expor o personagem.
-- **Minigame de Terminal (`openGateTerminal` / Tecla `E` no painel):** Libera o Pointer Lock, exibe o modal `#terminal-modal` com um comando aleatório de `HACK_CODES` e inicia contagem regressiva de `10.0s`. Ao digitar o código exato no `#hack-input`, `completeGateHack()` destrava o portão e avança o estado da missão.
+- **Visão NetHack (`toggleNetHack` / Tecla `V`):** Escurece a cena e a neblina, alterna os materiais de `structureMeshes` para wireframe translúcido, destaca dispositivos em `hackableMeshes` em ciano neon e exibe `networkLinesGroup` (`THREE.Line`) conectando Painel do Portão, Caixas Elétricas, Câmeras e Servidor.
+- **Caixas Elétricas de Distração (`buildElectricBoxes` / `triggerElectricBox`):** Duas caixas hackeáveis dentro do complexo (`CAIXA_ELETRICA_01` e `CAIXA_ELETRICA_02`). Pressionar `E` perto ou mirando na Visão NetHack gera faíscas (`THREE.Points`) e atrai o guarda mais próximo por `6.0s` (cooldown de `12.0s`).
+- **Hack e Sobrecarga de Câmeras (`cycleSecurityCamera` / `C` e `overloadActiveCamera` / `R`):** Transfere a `camera` principal para uma câmera do complexo (`securityCameras`), permitindo girar o ângulo com o mouse. Pressionar `R` durante o controle sobrecarrega e desativa a câmera (e seu cone de detecção verde) por `15.0s`.
+- **Minigame de Terminal (`openTerminal` / Tecla `E` no painel ou servidor):** Libera o Pointer Lock, exibe `#terminal-modal` com códigos variados (`HACK_CODES` para o portão em `10.0s`, `FIREWALL_CODES` para o firewall do servidor em `8.5s`) e executa `completeTerminalHack()` ao digitar o comando exato no `#hack-input`.
