@@ -14,11 +14,15 @@ Este documento descreve a arquitetura do protótipo **Projeto Hacker**, constru�
 
 ## 2. Arquitetura da Cena Three.js
 
-### 2.1 Renderização e Iluminação
-- **Cena e Neblina:** `THREE.Scene` com fundo escuro (`0x090b1a`) e `THREE.FogExp2` (`0.017`) para atmosfera noturna/entardecer estilo São Francisco, com `camera.far = 200` para exibir o horizonte completo.
+### 2.1 Renderização, Iluminação e Texturas Procedurais
+- **Cúpula de Céu e Neblina (`skyDome`):** `THREE.SphereGeometry(780, 32, 20)` com `THREE.BackSide` e gradiente procedural de entardecer cyberpunk de São Francisco (azul-noturno no topo, roxo, magenta suave e laranja no horizonte com estrelas sutis), combinado com `THREE.FogExp2(0x1c1430, 0.0020)` e `camera.far = 950`.
+- **Texturas Procedurais (`TextureGenerator` via `HTML5 Canvas` -> `THREE.CanvasTexture`):**
+  - **Asfalto Urbano (`getAsphaltTexture`):** Textura granulada escura com faixas viárias e desgaste (`RepeatWrapping`).
+  - **Fachadas de Prédios (`getBuildingFacadeTexture`):** Vidro e concreto com dezenas de janelas iluminadas em ciano, âmbar e branco-azulado.
+  - **Contêineres Portuários (`getContainerTexture`):** Chapa metálica corrugada industrial.
+  - **Água da Baía (`getWaterTexture`):** Ondulação reflexiva animada continuamente via `offset.x` / `offset.y` em `updateVisualEffects()`.
 - **Iluminação:**
-  - `THREE.AmbientLight` roxa/azulada (`0x5b4b8a`, intensidade base `2.15`) e `THREE.HemisphereLight` (`0x6d8eff` / `0x181c30`) para preenchimento claro e leitura visual nítida de personagem, muros e coberturas.
-  - `THREE.DirectionalLight` com `PCFSoftShadowMap` (`2048x2048`) projetando sombras de muros, caixas, guardas e personagem.
+  - `THREE.AmbientLight` (`0x7662a8`, intensidade `2.15`), `THREE.HemisphereLight` (`0xff8c66` / `0x1c2540`, `0.95`) e `THREE.DirectionalLight` (`0xffb899`, `1.3`) com `PCFSoftShadowMap` (`2048x2048`) para destacar prédios, veículos e personagens no entardecer.
   - `THREE.PointLight` em ciano e magenta na rua externa, luz de destaque na fachada da entrada, luzes internas no pátio, ciano sobre o Servidor Central e verde na Zona de Extração.
 
 ### 2.2 Construção Procedural do Mapa e Atmosfera

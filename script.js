@@ -212,11 +212,11 @@ const dom = {
 };
 
 // Variáveis Three.js
-let scene, camera, renderer, clock, worldGroup;
+let scene, camera, renderer, clock, worldGroup, skyDome;
 let ambientLight, dirLight;
 let playerGroup, playerParts = {};
 let gateMesh, gatePanelMesh, serverMesh, serverCoreMesh, extractionZoneGroup, extractionRing, extractionBeam;
-let networkLinesGroup, serverParticles, waterMesh;
+let networkLinesGroup, serverParticles, waterMesh, waterTexture;
 const serverParticleData = [];
 
 // Listas de mundo e gameplay
@@ -288,6 +288,177 @@ const gameState = {
 };
 
 const raycaster = new THREE.Raycaster();
+
+// ==========================================
+// TEXTURAS PROCEDURAIS (HTML5 CANVAS -> CanvasTexture)
+// ==========================================
+const TextureGenerator = {
+  cache: {},
+
+  _makeCanvas(w, h) {
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    return c;
+  },
+
+  getAsphaltTexture(repX = 20, repY = 22) {
+    if (!this.cache.asphalt) {
+      const c = this._makeCanvas(256, 256);
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#141926';
+      ctx.fillRect(0, 0, 256, 256);
+
+      // Granulado e desgaste do asfalto
+      for (let i = 0; i < 4200; i++) {
+        const x = Math.random() * 256;
+        const y = Math.random() * 256;
+        const v = 16 + Math.floor(Math.random() * 24);
+        ctx.fillStyle = `rgb(${v}, ${v + 4}, ${v + 12})`;
+        ctx.fillRect(x, y, 2, 2);
+      }
+
+      // Faixas viárias sutis e marcas de tráfego
+      ctx.fillStyle = 'rgba(58, 86, 130, 0.38)';
+      ctx.fillRect(124, 16, 8, 96);
+      ctx.fillRect(124, 144, 8, 96);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      this.cache.asphalt = tex;
+    }
+    const clone = this.cache.asphalt.clone();
+    clone.needsUpdate = true;
+    clone.repeat.set(repX, repY);
+    return clone;
+  },
+
+  getBuildingFacadeTexture(repX = 2, repY = 3) {
+    if (!this.cache.building) {
+      const c = this._makeCanvas(256, 256);
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#111726';
+      ctx.fillRect(0, 0, 256, 256);
+
+      // Colunas estruturais verticais
+      ctx.fillStyle = '#1b2438';
+      for (let x = 0; x < 256; x += 32) {
+        ctx.fillRect(x, 0, 6, 256);
+      }
+
+      // Dezenas de janelas iluminadas (ciano, âmbar e branco-azulado)
+      const palette = ['#00f0ff', '#ffaa33', '#d8f3ff', '#162238', '#162238'];
+      for (let y = 10; y < 250; y += 24) {
+        ctx.fillStyle = '#1e2940';
+        ctx.fillRect(0, y - 4, 256, 4);
+        for (let x = 10; x < 250; x += 32) {
+          const pick = palette[Math.floor(Math.random() * palette.length)];
+          ctx.fillStyle = pick;
+          ctx.globalAlpha = pick === '#162238' ? 0.9 : 0.78;
+          ctx.fillRect(x, y, 16, 14);
+        }
+      }
+      ctx.globalAlpha = 1;
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      this.cache.building = tex;
+    }
+    const clone = this.cache.building.clone();
+    clone.needsUpdate = true;
+    clone.repeat.set(repX, repY);
+    return clone;
+  },
+
+  getContainerTexture(repX = 2, repY = 1) {
+    if (!this.cache.container) {
+      const c = this._makeCanvas(256, 128);
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#9aa8bd';
+      ctx.fillRect(0, 0, 256, 128);
+
+      // Corrugação metálica vertical
+      for (let x = 0; x < 256; x += 12) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+        ctx.fillRect(x, 6, 5, 116);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.14)';
+        ctx.fillRect(x + 5, 6, 3, 116);
+      }
+      // Moldura reforçada superior e inferior
+      ctx.fillStyle = 'rgba(15, 20, 32, 0.45)';
+      ctx.fillRect(0, 0, 256, 8);
+      ctx.fillRect(0, 120, 256, 8);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      this.cache.container = tex;
+    }
+    const clone = this.cache.container.clone();
+    clone.needsUpdate = true;
+    clone.repeat.set(repX, repY);
+    return clone;
+  },
+
+  getWaterTexture() {
+    if (!this.cache.water) {
+      const c = this._makeCanvas(256, 256);
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#051a30';
+      ctx.fillRect(0, 0, 256, 256);
+
+      // Ondas e reflexos sutis
+      for (let y = 0; y < 256; y += 16) {
+        ctx.fillStyle = 'rgba(0, 175, 255, 0.12)';
+        ctx.beginPath();
+        ctx.ellipse((y * 7) % 256, y, 42, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = 'rgba(255, 90, 160, 0.07)';
+        ctx.beginPath();
+        ctx.ellipse((y * 13 + 80) % 256, y + 6, 28, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(42, 42);
+      this.cache.water = tex;
+    }
+    return this.cache.water;
+  },
+
+  getSunsetSkyTexture() {
+    if (!this.cache.sky) {
+      const c = this._makeCanvas(512, 512);
+      const ctx = c.getContext('2d');
+      const grad = ctx.createLinearGradient(0, 0, 0, 512);
+      grad.addColorStop(0.0, '#070b22');
+      grad.addColorStop(0.32, '#241242');
+      grad.addColorStop(0.52, '#691f5b');
+      grad.addColorStop(0.68, '#d95829');
+      grad.addColorStop(0.78, '#281538');
+      grad.addColorStop(1.0, '#090d1c');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 512, 512);
+
+      // Estrelas sutis na parte superior do céu noturno
+      for (let i = 0; i < 140; i++) {
+        const sx = Math.random() * 512;
+        const sy = Math.random() * 190;
+        const alpha = 0.25 + Math.random() * 0.65;
+        ctx.fillStyle = `rgba(220, 240, 255, ${alpha})`;
+        ctx.fillRect(sx, sy, 1.5, 1.5);
+      }
+
+      this.cache.sky = new THREE.CanvasTexture(c);
+    }
+    return this.cache.sky;
+  }
+};
 
 // ==========================================
 // ÁUDIO PROCEDURAL (100% WEB AUDIO API)
@@ -584,8 +755,8 @@ const AudioManager = {
 // ==========================================
 function initThree() {
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x090b1a);
-  scene.fog = new THREE.FogExp2(0x090b1a, 0.0022);
+  scene.background = new THREE.Color(0x1c1430);
+  scene.fog = new THREE.FogExp2(0x1c1430, 0.0020);
 
   camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 950);
 
@@ -598,6 +769,17 @@ function initThree() {
   clock = new THREE.Clock();
   worldGroup = new THREE.Group();
   scene.add(worldGroup);
+
+  // Cúpula de céu de entardecer cyberpunk de São Francisco
+  skyDome = new THREE.Mesh(
+    new THREE.SphereGeometry(780, 32, 20),
+    new THREE.MeshBasicMaterial({
+      map: TextureGenerator.getSunsetSkyTexture(),
+      side: THREE.BackSide,
+      fog: false
+    })
+  );
+  scene.add(skyDome);
 
   setupLighting();
   buildPlayer();
@@ -654,12 +836,15 @@ function buildMap() {
   dedsecCar = null;
 
   // Água da Baía de São Francisco cobrindo todo o mundo aberto (X: -1200..1200, Z: -1400..1400)
+  waterTexture = TextureGenerator.getWaterTexture();
   const bayWaterMat = new THREE.MeshStandardMaterial({
-    color: 0x05182e,
-    emissive: 0x03223d,
-    emissiveIntensity: 0.7,
-    roughness: 0.12,
-    metalness: 0.85
+    color: 0x0b3a66,
+    map: waterTexture,
+    emissive: 0x06294a,
+    emissiveMap: waterTexture,
+    emissiveIntensity: 0.85,
+    roughness: 0.14,
+    metalness: 0.82
   });
   waterMesh = new THREE.Mesh(new THREE.PlaneGeometry(2500, 2900), bayWaterMat);
   waterMesh.rotation.x = -Math.PI / 2;
@@ -859,13 +1044,13 @@ function buildMissionMarkers() {
 }
 
 function setupLighting() {
-  ambientLight = new THREE.AmbientLight(0x5b4b8a, BASE_AMBIENT_INTENSITY);
+  ambientLight = new THREE.AmbientLight(0x7662a8, BASE_AMBIENT_INTENSITY);
   scene.add(ambientLight);
 
-  const hemiLight = new THREE.HemisphereLight(0x6d8eff, 0x181c30, 0.75);
+  const hemiLight = new THREE.HemisphereLight(0xff8c66, 0x1c2540, 0.95);
   scene.add(hemiLight);
 
-  dirLight = new THREE.DirectionalLight(0x99c6ff, 1.15);
+  dirLight = new THREE.DirectionalLight(0xffb899, 1.3);
   dirLight.position.set(18, 28, 16);
   dirLight.castShadow = true;
   dirLight.shadow.mapSize.set(2048, 2048);
@@ -912,6 +1097,7 @@ function setupLighting() {
 function addStaticBox(w, h, d, x, y, z, color, options = {}) {
   const mat = new THREE.MeshStandardMaterial({
     color,
+    map: options.map ?? null,
     roughness: options.roughness ?? 0.75,
     metalness: options.metalness ?? 0.2,
     emissive: options.emissive ?? 0x000000,
@@ -1014,15 +1200,24 @@ function buildDetailedBuilding(x, z, w, h, d, style = {}) {
   const lowerY = baseH + lowerH / 2;
   const upperY = baseH + lowerH + upperH / 2;
 
-  addStaticBox(w, lowerH, d, x, lowerY, z, bodyColor, {
+  const facadeTex = TextureGenerator.getBuildingFacadeTexture(2, 3);
+  addStaticBox(w, lowerH, d, x, lowerY, z, 0xffffff, {
     collide,
     occlude,
+    map: facadeTex,
+    emissive: 0x1e2b45,
+    emissiveMap: facadeTex,
+    emissiveIntensity: 0.65,
     edgesColor: 0x25324d,
     edgesOpacity: 0.55
   });
-  addStaticBox(w * 0.8, upperH, d * 0.8, x, upperY, z, 0x101726, {
+  addStaticBox(w * 0.8, upperH, d * 0.8, x, upperY, z, 0xd8e2f5, {
     collide: false,
     occlude,
+    map: facadeTex,
+    emissive: 0x162238,
+    emissiveMap: facadeTex,
+    emissiveIntensity: 0.55,
     edgesColor: accent,
     edgesOpacity: 0.4
   });
@@ -1079,11 +1274,13 @@ function buildDetailedBuilding(x, z, w, h, d, style = {}) {
 }
 
 function buildEnvironment(cfg) {
-  // Chão principal ampliado (cobre X: -65..65 e Z: -65..75)
+  // Chão principal ampliado (cobre X: -65..65 e Z: -65..75) com textura procedural de asfalto
+  const asphaltTex = TextureGenerator.getAsphaltTexture(22, 24);
   const groundMat = new THREE.MeshStandardMaterial({
-    color: 0x101422,
+    color: 0xffffff,
+    map: asphaltTex,
     roughness: 0.88,
-    metalness: 0.15
+    metalness: 0.12
   });
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(164, 174), groundMat);
   ground.rotation.x = -Math.PI / 2;
@@ -1434,9 +1631,16 @@ function buildDocksEnvironment(cfg) {
     [dx - 12, 1.35, -34, 4.8, 2.7, 2.6, 0x8b1e24, 0xff4455],
     [dx + 12, 1.35, -34, 4.8, 2.7, 2.6, 0x0e5a6f, 0x00f0ff]
   ];
+  const containerTex = TextureGenerator.getContainerTexture(2, 1);
   containers.forEach(([x, y, z, w, h, d, col, edgeCol]) => {
     if (y < 2.0) radarCrates.push({ x, z, w, d });
-    addStaticBox(w, h, d, x, y, z, col, { edgesColor: edgeCol, edgesOpacity: 0.55 });
+    addStaticBox(w, h, d, x, y, z, col, {
+      map: containerTex,
+      roughness: 0.55,
+      metalness: 0.45,
+      edgesColor: edgeCol,
+      edgesOpacity: 0.55
+    });
   });
 
   // Navio / Cargueiro da Blume ancorado ao fundo (Z: -56..-24)
@@ -2530,6 +2734,7 @@ function toggleNetHack(forceState) {
   }
 
   if (gameState.netHackActive) {
+    if (skyDome) skyDome.visible = false;
     scene.background.setHex(0x020611);
     scene.fog.color.setHex(0x020611);
     scene.fog.density = 0.015;
@@ -2538,9 +2743,10 @@ function toggleNetHack(forceState) {
     dom.statusMode.textContent = 'NETHACK';
     networkLinesGroup.visible = true;
   } else {
-    scene.background.setHex(0x090b1a);
-    scene.fog.color.setHex(0x090b1a);
-    scene.fog.density = 0.011;
+    if (skyDome) skyDome.visible = true;
+    scene.background.setHex(0x1c1430);
+    scene.fog.color.setHex(0x1c1430);
+    scene.fog.density = 0.0020;
     ambientLight.intensity = BASE_AMBIENT_INTENSITY;
     dom.nethackOverlay.classList.add('hidden');
     dom.statusMode.textContent = gameState.activeCamIndex >= 0 ? 'CÂMERA' : 'FURTIVO';
@@ -4368,8 +4574,12 @@ function updateVisualEffects(dt, nowSec) {
   }
 
   if (waterMesh) {
-    waterMesh.position.y = -0.42 + Math.sin(nowSec * 1.4) * 0.06;
-    waterMesh.material.emissiveIntensity = 0.65 + Math.sin(nowSec * 2.0) * 0.12;
+    waterMesh.position.y = -0.55 + Math.sin(nowSec * 1.4) * 0.05;
+    waterMesh.material.emissiveIntensity = 0.78 + Math.sin(nowSec * 2.0) * 0.1;
+  }
+  if (waterTexture) {
+    waterTexture.offset.x += dt * 0.035;
+    waterTexture.offset.y += dt * 0.022;
   }
 
   for (let i = impactFlashes.length - 1; i >= 0; i--) {
