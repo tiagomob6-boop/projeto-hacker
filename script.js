@@ -31,6 +31,7 @@ const MAPS_CONFIG = {
   COMPLEXO_CTOS: {
     key: 'COMPLEXO_CTOS',
     label: 'COMPLEXO ctOS',
+    bounds: { minX: -35, maxX: 35, minZ: -34, maxZ: 44 },
     playerStart: [0, 0, 14],
     extractPos: [0, 0.04, 25],
     serverPos: [0, 1.65, -21.5],
@@ -59,6 +60,7 @@ const MAPS_CONFIG = {
   DOCAS_BAIA_SF: {
     key: 'DOCAS_BAIA_SF',
     label: 'DOCAS DA BAÍA SF',
+    bounds: { minX: -20.5, maxX: 20.5, minZ: -26.5, maxZ: 34.5 },
     playerStart: [0, 0, 22],
     extractPos: [0, 0.04, 30],
     serverPos: [0, 1.65, -22.5],
@@ -153,6 +155,8 @@ const dom = {
   statusMode: document.getElementById('status-mode'),
   statusTimer: document.getElementById('status-timer'),
   statusWeapon: document.getElementById('status-weapon'),
+  weaponCooldownBar: document.getElementById('weapon-cooldown-bar'),
+  weaponCooldownFill: document.getElementById('weapon-cooldown-fill'),
   detectionContainer: document.getElementById('detection-container'),
   detectionBar: document.getElementById('detection-bar'),
   downloadContainer: document.getElementById('download-container'),
@@ -204,6 +208,7 @@ const gates = [];           // { gateMesh, panelMesh, unlocked, openProgress, in
 const cars = [];            // { mesh, colliderObj, initialPos, initialYaw, isDedsec, speed, hackedTimer, hackedUsed, headlight }
 const projectiles = [];     // { mesh, line, origin, pos, dir, speed, life }
 const empWaves = [];        // { mesh, mat, radius, maxRadius }
+const impactFlashes = [];   // { light, life }
 const netHackTagItems = []; // { el, getPos, getText }
 let dedsecCar = null;
 
@@ -1018,6 +1023,19 @@ function buildDocksEnvironment(cfg) {
   // Muros/Barreiras laterais do píer e divisórias dos 2 portões (Z=10 e Z=-12)
   addStaticBox(1, 3.2, 48, -21.5, 1.6, 10, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.4 });
   addStaticBox(1, 3.2, 48, 21.5, 1.6, 10, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.4 });
+  // Guard-rail baixo com luzes de aviso na extremidade sul do píer (Z = 35)
+  addStaticBox(44, 1.1, 0.8, 0, 0.55, 35, 0x26314a, {
+    edgesColor: 0xffaa00,
+    edgesOpacity: 0.75
+  });
+  [-15, -5, 5, 15].forEach((lx) => {
+    addStaticBox(0.55, 0.25, 0.25, lx, 1.2, 35, 0xffaa00, {
+      collide: false,
+      occlude: false,
+      emissive: 0xffaa00,
+      emissiveIntensity: 1.4
+    });
+  });
   addStaticBox(18, 4.5, 1, -12, 2.25, 10, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.45 });
   addStaticBox(18, 4.5, 1, 12, 2.25, 10, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.45 });
   addStaticBox(18, 4.5, 1, -12, 2.25, -12, 0x1b2236, { edgesColor: 0xff0055, edgesOpacity: 0.45 });
@@ -2238,6 +2256,10 @@ function completeTerminalHack() {
     setMissionState(MISSION_STATE.STEAL_DATA);
   }
 
+  if (gates.some((g) => !g.unlocked)) {
+    dom.missionSub.textContent = 'Hackeie a segunda barreira eletrônica para acessar o convés';
+  }
+
   setTimeout(() => {
     closeGateTerminal();
   }, 450);
@@ -2255,18 +2277,38 @@ function selectWeapon(weaponType) {
 }
 
 function updateWeaponHUD() {
-  if (!dom.statusWeapon) return;
-  if (gameState.equippedWeapon === WEAPON_TYPE.TASER) {
-    const cd = gameState.taserCooldown;
-    dom.statusWeapon.textContent =
-      cd > 0 ? `[1] TASER (${cd.toFixed(1)}s)` : '[1] TASER (PRONTO)';
-    dom.statusWeapon.className = cd > 0 ? 'neon-magenta' : 'neon-cyan';
-  } else {
-    const cd = gameState.empCooldown;
-    dom.statusWeapon.textContent =
-      cd > 0 ? `[2] EMP (${cd.toFixed(1)}s)` : '[2] EMP (PRONTO)';
-    dom.statusWeapon.className = cd > 0 ? 'neon-magenta' : 'neon-green';
+  const isTaser = gameState.equippedWeapon === WEAPON_TYPE.TASER;
+  const cd = isTaser ? gameState.taserCooldown : gameState.empCooldown;
+  const maxCd = isTaser ? TASER_COOLDOWN : EMP_COOLDOWN;
+
+  if (dom.statusWeapon) {
+    if (isTaser) {
+      dom.statusWeapon.textContent =
+        cd > 0 ? `[1] TASER (${cd.toFixed(1)}s)` : '[1] TASER (PRONTO)';
+      dom.statusWeapon.className = cd > 0 ? 'neon-magenta' : 'neon-cyan';
+    } else {
+      dom.statusWeapon.textContent =
+        cd > 0 ? `[2] EMP (${cd.toFixed(1)}s)` : '[2] EMP (PRONTO)';
+      dom.statusWeapon.className = cd > 0 ? 'neon-magenta' : 'neon-green';
+    }
   }
+
+  if (dom.weaponCooldownBar && dom.weaponCooldownFill) {
+    if (cd > 0) {
+      dom.weaponCooldownBar.classList.remove('hidden');
+      const pct = THREE.MathUtils.clamp(((maxCd - cd) / maxCd) * 100, 0, 100);
+      dom.weaponCooldownFill.style.width = `${pct}%`;
+    } else {
+      dom.weaponCooldownBar.classList.add('hidden');
+    }
+  }
+}
+
+function spawnTaserFlash(pos) {
+  const light = new THREE.PointLight(0x00f0ff, 5.0, 9);
+  light.position.copy(pos);
+  scene.add(light);
+  impactFlashes.push({ light, life: 0.15 });
 }
 
 function stunGuard(guard, duration) {
@@ -2395,6 +2437,7 @@ function updateProjectiles(dt) {
     }
 
     if (hitGuard) {
+      spawnTaserFlash(p.pos);
       stunGuard(hitGuard, 12.0);
       AudioManager.playElectricZap();
       scene.remove(p.mesh);
@@ -2404,6 +2447,7 @@ function updateProjectiles(dt) {
     }
 
     if (hitObs.length > 0 || p.life <= 0) {
+      if (hitObs.length > 0) spawnTaserFlash(hitObs[0].point);
       scene.remove(p.mesh);
       scene.remove(p.line);
       projectiles.splice(i, 1);
@@ -2434,13 +2478,14 @@ function toggleDriveDedsecCar() {
     if (car.headlight) car.headlight.intensity = 0;
     AudioManager.stopEngineSound();
 
-    // Posicionar jogador ao lado do carro
+    // Posicionar jogador ao lado do carro respeitando os limites do mapa atual
+    const bounds = (MAPS_CONFIG[gameState.selectedMap] || MAPS_CONFIG.COMPLEXO_CTOS).bounds;
     const sideX = Math.cos(car.mesh.rotation.y) * 1.9;
     const sideZ = -Math.sin(car.mesh.rotation.y) * 1.9;
     playerGroup.position.set(
-      THREE.MathUtils.clamp(car.mesh.position.x + sideX, -35, 35),
+      THREE.MathUtils.clamp(car.mesh.position.x + sideX, bounds.minX, bounds.maxX),
       0,
-      THREE.MathUtils.clamp(car.mesh.position.z + sideZ, -34, 44)
+      THREE.MathUtils.clamp(car.mesh.position.z + sideZ, bounds.minZ, bounds.maxZ)
     );
     playerGroup.visible = true;
     car.mesh.updateMatrixWorld(true);
@@ -2462,6 +2507,7 @@ function toggleDriveDedsecCar() {
 // MOVIMENTAÇÃO, COLISÃO, CARROS E CÂMERA
 // ==========================================
 function updateCars(dt) {
+  const bounds = (MAPS_CONFIG[gameState.selectedMap] || MAPS_CONFIG.COMPLEXO_CTOS).bounds;
   cars.forEach((car) => {
     if (car.isDedsec || car.hackedTimer <= 0) return;
 
@@ -2472,9 +2518,10 @@ function updateCars(dt) {
     const nextZ = car.mesh.position.z + forwardZ * car.speed * dt;
 
     if (
-      Math.abs(nextX) < 34.5 &&
-      nextZ > -33.5 &&
-      nextZ < 43.5 &&
+      nextX > bounds.minX + 0.5 &&
+      nextX < bounds.maxX - 0.5 &&
+      nextZ > bounds.minZ + 0.5 &&
+      nextZ < bounds.maxZ - 0.5 &&
       !checkCollision(nextX, nextZ, 1.5, car)
     ) {
       car.mesh.position.x = nextX;
@@ -2486,11 +2533,10 @@ function updateCars(dt) {
       car.speed = 0;
     }
 
-    // Distrair/atordoar guardas no caminho
+    // Atordoar guardas no caminho
     guards.forEach((g) => {
-      if (g.mesh.position.distanceTo(car.mesh.position) < 2.8) {
-        g.stunTimer = 6.0;
-        g.state = GUARD_STATE.DISTRACTED;
+      if (g.state !== GUARD_STATE.STUNNED && g.mesh.position.distanceTo(car.mesh.position) < 2.8) {
+        stunGuard(g, 6.0);
       }
     });
   });
@@ -2546,8 +2592,9 @@ function updatePlayer(dt) {
       car.speed *= 0.2;
     }
 
-    cPos.x = THREE.MathUtils.clamp(cPos.x, -34.5, 34.5);
-    cPos.z = THREE.MathUtils.clamp(cPos.z, -33.5, 43.5);
+    const bounds = (MAPS_CONFIG[gameState.selectedMap] || MAPS_CONFIG.COMPLEXO_CTOS).bounds;
+    cPos.x = THREE.MathUtils.clamp(cPos.x, bounds.minX + 0.5, bounds.maxX - 0.5);
+    cPos.z = THREE.MathUtils.clamp(cPos.z, bounds.minZ + 0.5, bounds.maxZ - 0.5);
 
     car.mesh.updateMatrixWorld(true);
     car.colliderObj.box.setFromObject(car.mesh);
@@ -2555,8 +2602,8 @@ function updatePlayer(dt) {
 
     if (Math.abs(car.speed) > 5.0) {
       guards.forEach((g) => {
-        if (g.mesh.position.distanceTo(cPos) < 2.4) {
-          g.stunTimer = 6.0;
+        if (g.state !== GUARD_STATE.STUNNED && g.mesh.position.distanceTo(cPos) < 2.4) {
+          stunGuard(g, 6.0);
         }
       });
     }
@@ -2619,9 +2666,10 @@ function updatePlayer(dt) {
       pos.z += stepZ;
     }
 
-    // Limites do mapa jogável ampliado (X: -36..36, Z: -35..45)
-    pos.x = THREE.MathUtils.clamp(pos.x, -35, 35);
-    pos.z = THREE.MathUtils.clamp(pos.z, -34, 44);
+    // Limites do mapa jogável atual (mapCfg.bounds)
+    const bounds = (MAPS_CONFIG[gameState.selectedMap] || MAPS_CONFIG.COMPLEXO_CTOS).bounds;
+    pos.x = THREE.MathUtils.clamp(pos.x, bounds.minX, bounds.maxX);
+    pos.z = THREE.MathUtils.clamp(pos.z, bounds.minZ, bounds.maxZ);
 
     // Rotação suave na direção do movimento
     const targetRot = Math.atan2(moveX, moveZ);
@@ -3361,6 +3409,16 @@ function updateVisualEffects(dt, nowSec) {
   if (waterMesh) {
     waterMesh.position.y = -0.42 + Math.sin(nowSec * 1.4) * 0.06;
     waterMesh.material.emissiveIntensity = 0.65 + Math.sin(nowSec * 2.0) * 0.12;
+  }
+
+  for (let i = impactFlashes.length - 1; i >= 0; i--) {
+    const f = impactFlashes[i];
+    f.life -= dt;
+    f.light.intensity = Math.max(0, 5.0 * (f.life / 0.15));
+    if (f.life <= 0) {
+      scene.remove(f.light);
+      impactFlashes.splice(i, 1);
+    }
   }
 }
 
