@@ -16,16 +16,27 @@ const GUARD_STATE = {
   PATROL: 'PATROL',
   INVESTIGATE: 'INVESTIGATE',
   DISTRACTED: 'DISTRACTED',
-  STUNNED: 'STUNNED'
+  STUNNED: 'STUNNED',
+  COMBAT: 'COMBAT',
+  DEAD: 'DEAD'
 };
 
 const WEAPON_TYPE = {
   TASER: 'TASER',
+  PISTOL: 'PISTOL',
+  RIFLE: 'RIFLE',
   EMP: 'EMP'
 };
 
-const TASER_COOLDOWN = 2.5;
-const EMP_COOLDOWN = 15.0;
+const WEAPON_CONFIG = {
+  TASER: { key: 'TASER', label: '[1] TASER', cooldown: 1.5, damage: 0, speed: 46, color: 0x00f0ff, noiseRadius: 10 },
+  PISTOL: { key: 'PISTOL', label: '[2] 9MM SIL.', cooldown: 0.35, damage: 50, speed: 60, color: 0x88ffff, noiseRadius: 0 },
+  RIFLE: { key: 'RIFLE', label: '[3] RIFLE', cooldown: 0.14, damage: 35, speed: 66, color: 0xffaa00, noiseRadius: 26 },
+  EMP: { key: 'EMP', label: '[4] EMP', cooldown: 12.0, damage: 0, speed: 0, color: 0x00f0ff, noiseRadius: 22 }
+};
+
+const TASER_COOLDOWN = WEAPON_CONFIG.TASER.cooldown;
+const EMP_COOLDOWN = WEAPON_CONFIG.EMP.cooldown;
 
 const MAPS_CONFIG = {
   COMPLEXO_CTOS: {
@@ -47,8 +58,16 @@ const MAPS_CONFIG = {
       { name: 'CAIXA_ELETRICA_02', pos: [11.5, 0.85, -12.5] }
     ],
     guards: [
-      { waypoints: [[-11, 0, -3.5], [11, 0, -3.5]], speed: 2.8, visionRange: 9.5 },
-      { waypoints: [[10, 0, -14], [-10, 0, -14]], speed: 3.1, visionRange: 9.5 }
+      {
+        waypoints: [[-12, 0, 2], [12, 0, 2], [12, 0, -12], [-12, 0, -12]],
+        speed: 2.8,
+        visionRange: 22
+      },
+      {
+        waypoints: [[12, 0, -20], [-12, 0, -20], [-12, 0, -4], [12, 0, -4]],
+        speed: 3.1,
+        visionRange: 22
+      }
     ],
     cars: [
       { x: -6.5, z: 18.5, yaw: Math.PI / 2, color: 0x111827, neon: 0x00f0ff, isDedsec: true },
@@ -78,9 +97,21 @@ const MAPS_CONFIG = {
       { name: 'CAIXA_DOCA_02', pos: [12, 0.85, -7] }
     ],
     guards: [
-      { waypoints: [[-11, 0, 4], [11, 0, 4]], speed: 2.7, visionRange: 9.5 },
-      { waypoints: [[11, 0, -5], [-11, 0, -5]], speed: 3.0, visionRange: 9.5 },
-      { waypoints: [[-8, 0, -17], [8, 0, -17]], speed: 3.2, visionRange: 9.5 }
+      {
+        waypoints: [[-15, 0, 6], [15, 0, 6], [15, 0, -8], [-15, 0, -8]],
+        speed: 2.7,
+        visionRange: 22
+      },
+      {
+        waypoints: [[15, 0, -8], [-15, 0, -8], [-15, 0, 4], [15, 0, 4]],
+        speed: 3.0,
+        visionRange: 22
+      },
+      {
+        waypoints: [[-10, 0, -15], [10, 0, -15], [10, 0, -23], [-10, 0, -23]],
+        speed: 3.2,
+        visionRange: 22
+      }
     ],
     cars: [
       { x: -7, z: 24, yaw: Math.PI / 2, color: 0x111827, neon: 0x00f0ff, isDedsec: true },
@@ -150,11 +181,17 @@ const dom = {
   nethackOverlay: document.getElementById('nethack-overlay'),
   cameraOverlay: document.getElementById('camera-overlay'),
   alertVignette: document.getElementById('alert-vignette'),
+  damageFlash: document.getElementById('damage-flash'),
+  baseAlertBanner: document.getElementById('base-alert-banner'),
   missionObjective: document.getElementById('mission-objective'),
   missionSub: document.getElementById('mission-sub'),
   statusMode: document.getElementById('status-mode'),
   statusTimer: document.getElementById('status-timer'),
+  statusHp: document.getElementById('status-hp'),
+  hpBar: document.getElementById('hp-bar'),
   statusWeapon: document.getElementById('status-weapon'),
+  gameoverTitle: document.getElementById('gameover-title'),
+  gameoverDesc: document.getElementById('gameover-desc'),
   weaponCooldownBar: document.getElementById('weapon-cooldown-bar'),
   weaponCooldownFill: document.getElementById('weapon-cooldown-fill'),
   detectionContainer: document.getElementById('detection-container'),
@@ -206,7 +243,8 @@ const radarBuildings = [];  // { x, z, w, d } para quarteirões laterais no rada
 const radarWalls = [];      // { x1, z1, x2, z2 } para paredes no radar
 const gates = [];           // { gateMesh, panelMesh, unlocked, openProgress, initialX, openX }
 const cars = [];            // { mesh, colliderObj, initialPos, initialYaw, isDedsec, speed, hackedTimer, hackedUsed, headlight }
-const projectiles = [];     // { mesh, line, origin, pos, dir, speed, life }
+const projectiles = [];     // { mesh, line, origin, pos, dir, speed, life, damage, isTaser }
+const guardProjectiles = []; // { mesh, pos, dir, speed, life }
 const empWaves = [];        // { mesh, mat, radius, maxRadius }
 const impactFlashes = [];   // { light, life }
 const netHackTagItems = []; // { el, getPos, getText }
@@ -219,10 +257,15 @@ const gameState = {
   difficulty: 'INICIANTE',
   activeGateIndex: 0,
   elapsedTime: 0,
+  hp: 100,
+  damageFlashTimer: 0,
+  baseAlert: false,
+  mouseDown: false,
   netHackActive: false,
   activeCamIndex: -1, // -1 = câmera 3ª pessoa do jogador
   drivingCar: null,
   equippedWeapon: WEAPON_TYPE.TASER,
+  weaponCooldown: 0,
   taserCooldown: 0,
   empCooldown: 0,
   gateUnlocked: false,
@@ -434,6 +477,27 @@ const AudioManager = {
   playEmpPulse() {
     this._tone(140, 38, 0.55, 'sawtooth', 0.22, 480);
     this._tone(980, 120, 0.4, 'sine', 0.15, 1800, 0.02);
+  },
+
+  playSilencedShot() {
+    this._tone(520, 140, 0.08, 'triangle', 0.11, 1400);
+  },
+
+  playRifleShot() {
+    this._tone(240, 75, 0.1, 'sawtooth', 0.14, 1900);
+  },
+
+  playGuardShot() {
+    this._tone(200, 65, 0.11, 'sawtooth', 0.11, 1500);
+  },
+
+  playPlayerHit() {
+    this._tone(160, 55, 0.16, 'square', 0.16, 700);
+  },
+
+  playBaseAlertSiren() {
+    this._tone(620, 880, 0.28, 'sawtooth', 0.16, 1500, 0);
+    this._tone(880, 540, 0.32, 'sawtooth', 0.16, 1500, 0.28);
   },
 
   startMusic(bpm = 96) {
@@ -1495,7 +1559,7 @@ function buildPlayer() {
   const visor = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.12, 0.08), visorMat);
   visor.position.set(0, 1.82, 0.22);
 
-  // Pistola Taser DedSec na mão direita (acoplada ao braço direito)
+  // [1] Pistola Taser DedSec na mão direita
   const taserMesh = new THREE.Group();
   const taserBody = new THREE.Mesh(
     new THREE.BoxGeometry(0.1, 0.12, 0.34),
@@ -1510,7 +1574,56 @@ function buildPlayer() {
   taserMesh.add(taserBody, taserBarrel);
   armR.add(taserMesh);
 
-  playerParts = { legL, legR, armL, armR, backpackLed, taserMesh };
+  // [2] Pistola Silenciada 9mm
+  const pistolMesh = new THREE.Group();
+  const pistolSlide = new THREE.Mesh(
+    new THREE.BoxGeometry(0.08, 0.11, 0.28),
+    new THREE.MeshStandardMaterial({ color: 0x1c2434, roughness: 0.35, metalness: 0.7 })
+  );
+  pistolSlide.position.set(0, -0.3, 0.15);
+  const silencer = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.032, 0.032, 0.26, 10),
+    new THREE.MeshStandardMaterial({ color: 0x0b0f18, roughness: 0.4, metalness: 0.8 })
+  );
+  silencer.rotation.x = Math.PI / 2;
+  silencer.position.set(0, -0.28, 0.41);
+  pistolMesh.add(pistolSlide, silencer);
+  pistolMesh.visible = false;
+  armR.add(pistolMesh);
+
+  // [3] Rifle de Assalto DedSec
+  const rifleMesh = new THREE.Group();
+  const rifleBody = new THREE.Mesh(
+    new THREE.BoxGeometry(0.1, 0.15, 0.66),
+    new THREE.MeshStandardMaterial({ color: 0x141a26, roughness: 0.45, metalness: 0.65 })
+  );
+  rifleBody.position.set(0, -0.3, 0.3);
+  const rifleMag = new THREE.Mesh(
+    new THREE.BoxGeometry(0.06, 0.18, 0.09),
+    new THREE.MeshStandardMaterial({ color: 0x2a344a, roughness: 0.5 })
+  );
+  rifleMag.position.set(0, -0.43, 0.34);
+  const rifleAccent = new THREE.Mesh(
+    new THREE.BoxGeometry(0.11, 0.04, 0.36),
+    new THREE.MeshBasicMaterial({ color: 0xffaa00 })
+  );
+  rifleAccent.position.set(0, -0.27, 0.36);
+  rifleMesh.add(rifleBody, rifleMag, rifleAccent);
+  rifleMesh.visible = false;
+  armR.add(rifleMesh);
+
+  // [4] Emissor de Pulso EMP
+  const empMesh = new THREE.Group();
+  const empCore = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08, 0.08, 0.14, 12),
+    new THREE.MeshBasicMaterial({ color: 0x00f0ff })
+  );
+  empCore.position.set(0, -0.31, 0.1);
+  empMesh.add(empCore);
+  empMesh.visible = false;
+  armR.add(empMesh);
+
+  playerParts = { legL, legR, armL, armR, backpackLed, taserMesh, pistolMesh, rifleMesh, empMesh };
   playerGroup.add(legL, legR, torso, armL, armR, trimL, trimR, backpack, backpackLed, head, visor);
   scene.add(playerGroup);
 }
@@ -1535,28 +1648,6 @@ function buildSecurityCameras(cfg) {
     mesh.userData.nethackMaterial = nethackMat;
     worldGroup.add(mesh);
 
-    // Cone de visão verde no chão para varredura da câmera
-    const camVisionRange = 11.5;
-    const camVisionHalfAngle = Math.PI / 6;
-    const coneGeo = new THREE.CircleGeometry(
-      camVisionRange,
-      26,
-      -Math.PI / 2 - camVisionHalfAngle,
-      camVisionHalfAngle * 2
-    );
-    const coneMat = new THREE.MeshBasicMaterial({
-      color: 0x00ff88,
-      transparent: true,
-      opacity: 0.18,
-      side: THREE.DoubleSide,
-      depthWrite: false
-    });
-    const coneMesh = new THREE.Mesh(coneGeo, coneMat);
-    coneMesh.rotation.x = -Math.PI / 2;
-    coneMesh.rotation.z = camCfg.baseYaw;
-    coneMesh.position.set(pos.x, 0.05, pos.z);
-    worldGroup.add(coneMesh);
-
     hackableMeshes.push(mesh);
     securityCameras.push({
       id: idx,
@@ -1567,10 +1658,8 @@ function buildSecurityCameras(cfg) {
       basePitch: camCfg.basePitch,
       yawOffset: 0,
       pitchOffset: 0,
-      coneMesh,
-      coneMat,
-      visionRange: camVisionRange,
-      visionHalfAngle: camVisionHalfAngle,
+      visionRange: 16,
+      visionHalfAngle: Math.PI / 5,
       disabledTimer: 0,
       sweepPhase: idx * 1.5,
       currentYaw: camCfg.baseYaw
@@ -1627,10 +1716,10 @@ function buildElectricBoxes(cfg) {
 }
 
 // ==========================================
-// GUARDAS E CONES DE VISÃO
+// GUARDAS ARMADOS E IA DE COMBATE
 // ==========================================
 function buildGuards(cfg) {
-  const visionHalfAngle = Math.PI / 5;
+  const visionHalfAngle = (55 * Math.PI) / 180; // 110 graus totais
   cfg.guards.forEach((gCfg) => {
     const waypoints = gCfg.waypoints.map(([wx, wy, wz]) => new THREE.Vector3(wx, wy, wz));
     const group = new THREE.Group();
@@ -1651,25 +1740,21 @@ function buildGuards(cfg) {
     const visor = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.12, 0.08), visorMat);
     visor.position.set(0, 1.68, 0.21);
 
-    // Cone de visão no chão centrado em +Z local
-    const coneGeo = new THREE.CircleGeometry(
-      gCfg.visionRange,
-      28,
-      -Math.PI / 2 - visionHalfAngle,
-      visionHalfAngle * 2
+    // Submetralhadora / Rifle 3D nas mãos do guarda
+    const gunMesh = new THREE.Group();
+    const gunBody = new THREE.Mesh(
+      new THREE.BoxGeometry(0.1, 0.14, 0.62),
+      new THREE.MeshStandardMaterial({ color: 0x11151f, roughness: 0.4, metalness: 0.7 })
     );
-    const coneMat = new THREE.MeshBasicMaterial({
-      color: 0xffd000,
-      transparent: true,
-      opacity: 0.25,
-      side: THREE.DoubleSide,
-      depthWrite: false
-    });
-    const coneMesh = new THREE.Mesh(coneGeo, coneMat);
-    coneMesh.rotation.x = -Math.PI / 2;
-    coneMesh.position.y = 0.06;
+    const gunBarrel = new THREE.Mesh(
+      new THREE.BoxGeometry(0.05, 0.05, 0.28),
+      new THREE.MeshBasicMaterial({ color: 0xff4400 })
+    );
+    gunBarrel.position.set(0, 0.02, 0.38);
+    gunMesh.add(gunBody, gunBarrel);
+    gunMesh.position.set(0.28, 1.05, 0.34);
 
-    group.add(body, head, visor, coneMesh);
+    group.add(body, head, visor, gunMesh);
     worldGroup.add(group);
 
     // Faíscas elétricas para estado STUNNED
@@ -1711,8 +1796,11 @@ function buildGuards(cfg) {
       speed: gCfg.speed,
       visionRange: gCfg.visionRange,
       visionHalfAngle,
-      coneMesh,
-      coneMat,
+      gunMesh,
+      hp: 100,
+      fireCooldown: 0,
+      burstLeft: 0,
+      burstTimer: 0,
       sparkPoints,
       sparkData,
       state: GUARD_STATE.PATROL,
@@ -1880,6 +1968,10 @@ function setupInputs() {
     } else if (code === 'Digit1' || code === 'Numpad1') {
       selectWeapon(WEAPON_TYPE.TASER);
     } else if (code === 'Digit2' || code === 'Numpad2') {
+      selectWeapon(WEAPON_TYPE.PISTOL);
+    } else if (code === 'Digit3' || code === 'Numpad3') {
+      selectWeapon(WEAPON_TYPE.RIFLE);
+    } else if (code === 'Digit4' || code === 'Numpad4') {
       selectWeapon(WEAPON_TYPE.EMP);
     } else if (code === 'KeyR' && gameState.activeCamIndex >= 0) {
       overloadActiveCamera();
@@ -1925,6 +2017,7 @@ function setupInputs() {
 
   document.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
+    gameState.mouseDown = true;
     if (document.pointerLockElement !== dom.canvas) return;
     if (gameState.terminalOpen || gameState.activeCamIndex >= 0 || gameState.drivingCar) return;
     const playing =
@@ -1933,11 +2026,11 @@ function setupInputs() {
       gameState.mission === MISSION_STATE.ESCAPE;
     if (!playing) return;
 
-    if (gameState.equippedWeapon === WEAPON_TYPE.TASER) {
-      fireTaser();
-    } else {
-      fireEmpPulse();
-    }
+    fireEquippedWeapon();
+  });
+
+  document.addEventListener('mouseup', (e) => {
+    if (e.button === 0) gameState.mouseDown = false;
   });
 
   // Botões de UI
@@ -2065,7 +2158,6 @@ function overloadActiveCamera() {
   gameState.hacksUsed += 1;
   const camObj = securityCameras[gameState.activeCamIndex];
   camObj.disabledTimer = CAMERA_OVERLOAD_DURATION;
-  camObj.coneMesh.visible = false;
   camObj.mesh.userData.normalMaterial.emissive.setHex(0x331111);
   cycleSecurityCamera(-1);
 }
@@ -2221,7 +2313,8 @@ function completeTerminalHack() {
   if (gameState.terminalTarget === 'FIREWALL') {
     gameState.serverFirewallDisabled = true;
     serverMesh.userData.normalMaterial.emissive.setHex(0x00f0ff);
-    dom.hackFeedback.textContent = '> FIREWALL DESATIVADO // DOWNLOAD LIBERADO!';
+    triggerBaseAlert();
+    dom.hackFeedback.textContent = '> FIREWALL DESATIVADO // ALERTA GERAL ATIVADO!';
     dom.hackFeedback.style.color = '#00ff88';
     setTimeout(() => {
       closeGateTerminal();
@@ -2266,31 +2359,25 @@ function completeTerminalHack() {
 }
 
 // ==========================================
-// ARMAS TÁTICAS DEDSEC (TASER & PULSO EMP)
+// ARSENAL DEDSEC, DANO E COMBATE
 // ==========================================
 function selectWeapon(weaponType) {
   gameState.equippedWeapon = weaponType;
-  if (playerParts.taserMesh) {
-    playerParts.taserMesh.visible = weaponType === WEAPON_TYPE.TASER;
-  }
+  if (playerParts.taserMesh) playerParts.taserMesh.visible = weaponType === WEAPON_TYPE.TASER;
+  if (playerParts.pistolMesh) playerParts.pistolMesh.visible = weaponType === WEAPON_TYPE.PISTOL;
+  if (playerParts.rifleMesh) playerParts.rifleMesh.visible = weaponType === WEAPON_TYPE.RIFLE;
+  if (playerParts.empMesh) playerParts.empMesh.visible = weaponType === WEAPON_TYPE.EMP;
   updateWeaponHUD();
 }
 
 function updateWeaponHUD() {
-  const isTaser = gameState.equippedWeapon === WEAPON_TYPE.TASER;
-  const cd = isTaser ? gameState.taserCooldown : gameState.empCooldown;
-  const maxCd = isTaser ? TASER_COOLDOWN : EMP_COOLDOWN;
+  const cfg = WEAPON_CONFIG[gameState.equippedWeapon];
+  const cd = gameState.equippedWeapon === WEAPON_TYPE.EMP ? gameState.empCooldown : gameState.weaponCooldown;
+  const maxCd = cfg.cooldown;
 
   if (dom.statusWeapon) {
-    if (isTaser) {
-      dom.statusWeapon.textContent =
-        cd > 0 ? `[1] TASER (${cd.toFixed(1)}s)` : '[1] TASER (PRONTO)';
-      dom.statusWeapon.className = cd > 0 ? 'neon-magenta' : 'neon-cyan';
-    } else {
-      dom.statusWeapon.textContent =
-        cd > 0 ? `[2] EMP (${cd.toFixed(1)}s)` : '[2] EMP (PRONTO)';
-      dom.statusWeapon.className = cd > 0 ? 'neon-magenta' : 'neon-green';
-    }
+    dom.statusWeapon.textContent = cd > 0 ? `${cfg.label} (${cd.toFixed(1)}s)` : `${cfg.label} (PRONTO)`;
+    dom.statusWeapon.className = cd > 0 ? 'neon-magenta' : 'neon-cyan';
   }
 
   if (dom.weaponCooldownBar && dom.weaponCooldownFill) {
@@ -2304,20 +2391,74 @@ function updateWeaponHUD() {
   }
 }
 
-function spawnTaserFlash(pos) {
-  const light = new THREE.PointLight(0x00f0ff, 5.0, 9);
+function updateHpHUD() {
+  if (dom.statusHp) {
+    dom.statusHp.textContent = `${Math.ceil(gameState.hp)}%`;
+    dom.statusHp.className = gameState.hp > 50 ? 'neon-green' : gameState.hp > 25 ? 'neon-cyan' : 'neon-magenta';
+  }
+  if (dom.hpBar) {
+    dom.hpBar.style.width = `${THREE.MathUtils.clamp(gameState.hp, 0, 100)}%`;
+  }
+}
+
+function damagePlayer(amount) {
+  if (gameState.mission === MISSION_STATE.GAMEOVER || gameState.mission === MISSION_STATE.VICTORY) return;
+  gameState.hp = Math.max(0, gameState.hp - amount);
+  gameState.damageFlashTimer = 0.22;
+  if (dom.damageFlash) dom.damageFlash.classList.remove('hidden');
+  AudioManager.playPlayerHit();
+  updateHpHUD();
+
+  if (gameState.hp <= 0) {
+    triggerGameOver('AGENTE ABATIDO', 'Você foi neutralizado pelo fogo hostil dos guardas da ctOS.');
+  }
+}
+
+function alertGuardsByNoise(originPos, radius) {
+  if (radius <= 0) return;
+  guards.forEach((g) => {
+    if (g.state === GUARD_STATE.DEAD || g.state === GUARD_STATE.STUNNED) return;
+    if (g.mesh.position.distanceTo(originPos) <= radius) {
+      g.lastKnownPos = originPos.clone();
+      if (g.state !== GUARD_STATE.COMBAT) {
+        g.state = GUARD_STATE.INVESTIGATE;
+        g.lookAroundTimer = 0;
+      }
+    }
+  });
+}
+
+function triggerBaseAlert() {
+  if (gameState.baseAlert) return;
+  gameState.baseAlert = true;
+  if (dom.baseAlertBanner) dom.baseAlertBanner.classList.remove('hidden');
+  AudioManager.playBaseAlertSiren();
+  AudioManager.setMusicTempo(138);
+
+  const targetPos = playerGroup.position.clone();
+  guards.forEach((g) => {
+    if (g.state !== GUARD_STATE.DEAD && g.state !== GUARD_STATE.STUNNED) {
+      g.state = GUARD_STATE.COMBAT;
+      g.lastKnownPos = targetPos.clone();
+    }
+  });
+}
+
+function spawnTaserFlash(pos, color = 0x00f0ff) {
+  const light = new THREE.PointLight(color, 5.0, 9);
   light.position.copy(pos);
   scene.add(light);
   impactFlashes.push({ light, life: 0.15 });
 }
 
 function stunGuard(guard, duration) {
+  if (guard.state === GUARD_STATE.DEAD) return;
   guard.state = GUARD_STATE.STUNNED;
   guard.stunTimer = duration;
-  guard.coneMesh.visible = false;
   guard.investigateTarget = null;
   guard.investigateTimer = 0;
   guard.lookAroundTimer = 0;
+  guard.burstLeft = 0;
   guard.mesh.rotation.x = Math.PI / 2.2;
   guard.mesh.position.y = 0.25;
   if (guard.sparkPoints) {
@@ -2325,23 +2466,50 @@ function stunGuard(guard, duration) {
   }
 }
 
-function fireTaser() {
-  if (gameState.taserCooldown > 0) return;
-  gameState.taserCooldown = TASER_COOLDOWN;
-  AudioManager.playTaserShot();
+function damageGuard(guard, dmg) {
+  if (guard.state === GUARD_STATE.DEAD) return;
+  guard.hp = Math.max(0, guard.hp - dmg);
+  if (guard.hp <= 0) {
+    guard.state = GUARD_STATE.DEAD;
+    guard.stunTimer = 0;
+    guard.burstLeft = 0;
+    guard.mesh.rotation.x = -Math.PI / 2;
+    guard.mesh.position.y = 0.22;
+    if (guard.sparkPoints) guard.sparkPoints.visible = false;
+    return;
+  }
+  if (guard.state !== GUARD_STATE.STUNNED) {
+    guard.state = GUARD_STATE.COMBAT;
+    guard.lastKnownPos = playerGroup.position.clone();
+  }
+}
+
+function fireEquippedWeapon() {
+  if (gameState.equippedWeapon === WEAPON_TYPE.EMP) {
+    fireEmpPulse();
+    return;
+  }
+  if (gameState.weaponCooldown > 0) return;
+
+  const cfg = WEAPON_CONFIG[gameState.equippedWeapon];
+  gameState.weaponCooldown = cfg.cooldown;
   updateWeaponHUD();
+
+  if (gameState.equippedWeapon === WEAPON_TYPE.TASER) AudioManager.playTaserShot();
+  else if (gameState.equippedWeapon === WEAPON_TYPE.PISTOL) AudioManager.playSilencedShot();
+  else if (gameState.equippedWeapon === WEAPON_TYPE.RIFLE) AudioManager.playRifleShot();
 
   const dir = new THREE.Vector3();
   camera.getWorldDirection(dir);
   dir.y = THREE.MathUtils.clamp(dir.y, -0.35, 0.35);
   dir.normalize();
 
-  const startPos = playerGroup.position.clone().add(new THREE.Vector3(0, 1.35, 0));
-  startPos.addScaledVector(dir, 0.7);
+  const startPos = playerGroup.position.clone().add(new THREE.Vector3(0, gameState.isCrouching ? 0.92 : 1.35, 0));
+  startPos.addScaledVector(dir, 0.75);
 
   const boltMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(0.12, 0.12, 0.55),
-    new THREE.MeshBasicMaterial({ color: 0x00f0ff })
+    new THREE.BoxGeometry(0.1, 0.1, 0.55),
+    new THREE.MeshBasicMaterial({ color: cfg.color })
   );
   boltMesh.position.copy(startPos);
   boltMesh.lookAt(startPos.clone().add(dir));
@@ -2350,7 +2518,7 @@ function fireTaser() {
   const trailGeo = new THREE.BufferGeometry().setFromPoints([startPos.clone(), startPos.clone()]);
   const trailLine = new THREE.Line(
     trailGeo,
-    new THREE.LineBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.85 })
+    new THREE.LineBasicMaterial({ color: cfg.color, transparent: true, opacity: 0.85 })
   );
   scene.add(trailLine);
 
@@ -2360,14 +2528,19 @@ function fireTaser() {
     origin: startPos.clone(),
     pos: startPos.clone(),
     dir,
-    speed: 44,
+    speed: cfg.speed,
+    damage: cfg.damage,
+    isTaser: gameState.equippedWeapon === WEAPON_TYPE.TASER,
+    color: cfg.color,
     life: 1.1
   });
+
+  alertGuardsByNoise(playerGroup.position, cfg.noiseRadius);
 }
 
 function fireEmpPulse() {
   if (gameState.empCooldown > 0) return;
-  gameState.empCooldown = EMP_COOLDOWN;
+  gameState.empCooldown = WEAPON_CONFIG.EMP.cooldown;
   AudioManager.playEmpPulse();
   updateWeaponHUD();
 
@@ -2384,31 +2557,43 @@ function fireEmpPulse() {
   ringMesh.position.set(pPos.x, 0.14, pPos.z);
   scene.add(ringMesh);
 
-  empWaves.push({ mesh: ringMesh, mat: ringMat, radius: 1, maxRadius: 8.5 });
+  empWaves.push({ mesh: ringMesh, mat: ringMat, radius: 1, maxRadius: 10.5 });
 
-  // Desativa instantaneamente todas as câmeras por 8s
   securityCameras.forEach((camObj) => {
-    camObj.disabledTimer = Math.max(camObj.disabledTimer, 8.0);
-    camObj.coneMesh.visible = false;
+    camObj.disabledTimer = Math.max(camObj.disabledTimer, 10.0);
     camObj.mesh.userData.normalMaterial.emissive.setHex(0x331111);
   });
 
-  // Atordoa guardas em um raio de 8m por 8 segundos
   guards.forEach((g) => {
+    if (g.state === GUARD_STATE.DEAD) return;
     const d = Math.hypot(g.mesh.position.x - pPos.x, g.mesh.position.z - pPos.z);
-    if (d <= 8.0) {
-      stunGuard(g, 8.0);
+    if (d <= 10.0) {
+      stunGuard(g, 10.0);
     }
   });
 }
 
 function updateProjectiles(dt) {
-  if (gameState.taserCooldown > 0) {
-    gameState.taserCooldown = Math.max(0, gameState.taserCooldown - dt);
+  if (gameState.weaponCooldown > 0) {
+    gameState.weaponCooldown = Math.max(0, gameState.weaponCooldown - dt);
   }
   if (gameState.empCooldown > 0) {
     gameState.empCooldown = Math.max(0, gameState.empCooldown - dt);
   }
+
+  // Disparo automático para Rifle de Assalto DedSec
+  if (
+    gameState.mouseDown &&
+    gameState.equippedWeapon === WEAPON_TYPE.RIFLE &&
+    gameState.weaponCooldown === 0 &&
+    document.pointerLockElement === dom.canvas &&
+    !gameState.terminalOpen &&
+    gameState.activeCamIndex < 0 &&
+    !gameState.drivingCar
+  ) {
+    fireEquippedWeapon();
+  }
+
   updateWeaponHUD();
 
   for (let i = projectiles.length - 1; i >= 0; i--) {
@@ -2423,23 +2608,27 @@ function updateProjectiles(dt) {
     p.pos.addScaledVector(p.dir, step);
     p.mesh.position.copy(p.pos);
 
-    const trailTail = p.pos.clone().addScaledVector(p.dir, -Math.min(2.2, p.pos.distanceTo(p.origin)));
+    const trailTail = p.pos.clone().addScaledVector(p.dir, -Math.min(2.4, p.pos.distanceTo(p.origin)));
     p.line.geometry.setFromPoints([trailTail, p.pos.clone()]);
 
     let hitGuard = null;
     for (const g of guards) {
-      if (g.state === GUARD_STATE.STUNNED) continue;
+      if (g.state === GUARD_STATE.DEAD || g.state === GUARD_STATE.STUNNED) continue;
       const distFlat = Math.hypot(p.pos.x - g.mesh.position.x, p.pos.z - g.mesh.position.z);
-      if (distFlat < 1.0 && p.pos.y >= 0 && p.pos.y <= 2.2) {
+      if (distFlat < 0.95 && p.pos.y >= 0 && p.pos.y <= 2.2) {
         hitGuard = g;
         break;
       }
     }
 
     if (hitGuard) {
-      spawnTaserFlash(p.pos);
-      stunGuard(hitGuard, 12.0);
-      AudioManager.playElectricZap();
+      spawnTaserFlash(p.pos, p.color);
+      if (p.isTaser) {
+        stunGuard(hitGuard, 10.0);
+        AudioManager.playElectricZap();
+      } else {
+        damageGuard(hitGuard, p.damage);
+      }
       scene.remove(p.mesh);
       scene.remove(p.line);
       projectiles.splice(i, 1);
@@ -2447,10 +2636,40 @@ function updateProjectiles(dt) {
     }
 
     if (hitObs.length > 0 || p.life <= 0) {
-      if (hitObs.length > 0) spawnTaserFlash(hitObs[0].point);
+      if (hitObs.length > 0) spawnTaserFlash(hitObs[0].point, p.color);
       scene.remove(p.mesh);
       scene.remove(p.line);
       projectiles.splice(i, 1);
+    }
+  }
+}
+
+function updateGuardProjectiles(dt) {
+  const pPos = playerGroup.position;
+  for (let i = guardProjectiles.length - 1; i >= 0; i--) {
+    const gp = guardProjectiles[i];
+    gp.life -= dt;
+    const step = gp.speed * dt;
+
+    raycaster.set(gp.pos, gp.dir);
+    raycaster.far = step + 0.2;
+    const hitObs = raycaster.intersectObjects(occluders, false);
+
+    gp.pos.addScaledVector(gp.dir, step);
+    gp.mesh.position.copy(gp.pos);
+
+    const distPlayer = Math.hypot(gp.pos.x - pPos.x, gp.pos.z - pPos.z);
+    const maxPlayerY = gameState.isCrouching ? 1.25 : 2.05;
+    if (distPlayer < 0.72 && gp.pos.y >= 0.1 && gp.pos.y <= maxPlayerY) {
+      damagePlayer(12);
+      scene.remove(gp.mesh);
+      guardProjectiles.splice(i, 1);
+      continue;
+    }
+
+    if (hitObs.length > 0 || gp.life <= 0) {
+      scene.remove(gp.mesh);
+      guardProjectiles.splice(i, 1);
     }
   }
 }
@@ -2804,9 +3023,7 @@ function updateSecurityCameras(dt, playerPos, playerCenter) {
   securityCameras.forEach((camObj, idx) => {
     if (camObj.disabledTimer > 0) {
       camObj.disabledTimer = Math.max(0, camObj.disabledTimer - dt);
-      camObj.coneMesh.visible = false;
       if (camObj.disabledTimer === 0) {
-        camObj.coneMesh.visible = true;
         camObj.mesh.userData.normalMaterial.emissive.setHex(0x00ff88);
       }
       return;
@@ -2822,15 +3039,13 @@ function updateSecurityCameras(dt, playerPos, playerCenter) {
     }
     camObj.currentYaw = yaw;
     camObj.mesh.rotation.y = yaw;
-    camObj.coneMesh.rotation.z = yaw;
 
-    // Verificar se o jogador está no cone verde da câmera
+    // Verificar linha de visão real da câmera
     const camForward = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
     const toPlayer = playerPos.clone().sub(camObj.pos);
     toPlayer.y = 0;
     const dist = toPlayer.length();
 
-    let seesPlayer = false;
     if (dist <= camObj.visionRange && dist > 0.2) {
       const angle = Math.acos(THREE.MathUtils.clamp(camForward.dot(toPlayer.normalize()), -1, 1));
       if (angle <= camObj.visionHalfAngle) {
@@ -2839,22 +3054,41 @@ function updateSecurityCameras(dt, playerPos, playerCenter) {
         raycaster.far = Math.max(0.1, camObj.pos.distanceTo(playerCenter) - 0.3);
         const blocked = raycaster.intersectObjects(occluders, false);
         if (blocked.length === 0) {
-          seesPlayer = true;
+          camSpotted = true;
         }
       }
-    }
-
-    if (seesPlayer) {
-      camSpotted = true;
-      camObj.coneMat.color.setHex(0xff0055);
-      camObj.coneMat.opacity = 0.35;
-    } else {
-      camObj.coneMat.color.setHex(0x00ff88);
-      camObj.coneMat.opacity = 0.18;
     }
   });
 
   return camSpotted;
+}
+
+function fireGuardBullet(guard, targetPos) {
+  const startPos = guard.mesh.position.clone().add(new THREE.Vector3(0, 1.25, 0));
+  const dir = targetPos.clone().sub(startPos).normalize();
+  // Pequena dispersão para permitir cobertura justa
+  dir.x += (Math.random() - 0.5) * 0.09;
+  dir.y += (Math.random() - 0.5) * 0.04;
+  dir.z += (Math.random() - 0.5) * 0.09;
+  dir.normalize();
+
+  const bullet = new THREE.Mesh(
+    new THREE.BoxGeometry(0.1, 0.1, 0.45),
+    new THREE.MeshBasicMaterial({ color: 0xff3300 })
+  );
+  bullet.position.copy(startPos);
+  bullet.lookAt(startPos.clone().add(dir));
+  scene.add(bullet);
+
+  guardProjectiles.push({
+    mesh: bullet,
+    pos: startPos,
+    dir,
+    speed: 32,
+    life: 1.4
+  });
+
+  AudioManager.playGuardShot();
 }
 
 function updateGuards(dt) {
@@ -2866,13 +3100,13 @@ function updateGuards(dt) {
   );
 
   let spottedThisFrame = updateSecurityCameras(dt, playerPos, playerCenter);
-
-  const rangeDelta = gameState.isSprinting ? 3.0 : gameState.isCrouching ? -1.5 : 0;
+  const rangeDelta = gameState.isSprinting ? 4.0 : gameState.isCrouching ? -3.0 : 0;
 
   guards.forEach((g) => {
+    if (g.state === GUARD_STATE.DEAD) return;
+
     if (g.state === GUARD_STATE.STUNNED || g.stunTimer > 0) {
       g.stunTimer = Math.max(0, g.stunTimer - dt);
-      g.coneMesh.visible = false;
 
       if (g.sparkPoints) {
         g.sparkPoints.visible = true;
@@ -2895,9 +3129,8 @@ function updateGuards(dt) {
       if (g.stunTimer === 0) {
         g.mesh.rotation.x = 0;
         g.mesh.position.y = 0;
-        g.coneMesh.visible = true;
         if (g.sparkPoints) g.sparkPoints.visible = false;
-        g.state = GUARD_STATE.INVESTIGATE;
+        g.state = gameState.baseAlert ? GUARD_STATE.COMBAT : GUARD_STATE.INVESTIGATE;
         g.lastKnownPos = g.mesh.position.clone();
         g.lookAroundTimer = 3.0;
         g.lookBaseYaw = g.mesh.rotation.y;
@@ -2905,8 +3138,86 @@ function updateGuards(dt) {
       return;
     }
 
-    // 1. Máquina de estados de movimentação (DISTRACTED, INVESTIGATE, PATROL)
-    if (g.state === GUARD_STATE.DISTRACTED && g.investigateTarget) {
+    // 1. Checar visão realista (110°, 22m + Raycaster da cabeça até o jogador)
+    const guardForward = new THREE.Vector3(
+      Math.sin(g.mesh.rotation.y),
+      0,
+      Math.cos(g.mesh.rotation.y)
+    );
+    const toPlayer = playerPos.clone().sub(g.mesh.position);
+    toPlayer.y = 0;
+    const distToPlayer = toPlayer.length();
+    const effectiveRange = g.visionRange + rangeDelta;
+
+    let guardSeesPlayer = false;
+    if (distToPlayer <= effectiveRange && distToPlayer > 0.1) {
+      const dirFlat = toPlayer.clone().normalize();
+      const angle = Math.acos(THREE.MathUtils.clamp(guardForward.dot(dirFlat), -1, 1));
+      if (angle <= g.visionHalfAngle) {
+        const eyePos = new THREE.Vector3(g.mesh.position.x, 1.65, g.mesh.position.z);
+        const rayDir = playerCenter.clone().sub(eyePos).normalize();
+        raycaster.set(eyePos, rayDir);
+        raycaster.far = Math.max(0.1, eyePos.distanceTo(playerCenter) - 0.25);
+        const blocked = raycaster.intersectObjects(occluders, false);
+        if (blocked.length === 0) {
+          guardSeesPlayer = true;
+        }
+      }
+    }
+
+    if (guardSeesPlayer) {
+      spottedThisFrame = true;
+      g.state = GUARD_STATE.COMBAT;
+      g.lastKnownPos = new THREE.Vector3(playerPos.x, 0, playerPos.z);
+      g.lookAroundTimer = 0;
+    } else if (gameState.baseAlert) {
+      g.state = GUARD_STATE.COMBAT;
+      g.lastKnownPos = new THREE.Vector3(playerPos.x, 0, playerPos.z);
+    }
+
+    // 2. Máquina de estados de movimentação e combate
+    if (g.state === GUARD_STATE.COMBAT) {
+      const targetPos = g.lastKnownPos || playerPos;
+      const toTarget = targetPos.clone().sub(g.mesh.position);
+      toTarget.y = 0;
+      const dist = toTarget.length();
+
+      if (dist > 0.1) {
+        toTarget.normalize();
+        const desiredYaw = Math.atan2(toTarget.x, toTarget.z);
+        let diff = desiredYaw - g.mesh.rotation.y;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        g.mesh.rotation.y += diff * Math.min(1, dt * 10);
+
+        if (!guardSeesPlayer || dist > 9.0) {
+          g.mesh.position.addScaledVector(toTarget, g.speed * 1.2 * dt);
+        }
+      }
+
+      // Rajadas de tiro se tiver linha de visão limpa
+      if (guardSeesPlayer) {
+        if (g.burstLeft > 0) {
+          g.burstTimer -= dt;
+          if (g.burstTimer <= 0) {
+            fireGuardBullet(g, playerCenter);
+            g.burstLeft -= 1;
+            g.burstTimer = 0.14;
+          }
+        } else {
+          g.fireCooldown -= dt;
+          if (g.fireCooldown <= 0) {
+            g.burstLeft = 3;
+            g.burstTimer = 0;
+            g.fireCooldown = 1.35;
+          }
+        }
+      } else if (dist < 1.2 && !gameState.baseAlert) {
+        g.state = GUARD_STATE.INVESTIGATE;
+        g.lookAroundTimer = 3.0;
+        g.lookBaseYaw = g.mesh.rotation.y;
+      }
+    } else if (g.state === GUARD_STATE.DISTRACTED && g.investigateTarget) {
       g.investigateTimer = Math.max(0, g.investigateTimer - dt);
       const toInv = g.investigateTarget.clone().sub(g.mesh.position);
       toInv.y = 0;
@@ -2952,7 +3263,6 @@ function updateGuards(dt) {
         }
       }
     } else {
-      // Patrulha ida e volta (PATROL)
       const target = g.waypoints[g.currentTarget];
       const toTarget = target.clone().sub(g.mesh.position);
       toTarget.y = 0;
@@ -2970,59 +3280,12 @@ function updateGuards(dt) {
         g.mesh.rotation.y += diff * Math.min(1, dt * 8);
       }
     }
-
-    // 2. Checar se o jogador está no cone de visão + linha de visão livre
-    const guardForward = new THREE.Vector3(
-      Math.sin(g.mesh.rotation.y),
-      0,
-      Math.cos(g.mesh.rotation.y)
-    );
-    const toPlayer = playerPos.clone().sub(g.mesh.position);
-    toPlayer.y = 0;
-    const distToPlayer = toPlayer.length();
-    const effectiveRange = g.visionRange + rangeDelta;
-
-    let guardSeesPlayer = false;
-    if (distToPlayer <= effectiveRange && distToPlayer > 0.1) {
-      const dirFlat = toPlayer.clone().normalize();
-      const angle = Math.acos(THREE.MathUtils.clamp(guardForward.dot(dirFlat), -1, 1));
-      if (angle <= g.visionHalfAngle) {
-        // Raycast de oclusão (caixas/muros bloqueiam visão)
-        const eyePos = new THREE.Vector3(g.mesh.position.x, 1.45, g.mesh.position.z);
-        const rayDir = playerCenter.clone().sub(eyePos).normalize();
-        raycaster.set(eyePos, rayDir);
-        raycaster.far = Math.max(0.1, eyePos.distanceTo(playerCenter) - 0.25);
-        const blocked = raycaster.intersectObjects(occluders, false);
-        if (blocked.length === 0) {
-          guardSeesPlayer = true;
-        }
-      }
-    }
-
-    if (guardSeesPlayer) {
-      spottedThisFrame = true;
-      g.lastKnownPos = new THREE.Vector3(playerPos.x, 0, playerPos.z);
-      if (gameState.detectionLevel >= 40) {
-        g.state = GUARD_STATE.INVESTIGATE;
-        g.lookAroundTimer = 0;
-        g.investigateTarget = null;
-        g.investigateTimer = 0;
-      }
-      g.coneMat.color.setHex(0xff0055);
-      g.coneMat.opacity = 0.42;
-    } else if (g.state === GUARD_STATE.INVESTIGATE || g.state === GUARD_STATE.DISTRACTED) {
-      g.coneMat.color.setHex(0xff7700);
-      g.coneMat.opacity = 0.34;
-    } else {
-      g.coneMat.color.setHex(0xffd000);
-      g.coneMat.opacity = 0.24;
-    }
   });
 
   if (spottedThisFrame) {
-    gameState.detectionLevel = Math.min(100, gameState.detectionLevel + dt * 88);
+    gameState.detectionLevel = Math.min(100, gameState.detectionLevel + dt * 75);
   } else {
-    gameState.detectionLevel = Math.max(0, gameState.detectionLevel - dt * 38);
+    gameState.detectionLevel = Math.max(0, gameState.detectionLevel - dt * 28);
   }
   gameState.maxDetection = Math.max(gameState.maxDetection, gameState.detectionLevel);
 
@@ -3035,10 +3298,6 @@ function updateGuards(dt) {
   } else {
     dom.detectionContainer.classList.add('hidden');
     dom.alertVignette.classList.add('hidden');
-  }
-
-  if (gameState.detectionLevel >= 100) {
-    triggerGameOver();
   }
 }
 
@@ -3159,6 +3418,7 @@ function updateInteractionsAndMission(dt) {
         if (gameState.downloadProgress >= 100) {
           dom.downloadContainer.classList.add('hidden');
           serverMesh.userData.normalMaterial.emissive.setHex(0x00ff88);
+          triggerBaseAlert();
           setMissionState(MISSION_STATE.ESCAPE);
         }
       }
@@ -3198,6 +3458,10 @@ function formatTime(seconds) {
 // ==========================================
 function resetWorldState() {
   gameState.elapsedTime = 0;
+  gameState.hp = 100;
+  gameState.damageFlashTimer = 0;
+  gameState.baseAlert = false;
+  gameState.mouseDown = false;
   gameState.gateUnlocked = false;
   gameState.gateOpenProgress = 0;
   gameState.serverFirewallDisabled = false;
@@ -3207,9 +3471,13 @@ function resetWorldState() {
   gameState.detectionLevel = 0;
   gameState.maxDetection = 0;
   gameState.hacksUsed = 0;
+  gameState.weaponCooldown = 0;
   gameState.taserCooldown = 0;
   gameState.empCooldown = 0;
   selectWeapon(WEAPON_TYPE.TASER);
+  updateHpHUD();
+  if (dom.damageFlash) dom.damageFlash.classList.add('hidden');
+  if (dom.baseAlertBanner) dom.baseAlertBanner.classList.add('hidden');
   gameState.isSprinting = false;
   gameState.isCrouching = false;
   gameState.cameraYaw = 0;
@@ -3273,6 +3541,10 @@ function resetWorldState() {
     scene.remove(projectiles[i].line);
     projectiles.splice(i, 1);
   }
+  for (let i = guardProjectiles.length - 1; i >= 0; i--) {
+    scene.remove(guardProjectiles[i].mesh);
+    guardProjectiles.splice(i, 1);
+  }
   for (let i = empWaves.length - 1; i >= 0; i--) {
     scene.remove(empWaves[i].mesh);
     empWaves.splice(i, 1);
@@ -3282,27 +3554,25 @@ function resetWorldState() {
   guards.forEach((g) => {
     g.mesh.position.copy(g.initialPos);
     g.mesh.rotation.x = 0;
-    g.coneMesh.visible = true;
     if (g.sparkPoints) g.sparkPoints.visible = false;
     g.speed = g.baseSpeed * preset.guardSpeedMult;
     g.currentTarget = 1;
     g.state = GUARD_STATE.PATROL;
+    g.hp = 100;
+    g.fireCooldown = 0;
+    g.burstLeft = 0;
+    g.burstTimer = 0;
     g.lastKnownPos = null;
     g.lookAroundTimer = 0;
     g.lookBaseYaw = 0;
     g.investigateTarget = null;
     g.investigateTimer = 0;
     g.stunTimer = 0;
-    g.coneMat.color.setHex(0xffd000);
-    g.coneMat.opacity = 0.24;
   });
 
   securityCameras.forEach((camObj, idx) => {
     camObj.disabledTimer = 0;
     camObj.sweepPhase = idx * 1.5;
-    camObj.coneMesh.visible = true;
-    camObj.coneMat.color.setHex(0x00ff88);
-    camObj.coneMat.opacity = 0.18;
     camObj.mesh.userData.normalMaterial.emissive.setHex(0x00ff88);
   });
 
@@ -3338,7 +3608,10 @@ function restartMission() {
   startMission();
 }
 
-function triggerGameOver() {
+function triggerGameOver(
+  title = 'AGENTE ABATIDO',
+  desc = 'Os guardas do complexo neutralizaram sua infiltração.'
+) {
   gameState.mission = MISSION_STATE.GAMEOVER;
   AudioManager.stopMusic();
   AudioManager.stopEngineSound();
@@ -3346,8 +3619,12 @@ function triggerGameOver() {
   if (document.pointerLockElement === dom.canvas) {
     document.exitPointerLock();
   }
+  if (dom.gameoverTitle) dom.gameoverTitle.textContent = title;
+  if (dom.gameoverDesc) dom.gameoverDesc.textContent = desc;
   dom.hud.classList.add('hidden');
   dom.alertVignette.classList.add('hidden');
+  if (dom.damageFlash) dom.damageFlash.classList.add('hidden');
+  if (dom.baseAlertBanner) dom.baseAlertBanner.classList.add('hidden');
   dom.gameoverScreen.classList.remove('hidden');
 }
 
@@ -3418,6 +3695,13 @@ function updateVisualEffects(dt, nowSec) {
     if (f.life <= 0) {
       scene.remove(f.light);
       impactFlashes.splice(i, 1);
+    }
+  }
+
+  if (gameState.damageFlashTimer > 0) {
+    gameState.damageFlashTimer = Math.max(0, gameState.damageFlashTimer - dt);
+    if (gameState.damageFlashTimer === 0 && dom.damageFlash) {
+      dom.damageFlash.classList.add('hidden');
     }
   }
 }
@@ -3531,31 +3815,20 @@ function updateRadar() {
   ctx.arc(ePos.x, ePos.y, 2.3 * scale, 0, Math.PI * 2);
   ctx.stroke();
 
-  // Guardas e cones de visão
+  // Guardas no radar (sem cones artificiais no chão)
   guards.forEach((g) => {
     const gp = toRadar(g.mesh.position.x, g.mesh.position.z);
-    const yaw = g.mesh.rotation.y;
-    const fx = Math.sin(yaw);
-    const fz = Math.cos(yaw);
-    const dirAngle = Math.atan2(fz, fx);
-
-    ctx.fillStyle =
-      g.state === GUARD_STATE.INVESTIGATE || g.state === GUARD_STATE.DISTRACTED
-        ? 'rgba(255, 119, 0, 0.28)'
-        : 'rgba(255, 208, 0, 0.22)';
-    ctx.beginPath();
-    ctx.moveTo(gp.x, gp.y);
-    ctx.arc(
-      gp.x,
-      gp.y,
-      g.visionRange * scale,
-      dirAngle - g.visionHalfAngle,
-      dirAngle + g.visionHalfAngle
-    );
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = '#ff2a55';
+    if (g.state === GUARD_STATE.DEAD) {
+      ctx.fillStyle = '#475569';
+    } else if (g.state === GUARD_STATE.STUNNED) {
+      ctx.fillStyle = '#38bdf8';
+    } else if (g.state === GUARD_STATE.COMBAT) {
+      ctx.fillStyle = '#ff0055';
+    } else if (g.state === GUARD_STATE.INVESTIGATE || g.state === GUARD_STATE.DISTRACTED) {
+      ctx.fillStyle = '#ff8800';
+    } else {
+      ctx.fillStyle = '#ff2a55';
+    }
     ctx.beginPath();
     ctx.arc(gp.x, gp.y, 3.8, 0, Math.PI * 2);
     ctx.fill();
@@ -3594,6 +3867,7 @@ function animate() {
     updatePlayer(dt);
     updateCars(dt);
     updateProjectiles(dt);
+    updateGuardProjectiles(dt);
     updateEmpWaves(dt);
     updateElectricBoxes(dt);
     updateGuards(dt);

@@ -55,23 +55,19 @@ IDLE ──(Iniciar Missão)──▶ INFILTRATE ──(Hack do Portão)──�
 
 ---
 
-## 4. Detecção de Visão (Guardas e Câmeras) + Stealth + Radar
+## 4. Visão Realista, HP, IA de Combate e Radar
 
-Cada guarda em `guards` opera com uma máquina de estados (`GUARD_STATE`):
-- **`PATROL`:** Patrulha em loop entre os `waypoints` com cone amarelo.
-- **`INVESTIGATE`:** Ativado quando o jogador entra no cone e atinge `detectionLevel >= 40%` antes de escapar. O cone muda para laranja (`0xff7700`), o guarda caminha até `lastKnownPos`, olha para os lados por `3.0s` e retorna a `PATROL`.
-- **`DISTRACTED`:** Ativado ao sobrecarregar uma caixa elétrica, atraindo o guarda mais próximo até o local por `6.0s` com cone laranja.
-- **`STUNNED`:** Ativado pelo Taser (`12.0s`), Pulso EMP (`8.0s`) ou impacto de carro (`6.0s`). O guarda inclina-se no chão com faíscas elétricas (`THREE.Points`) e cone desligado; ao terminar o tempo, levanta e entra em `INVESTIGATE`.
+Os cones circulares no chão foram removidos para dar lugar a um sistema realista de detecção e combate armado:
 
-1. **Cone Visual:** Um `THREE.CircleGeometry` plano no chão (`y = 0.06` nos guardas, `y = 0.05` nas câmeras), orientado para `+Z` local (`thetaStart = -Math.PI / 2 - visionHalfAngle`), acompanha a rotação do guarda ou a varredura periódica da câmera (`updateSecurityCameras`).
-2. **Teste Geométrico e Modificadores de Stealth:**
-   - Verifica se a distância horizontal até o jogador é menor ou igual ao alcance efetivo (`visionRange`, ajustado em `+3.0` ao correr com `Shift` ou `-1.5` ao agachar com `Ctrl`).
-   - Calcula o produto escalar entre o vetor frontal (guarda ou câmera) e a direção até o jogador para validar se o ângulo está dentro de `visionHalfAngle` (`36°` nos guardas, `30°` nas câmeras).
-3. **Teste de Oclusão (Cobertura):**
-   - Dispara um `THREE.Raycaster` da altura dos olhos do guarda (`y = 1.45`) ou da posição da câmera até o centro do jogador (`y = 1.05` em pé, `y = 0.58` agachado com `Ctrl`) contra a lista `occluders` (muros, portão fechado e caixas de cobertura).
-   - Se `blocked.length === 0`, há linha de visão limpa: o cone muda para vermelho e `gameState.detectionLevel` sobe rapidamente até `100%` (Game Over). Caso o jogador entre atrás de uma caixa ou saia do cone, o medidor reduz gradualmente.
-4. **Minimapa / Radar DedSec (`updateRadar` / `#radar-canvas`):**
-   - Canvas 2D circular no canto inferior direito do HUD que renderiza em tempo real a planta baixa do complexo (muros, caixas de cobertura), os novos quarteirões/prédios laterais, os carros (estacionados e DedSec), o portão, o servidor central, a zona de extração, os pontos vermelhos e cones dos guardas e a posição/direção do jogador no centro rotacionada pela câmera.
+- **Vida do Agente (`HP: 100%`):** Exibida no canto superior direito do HUD (`#status-hp` e `#hp-bar`). Ao sofrer dano (`damagePlayer`), a tela exibe `#damage-flash` em vermelho e toca `AudioManager.playPlayerHit()`. Quando `hp <= 0`, dispara Game Over (`AGENTE ABATIDO`).
+- **Máquina de Estados dos Guardas (`GUARD_STATE`):**
+  - **`PATROL`:** Patrulha em rotas amplas cobrindo toda a extensão da base (pátio frontal, corredores laterais, área central e fundos).
+  - **`INVESTIGATE`:** Ativado por ruído de tiros não-silenciados (`alertGuardsByNoise`) ou perda de contato visual; caminha até `lastKnownPos` e olha para os lados por `3.0s`.
+  - **`DISTRACTED`:** Atraído por caixas elétricas (`6.0s`).
+  - **`STUNNED`:** Atordoado por Taser (`10.0s`), EMP (`10.0s`) ou veículo (`6.0s`) com faíscas elétricas.
+  - **`COMBAT`:** Ao avistar o jogador (campo frontal de `110°`, distância de `22m` e `Raycaster` da cabeça até o jogador sem oclusão), sofrer dano ou durante o **Alerta Geral da Base** (`triggerBaseAlert()` ao hackear o firewall ou concluir o download), o guarda mira e dispara rajadas de projéteis (`guardProjectiles`, `12` de dano por acerto) com sua `gunMesh`.
+  - **`DEAD`:** Neutralizado ao atingir `0 HP`.
+- **Minimapa / Radar DedSec (`updateRadar` / `#radar-canvas`):** Canvas 2D circular que renderiza a planta baixa, quarteirões, carros, portões, servidor, zona de extração, posição do jogador e marcadores de estado dos guardas (sem cones artificiais).
 
 ---
 
@@ -81,9 +77,11 @@ Cada guarda em `guards` opera com uma máquina de estados (`GUARD_STATE`):
 - **Caixas Elétricas de Distração (`buildElectricBoxes` / `triggerElectricBox`):** Duas caixas hackeáveis dentro do complexo (`CAIXA_ELETRICA_01` e `CAIXA_ELETRICA_02`). Pressionar `E` perto ou mirando na Visão NetHack gera faíscas (`THREE.Points`) e atrai o guarda mais próximo por `6.0s` (cooldown de `12.0s`).
 - **Hack e Sobrecarga de Câmeras (`cycleSecurityCamera` / `C` e `overloadActiveCamera` / `R`):** Transfere a `camera` principal para uma câmera do complexo (`securityCameras`), permitindo girar o ângulo com o mouse. Pressionar `R` durante o controle sobrecarrega e desativa a câmera (e seu cone de detecção verde) por `15.0s`.
 - **Minigame de Terminal (`openTerminal` / Tecla `E` no painel ou servidor):** Libera o Pointer Lock, exibe `#terminal-modal` com códigos variados (`HACK_CODES` para o portão em `10.0s`, `FIREWALL_CODES` para o firewall do servidor em `8.5s`) e executa `completeTerminalHack()` ao digitar o comando exato no `#hack-input`.
-- **Armas Táticas DedSec (`fireTaser` / `fireEmpPulse` / Teclas `1`, `2` e Clique Esquerdo):**
-  - **Taser Não-Letal (`1`):** Pistola 3D na mão direita do personagem; dispara projéteis elétricos (`updateProjectiles`) com rastro `THREE.Line`, flash ciano de impacto (`spawnTaserFlash` com `PointLight` de `0.15s`), colisão com `occluders` e guardas (aplicando `STUNNED` por `12.0s`), recarga de `2.5s` no HUD (`#weapon-cooldown-bar` abaixo da mira) e áudio `playTaserShot()`.
-  - **Pulso EMP (`2`):** Gera onda expansiva `THREE.RingGeometry` no chão (`updateEmpWaves`), desativa câmeras por `8.0s` e atordoa guardas em raio de `8.0m` por `8.0s`, com cooldown de `15.0s` e áudio `playEmpPulse()`.
+- **Arsenal Tático DedSec (`selectWeapon` / `fireEquippedWeapon` / Teclas `1` a `4` e Clique Esquerdo):**
+  - **`[1]` Taser DedSec (`1.5s` recarga):** Disparo elétrico que atordoa guardas por `10.0s` (`STUNNED`).
+  - **`[2]` Pistola Silenciada 9mm (`0.35s` recarga):** Causa `50` de dano por tiro sem alertar guardas distantes (`noiseRadius: 0`).
+  - **`[3]` Rifle de Assalto DedSec (`0.14s` recarga, automático):** Traçantes laranja/ciano causando `35` de dano por tiro e alertando guardas em `26m`.
+  - **`[4]` Pulso EMP (`12.0s` recarga):** Onda expansiva `THREE.RingGeometry` que desativa câmeras e atordoa guardas em raio de `10m` por `10.0s`.
 
 ---
 

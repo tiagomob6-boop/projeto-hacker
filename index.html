@@ -31,6 +31,7 @@
   </div>
 
   <div id="alert-vignette" class="screen-fx hidden"></div>
+  <div id="damage-flash" class="screen-fx hidden"></div>
 
   <!-- HUD DedSec / ctOS -->
   <div id="hud" class="hidden">
@@ -56,11 +57,21 @@
           <button id="btn-mute" class="mute-btn" type="button">[M] ON</button>
         </div>
         <div class="status-row">
+          <span>HP:</span>
+          <span id="status-hp" class="neon-green">100%</span>
+        </div>
+        <div class="progress-track hp-track">
+          <div id="hp-bar" class="progress-fill hp-fill"></div>
+        </div>
+        <div class="status-row">
           <span>ARMA:</span>
           <span id="status-weapon" class="neon-cyan">[1] TASER (PRONTO)</span>
         </div>
       </div>
     </div>
+
+    <!-- Banner de Alerta Geral da Base -->
+    <div id="base-alert-banner" class="hidden">⚠ ALERTA GERAL DA BASE // FORÇA LETAL AUTORIZADA</div>
 
     <!-- Barra de Detecção -->
     <div id="detection-container" class="hidden">
@@ -103,8 +114,8 @@
       <span><kbd>V</kbd> Visão NetHack</span>
       <span><kbd>C</kbd> Câmeras</span>
       <span><kbd>F</kbd> Carro</span>
-      <span><kbd>1/2</kbd> Arma</span>
-      <span><kbd>Click</kbd> Disparar</span>
+      <span><kbd>1-4</kbd> Arsenal</span>
+      <span><kbd>Click</kbd> Atirar</span>
       <span><kbd>M</kbd> Mudo</span>
     </div>
   </div>
@@ -127,7 +138,7 @@
         <div><kbd>C</kbd> Câmeras / <kbd>R</kbd> Sobrecarregar</div>
         <div><kbd>E</kbd> Hackear / Distrair / Baixar</div>
         <div><kbd>F</kbd> Entrar / Sair do Carro</div>
-        <div><kbd>1 / 2</kbd> Taser / EMP (<kbd>Click</kbd> Disparar)</div>
+        <div><kbd>1-4</kbd> Taser / 9mm / Rifle / EMP (<kbd>Click</kbd> Atirar)</div>
       </div>
       <div class="difficulty-selector">
         <span class="diff-label">MAPA DA OPERAÇÃO:</span>
@@ -182,9 +193,9 @@
   <div id="gameover-screen" class="overlay-screen hidden">
     <div class="terminal-card danger-card">
       <div class="brand-tag neon-magenta">ctOS // ALERTA DE SEGURANÇA</div>
-      <h1 class="status-title neon-magenta">VOCÊ FOI DETECTADO</h1>
-      <p class="intro-desc">
-        Os guardas do complexo identificaram sua posição e bloquearam o perímetro.
+      <h1 id="gameover-title" class="status-title neon-magenta">AGENTE ABATIDO</h1>
+      <p id="gameover-desc" class="intro-desc">
+        Os guardas do complexo neutralizaram sua infiltração.
       </p>
       <button id="btn-retry-gameover" class="cyber-btn danger-btn">REINICIAR MISSÃO</button>
     </div>
