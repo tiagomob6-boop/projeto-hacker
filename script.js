@@ -737,14 +737,45 @@ function buildTraversableGoldenGate() {
   trimS.position.set(240, 10.2, zCenter + deckW / 2);
   bridgeGroup.add(trimN, trimS);
 
-  // Guard-rails laterais com colisão para não cair na baía
-  addStaticBox(320, 12, 0.8, 240, 6, zCenter - deckW / 2 - 0.5, 0x26314a, { occlude: false });
-  addStaticBox(320, 12, 0.8, 240, 6, zCenter + deckW / 2 + 0.5, 0x26314a, { occlude: false });
+  // Guarda-corpo baixo (1.1m) no tabuleiro principal (X: 120..360)
+  addStaticBox(240, 1.1, 0.6, 240, 10.55, zCenter - deckW / 2 - 0.3, 0x26314a, {
+    occlude: false,
+    edgesColor: 0xff5a1f,
+    edgesOpacity: 0.7
+  });
+  addStaticBox(240, 1.1, 0.6, 240, 10.55, zCenter + deckW / 2 + 0.3, 0x26314a, {
+    occlude: false,
+    edgesColor: 0xff5a1f,
+    edgesOpacity: 0.7
+  });
 
-  // Paredes laterais fechadas embaixo das rampas (X: 80..120 e X: 360..400) para impedir passagem por baixo
-  [100, 380].forEach((rx) => {
-    addStaticBox(40, 10, 0.9, rx, 5, 26, 0x1e273d, { occlude: false, edgesColor: 0xff5a1f, edgesOpacity: 0.4 });
-    addStaticBox(40, 10, 0.9, rx, 5, 44, 0x1e273d, { occlude: false, edgesColor: 0xff5a1f, edgesOpacity: 0.4 });
+  // Guarda-corpo baixo (1.1m) inclinado nas rampas + pilares finos de sustentação até a água
+  const rampWallLen = Math.hypot(40, 10);
+  [
+    { x: 100, rotZ: rampAngle },
+    { x: 380, rotZ: -rampAngle }
+  ].forEach(({ x, rotZ }) => {
+    [zCenter - deckW / 2 - 0.3, zCenter + deckW / 2 + 0.3].forEach((wz) => {
+      const rail = addStaticBox(rampWallLen, 1.1, 0.6, x, 5.55, wz, 0x26314a, {
+        occlude: false,
+        edgesColor: 0xff5a1f,
+        edgesOpacity: 0.7
+      });
+      rail.rotation.z = rotZ;
+    });
+  });
+
+  // Pilares finos de sustentação da ponte e rampas até a água (y = -0.6)
+  [105, 145, 240, 335, 375].forEach((px) => {
+    const h = getSurfaceHeight(px, zCenter) + 0.6;
+    [zCenter - deckW / 2 + 0.5, zCenter + deckW / 2 - 0.5].forEach((pz) => {
+      addStaticBox(1.2, h, 1.2, px, h / 2 - 0.6, pz, 0x1e273d, {
+        collide: false,
+        occlude: false,
+        edgesColor: 0xff5a1f,
+        edgesOpacity: 0.35
+      });
+    });
   });
 
   // Duas torres monumentais da Golden Gate (X = 185 e X = 295)
@@ -2586,10 +2617,11 @@ function triggerElectricBox(box) {
   }
   posAttr.needsUpdate = true;
 
-  // Atrair o guarda mais próximo para investigar por 6 segundos
+  // Atrair o guarda mais próximo ativo para investigar por 6 segundos
   let nearestGuard = null;
   let nearestDist = Infinity;
   guards.forEach((g) => {
+    if (g.state === GUARD_STATE.DEAD || g.state === GUARD_STATE.STUNNED) return;
     const d = g.mesh.position.distanceTo(box.mesh.position);
     if (d < nearestDist) {
       nearestDist = d;
@@ -4226,9 +4258,13 @@ function startContract(missionKey) {
 function returnToFreeRoam() {
   AudioManager.stopMusic();
   AudioManager.stopEngineSound();
+  const keepPos = gameState.mission === MISSION_STATE.VICTORY;
+  if (!keepPos) {
+    gameState.selectedMap = 'COMPLEXO_CTOS';
+  }
   gameState.activeMissionKey = null;
   gameState.markerCooldown = 3.5;
-  resetWorldState(true);
+  resetWorldState(keepPos);
   dom.gameoverScreen.classList.add('hidden');
   dom.victoryScreen.classList.add('hidden');
   dom.hud.classList.remove('hidden');
