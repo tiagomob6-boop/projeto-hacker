@@ -23,7 +23,9 @@ Este documento descreve a arquitetura do protótipo **Projeto Hacker**, constru�
 
 ### 2.2 Construção Procedural do Mapa e Atmosfera
 Todas as geometrias são primitivas do Three.js (`BoxGeometry`, `PlaneGeometry`, `RingGeometry`, `CircleGeometry`, `OctahedronGeometry`, `CylinderGeometry`, `EdgesGeometry`, `BufferGeometry`):
-- **Área Externa (Rua):** Região frontal (`Z > 6`) onde o jogador inicia (`z = 14`) e onde está localizada a **Zona de Extração** (`z = 25`), composta por anel pulsante, círculo interno e feixe de luz vertical semitransparente (`THREE.CylinderGeometry` com `AdditiveBlending`).
+- **Área Externa (Rua Ampliada):** Região frontal e arredores expandidos (`X: -36..36`, `Z: -35..45`) com calçadas elevadas e meio-fio, faixas de pedestres, hidrantes, barreiras de concreto, outdoors holográficos neon, prédios laterais acessíveis pela rua com fachadas iluminadas e a **Zona de Extração** (`z = 25`) com feixe de luz vertical (`THREE.CylinderGeometry`).
+- **Personagem do Jogador (`buildPlayer`):** Modelo procedural com casaco contornado em neon (`EdgesGeometry`), braços articulados sincronizados com a caminhada/corrida e mochila hacker com LED pulsante.
+- **Carros 3D Procedurais (`buildCarMesh` / `buildCars`):** 3 carros estacionados (com colisão dinâmica, oclusão e hackeáveis na Visão NetHack com `E` para acelerar e atordoar/distrair guardas no trajeto) e 1 carro esporte **DedSec** dirigível na rua (`F` para entrar/sair, `WASD` para dirigir com física simples, faróis `PointLight` e som de motor procedural via `AudioManager.updateEngineSound`).
 - **Horizonte de São Francisco (Skyline + Golden Gate):** Prédios distantes fora da área jogável com faixas de janelas emissivas sutis e uma estrutura estilizada da **Ponte Golden Gate** (`buildGoldenGateBridge`) ao fundo (`z = -52`), com duas torres, tabuleiro, cabos suspensos e iluminação laranja-neon (`fog: false`).
 - **Complexo Protegido:** Perímetro murado (`X: -16..16`, `Z: -26..6`) com abertura frontal fechada pelo `gateMesh` deslizante e painel eletrônico lateral (`gatePanelMesh`). Inclui pórtico luminoso e letreiros/faixas emissivas (`buildComplexNeonAccents`) na fachada e muros, contornos neon (`THREE.EdgesGeometry` + `THREE.LineSegments`) nos muros, caixas de cobertura e portão, 2 câmeras elevadas nos muros e o `serverMesh` no fundo (`z = -21.5`) com sistema de partículas flutuantes (`THREE.Points` em `buildServerParticles`).
 
@@ -66,7 +68,7 @@ Cada guarda em `guards` opera com uma máquina de estados (`GUARD_STATE`):
    - Dispara um `THREE.Raycaster` da altura dos olhos do guarda (`y = 1.45`) ou da posição da câmera até o centro do jogador (`y = 1.05` em pé, `y = 0.58` agachado com `Ctrl`) contra a lista `occluders` (muros, portão fechado e caixas de cobertura).
    - Se `blocked.length === 0`, há linha de visão limpa: o cone muda para vermelho e `gameState.detectionLevel` sobe rapidamente até `100%` (Game Over). Caso o jogador entre atrás de uma caixa ou saia do cone, o medidor reduz gradualmente.
 4. **Minimapa / Radar DedSec (`updateRadar` / `#radar-canvas`):**
-   - Canvas 2D circular no canto inferior direito do HUD que renderiza em tempo real a planta baixa do complexo (muros, caixas de cobertura), o portão, o servidor central, a zona de extração, os pontos vermelhos e cones dos guardas e a posição/direção do jogador no centro rotacionada pela câmera.
+   - Canvas 2D circular no canto inferior direito do HUD que renderiza em tempo real a planta baixa do complexo (muros, caixas de cobertura), os novos quarteirões/prédios laterais, os carros (estacionados e DedSec), o portão, o servidor central, a zona de extração, os pontos vermelhos e cones dos guardas e a posição/direção do jogador no centro rotacionada pela câmera.
 
 ---
 

@@ -125,7 +125,10 @@ const securityCameras = []; // { id, name, mesh, pos, baseYaw, basePitch, yawOff
 const guards = [];          // { mesh, waypoints, currentTarget, speed, visionRange, visionHalfAngle, coneMesh, coneMat, state, lastKnownPos, lookAroundTimer, lookBaseYaw, investigateTarget, investigateTimer }
 const electricBoxes = [];   // { id, name, mesh, cooldown, sparkTimer, sparkPoints, sparkData }
 const radarCrates = [];     // { x, z, w, d } para planta baixa do radar
+const radarBuildings = [];  // { x, z, w, d } para quarteirões laterais no radar
+const cars = [];            // { mesh, colliderObj, initialPos, initialYaw, isDedsec, speed, hackedTimer, hackedUsed, headlight }
 const netHackTagItems = []; // { el, getPos, getText }
+let dedsecCar = null;
 
 // Estado do jogo
 const gameState = {
@@ -134,6 +137,7 @@ const gameState = {
   elapsedTime: 0,
   netHackActive: false,
   activeCamIndex: -1, // -1 = câmera 3ª pessoa do jogador
+  drivingCar: null,
   gateUnlocked: false,
   gateOpenProgress: 0,
   serverFirewallDisabled: false,
@@ -372,6 +376,43 @@ const AudioManager = {
       clearInterval(this.musicTimer);
       this.musicTimer = null;
     }
+  },
+
+  engineOsc: null,
+  engineGain: null,
+
+  updateEngineSound(speedAbs) {
+    if (!this.ctx || this.muted) {
+      this.stopEngineSound();
+      return;
+    }
+    if (!this.engineOsc) {
+      this.engineOsc = this.ctx.createOscillator();
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = 260;
+      this.engineGain = this.ctx.createGain();
+      this.engineGain.gain.value = 0.05;
+      this.engineOsc.type = 'sawtooth';
+      this.engineOsc.frequency.value = 48;
+      this.engineOsc.connect(filter);
+      filter.connect(this.engineGain);
+      this.engineGain.connect(this.masterGain);
+      this.engineOsc.start();
+    }
+    const targetFreq = 46 + Math.min(speedAbs, 18) * 4.5;
+    this.engineOsc.frequency.setTargetAtTime(targetFreq, this.ctx.currentTime, 0.06);
+  },
+
+  stopEngineSound() {
+    if (this.engineOsc) {
+      try {
+        this.engineOsc.stop();
+        this.engineOsc.disconnect();
+      } catch (_) {}
+      this.engineOsc = null;
+      this.engineGain = null;
+    }
   }
 };
 
@@ -395,6 +436,7 @@ function initThree() {
 
   setupLighting();
   buildEnvironment();
+  buildCars();
   buildPlayer();
   buildSecurityCameras();
   buildElectricBoxes();
@@ -510,33 +552,111 @@ function addStaticBox(w, h, d, x, y, z, color, options = {}) {
 }
 
 function buildEnvironment() {
-  // Chão principal
+  // Chão principal ampliado (cobre X: -36..36 e Z: -35..45)
   const groundMat = new THREE.MeshStandardMaterial({
     color: 0x101422,
     roughness: 0.88,
     metalness: 0.15
   });
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(70, 80), groundMat);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(92, 102), groundMat);
   ground.rotation.x = -Math.PI / 2;
+  ground.position.set(0, 0, 5);
   ground.receiveShadow = true;
   scene.add(ground);
 
   // Grade neon sutil no chão
-  const grid = new THREE.GridHelper(70, 35, 0x00f0ff, 0x162442);
-  grid.position.y = 0.015;
-  grid.material.opacity = 0.25;
+  const grid = new THREE.GridHelper(92, 46, 0x00f0ff, 0x162442);
+  grid.position.set(0, 0.015, 5);
+  grid.material.opacity = 0.22;
   grid.material.transparent = true;
   scene.add(grid);
 
-  // Faixas da rua (Área Externa)
-  for (let x = -18; x <= 18; x += 6) {
+  // Calçadas elevadas com meio-fio (Oeste, Leste, Sul e frente do complexo)
+  const sidewalkOpts = { collide: false, occlude: false, edgesColor: 0x26324d, edgesOpacity: 0.55 };
+  addStaticBox(14, 0.14, 38, -29, 0.07, 26, 0x1a2234, sidewalkOpts);
+  addStaticBox(14, 0.14, 38, 29, 0.07, 26, 0x1a2234, sidewalkOpts);
+  addStaticBox(72, 0.14, 14, 0, 0.07, 38, 0x1a2234, sidewalkOpts);
+  addStaticBox(16, 0.14, 4.5, -14, 0.07, 8.75, 0x1a2234, sidewalkOpts);
+  addStaticBox(16, 0.14, 4.5, 14, 0.07, 8.75, 0x1a2234, sidewalkOpts);
+
+  // Faixas da rua (Avenida principal)
+  for (let x = -20; x <= 20; x += 6) {
     const stripe = new THREE.Mesh(
       new THREE.BoxGeometry(2.6, 0.03, 0.25),
       new THREE.MeshBasicMaterial({ color: 0x2f436e })
     );
-    stripe.position.set(x, 0.02, 18);
+    stripe.position.set(x, 0.02, 20);
     scene.add(stripe);
   }
+
+  // Faixas de pedestres
+  [-17, 17].forEach((cx) => {
+    for (let z = 14; z <= 26; z += 2.4) {
+      const zebra = new THREE.Mesh(
+        new THREE.BoxGeometry(2.8, 0.025, 1.1),
+        new THREE.MeshBasicMaterial({ color: 0x4b6584 })
+      );
+      zebra.position.set(cx, 0.02, z);
+      scene.add(zebra);
+    }
+  });
+
+  // Hidrantes nas calçadas
+  [[-22.8, 12], [22.8, 12], [-22.8, 30.5], [22.8, 30.5]].forEach(([hx, hz]) => {
+    addStaticBox(0.42, 0.85, 0.42, hx, 0.5, hz, 0xd63031, { occlude: false });
+    addStaticBox(0.52, 0.18, 0.26, hx, 0.72, hz, 0xb2bec3, { collide: false, occlude: false });
+  });
+
+  // Barreiras de concreto na avenida (cobertura urbana)
+  [[-9, 13.5], [9, 13.5], [-14, 29.5], [14, 29.5]].forEach(([bx, bz]) => {
+    addStaticBox(3.2, 1.05, 0.8, bx, 0.52, bz, 0x3d485e, {
+      edgesColor: 0xffaa00,
+      edgesOpacity: 0.6
+    });
+  });
+
+  // Outdoors holográficos neon nas calçadas
+  [
+    { x: -24.5, z: 22, color: 0x00f0ff, rotY: Math.PI / 2 },
+    { x: 24.5, z: 22, color: 0xff0055, rotY: -Math.PI / 2 }
+  ].forEach((bb) => {
+    addStaticBox(0.35, 5.5, 0.35, bb.x, 2.75, bb.z, 0x1e2538, { occlude: false });
+    const panel = new THREE.Mesh(
+      new THREE.BoxGeometry(5.2, 2.4, 0.18),
+      new THREE.MeshStandardMaterial({
+        color: 0x0a1428,
+        emissive: bb.color,
+        emissiveIntensity: 0.9,
+        transparent: true,
+        opacity: 0.85
+      })
+    );
+    panel.position.set(bb.x, 5.2, bb.z);
+    panel.rotation.y = bb.rotY;
+    scene.add(panel);
+  });
+
+  // Prédios laterais acessíveis pela rua com fachadas iluminadas
+  const streetBuildings = [
+    [-31, 7, 15, 8, 14, 11, 0x00f0ff],
+    [-31, 8, 32, 8, 16, 12, 0xff0055],
+    [31, 7, 15, 8, 14, 11, 0xff0055],
+    [31, 8, 32, 8, 16, 12, 0x00f0ff]
+  ];
+  streetBuildings.forEach(([x, y, z, w, h, d, accent]) => {
+    radarBuildings.push({ x, z, w, d });
+    addStaticBox(w, h, d, x, y, z, 0x141b2d, {
+      edgesColor: accent,
+      edgesOpacity: 0.4
+    });
+    const facadeX = x < 0 ? x + w / 2 + 0.1 : x - w / 2 - 0.1;
+    addStaticBox(0.16, 0.45, d * 0.85, facadeX, 3.6, z, accent, {
+      collide: false,
+      occlude: false,
+      emissive: accent,
+      emissiveIntensity: 1.1
+    });
+  });
 
   // Postes cyberpunk na rua
   [-13, 13].forEach((px) => {
@@ -551,15 +671,15 @@ function buildEnvironment() {
 
   // Silhuetas de prédios de São Francisco ao fundo (fora da área jogável)
   const skylinePositions = [
-    [-28, 12, -28, 8, 24, 8],
-    [-28, 9, -8, 7, 18, 10],
-    [-28, 11, 14, 8, 22, 10],
-    [28, 13, -24, 9, 26, 9],
-    [28, 8, -4, 7, 16, 10],
-    [28, 12, 16, 8, 24, 10],
-    [-12, 14, -36, 10, 28, 8],
-    [12, 15, -36, 10, 30, 8],
-    [0, 18, -38, 10, 36, 8]
+    [-46, 12, -34, 8, 24, 8],
+    [-46, 9, -8, 7, 18, 10],
+    [-46, 11, 18, 8, 22, 10],
+    [46, 13, -30, 9, 26, 9],
+    [46, 8, -4, 7, 16, 10],
+    [46, 12, 20, 8, 24, 10],
+    [-16, 14, -44, 10, 28, 8],
+    [16, 15, -44, 10, 30, 8],
+    [0, 18, -46, 10, 36, 8]
   ];
   skylinePositions.forEach(([x, y, z, w, h, d], idx) => {
     addStaticBox(w, h, d, x, y, z, 0x0c1020, {
@@ -908,6 +1028,140 @@ function createHackableDevice(w, h, d, x, y, z, glowColor, name) {
 }
 
 // ==========================================
+// CARROS 3D PROCEDURAIS (ESTACIONADOS + DEDSEC)
+// ==========================================
+function buildCarMesh(color, neonTrim) {
+  const carGroup = new THREE.Group();
+  const nethackMat = new THREE.MeshBasicMaterial({
+    color: 0x0b3a5c,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.45
+  });
+  const nethackNeonMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
+
+  const registerPart = (mesh, normalMat, isHackHighlight = false) => {
+    mesh.userData.normalMaterial = normalMat;
+    mesh.userData.nethackMaterial = isHackHighlight ? nethackNeonMat : nethackMat;
+    if (isHackHighlight) {
+      hackableMeshes.push(mesh);
+    } else {
+      structureMeshes.push(mesh);
+    }
+    carGroup.add(mesh);
+  };
+
+  // Chassi
+  const bodyMat = new THREE.MeshStandardMaterial({
+    color,
+    roughness: 0.35,
+    metalness: 0.65,
+    emissive: neonTrim,
+    emissiveIntensity: 0.08
+  });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.62, 4.4), bodyMat);
+  body.position.y = 0.56;
+  body.castShadow = true;
+  body.receiveShadow = true;
+  body.add(
+    new THREE.LineSegments(
+      new THREE.EdgesGeometry(body.geometry),
+      new THREE.LineBasicMaterial({ color: neonTrim, transparent: true, opacity: 0.75 })
+    )
+  );
+  registerPart(body, bodyMat, true);
+
+  // Cabine
+  const cabinMat = new THREE.MeshStandardMaterial({
+    color: 0x0c1322,
+    roughness: 0.2,
+    metalness: 0.8
+  });
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.56, 2.1), cabinMat);
+  cabin.position.set(0, 1.12, -0.15);
+  cabin.castShadow = true;
+  registerPart(cabin, cabinMat);
+
+  // Rodas (CylinderGeometry)
+  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x11141c, roughness: 0.85 });
+  const wheelGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.26, 14);
+  [
+    [-1.02, 0.36, 1.35],
+    [1.02, 0.36, 1.35],
+    [-1.02, 0.36, -1.35],
+    [1.02, 0.36, -1.35]
+  ].forEach(([wx, wy, wz]) => {
+    const wheel = new THREE.Mesh(wheelGeo, wheelMat);
+    wheel.rotation.z = Math.PI / 2;
+    wheel.position.set(wx, wy, wz);
+    wheel.castShadow = true;
+    registerPart(wheel, wheelMat);
+  });
+
+  // Faróis dianteiros e lanternas traseiras emissivas
+  const headMat = new THREE.MeshBasicMaterial({ color: 0xdff9ff });
+  const tailMat = new THREE.MeshBasicMaterial({ color: 0xff0044 });
+  [-0.7, 0.7].forEach((lx) => {
+    const hl = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.16, 0.08), headMat);
+    hl.position.set(lx, 0.58, 2.22);
+    registerPart(hl, headMat);
+
+    const tl = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.14, 0.08), tailMat);
+    tl.position.set(lx, 0.62, -2.22);
+    registerPart(tl, tailMat);
+  });
+
+  return { carGroup, bodyMesh: body };
+}
+
+function buildCars() {
+  const carConfigs = [
+    // 1 Carro Esporte DedSec Dirigível
+    { x: -6.5, z: 18.5, yaw: Math.PI / 2, color: 0x111827, neon: 0x00f0ff, isDedsec: true },
+    // 3 Carros Estacionados (com colisão, oclusão e hackeáveis na Visão NetHack)
+    { x: -12, z: 10.5, yaw: Math.PI / 2, color: 0x26314a, neon: 0xffaa00, isDedsec: false },
+    { x: 11.5, z: 24.5, yaw: -Math.PI / 2, color: 0x2b1d38, neon: 0xff0055, isDedsec: false },
+    { x: -16, z: 27, yaw: 0, color: 0x1e2b3a, neon: 0x38bdf8, isDedsec: false }
+  ];
+
+  carConfigs.forEach((cfg, idx) => {
+    const { carGroup, bodyMesh } = buildCarMesh(cfg.color, cfg.neon);
+    carGroup.position.set(cfg.x, 0, cfg.z);
+    carGroup.rotation.y = cfg.yaw;
+    scene.add(carGroup);
+
+    let headlight = null;
+    if (cfg.isDedsec) {
+      headlight = new THREE.PointLight(0x00f0ff, 0, 16);
+      headlight.position.set(0, 1.0, 2.8);
+      carGroup.add(headlight);
+    }
+
+    carGroup.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(carGroup);
+    const colliderObj = { box, mesh: bodyMesh, carIndex: idx };
+    colliders.push(colliderObj);
+    occluders.push(bodyMesh);
+
+    const carObj = {
+      id: idx,
+      mesh: carGroup,
+      bodyMesh,
+      colliderObj,
+      initialPos: new THREE.Vector3(cfg.x, 0, cfg.z),
+      initialYaw: cfg.yaw,
+      isDedsec: cfg.isDedsec,
+      speed: 0,
+      hackedTimer: 0,
+      hackedUsed: false,
+      headlight
+    };
+    cars.push(carObj);
+    if (cfg.isDedsec) dedsecCar = carObj;
+  });
+}
+
+// ==========================================
 // PERSONAGEM DO JOGADOR (3ª PESSOA)
 // ==========================================
 function buildPlayer() {
@@ -917,6 +1171,8 @@ function buildPlayer() {
   const coatMat = new THREE.MeshStandardMaterial({ color: 0x171c2b, roughness: 0.7 });
   const hoodMat = new THREE.MeshStandardMaterial({ color: 0x101420, roughness: 0.8 });
   const visorMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
+  const packMat = new THREE.MeshStandardMaterial({ color: 0x0e1320, roughness: 0.5, metalness: 0.4 });
+  const ledMat = new THREE.MeshBasicMaterial({ color: 0x00ff88 });
 
   // Pernas
   const legGeo = new THREE.BoxGeometry(0.24, 0.75, 0.24);
@@ -927,14 +1183,39 @@ function buildPlayer() {
   legR.position.set(0.16, 0.38, 0);
   legR.castShadow = true;
 
-  // Tronco (Jaqueta Hacker)
+  // Tronco (Jaqueta Hacker com contorno neon)
   const torso = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.82, 0.38), coatMat);
   torso.position.y = 1.15;
   torso.castShadow = true;
+  torso.add(
+    new THREE.LineSegments(
+      new THREE.EdgesGeometry(torso.geometry),
+      new THREE.LineBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.55 })
+    )
+  );
 
-  // Detalhe neon nas costas
-  const backStrip = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.45, 0.05), visorMat);
-  backStrip.position.set(0, 1.18, -0.2);
+  // Braços articulados
+  const armGeo = new THREE.BoxGeometry(0.18, 0.68, 0.18);
+  const armL = new THREE.Mesh(armGeo, coatMat);
+  armL.position.set(-0.44, 1.12, 0);
+  armL.castShadow = true;
+  const armR = new THREE.Mesh(armGeo, coatMat);
+  armR.position.set(0.44, 1.12, 0);
+  armR.castShadow = true;
+
+  // Tiras neon nos ombros
+  const trimGeo = new THREE.BoxGeometry(0.2, 0.06, 0.2);
+  const trimL = new THREE.Mesh(trimGeo, visorMat);
+  trimL.position.set(-0.44, 1.44, 0);
+  const trimR = new THREE.Mesh(trimGeo, visorMat);
+  trimR.position.set(0.44, 1.44, 0);
+
+  // Mochila Hacker com LED pulsante
+  const backpack = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.56, 0.22), packMat);
+  backpack.position.set(0, 1.16, -0.29);
+  backpack.castShadow = true;
+  const backpackLed = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.05), ledMat);
+  backpackLed.position.set(0, 1.22, -0.41);
 
   // Cabeça + Capuz
   const head = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.44, 0.44), hoodMat);
@@ -945,8 +1226,8 @@ function buildPlayer() {
   const visor = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.12, 0.08), visorMat);
   visor.position.set(0, 1.82, 0.22);
 
-  playerParts = { legL, legR };
-  playerGroup.add(legL, legR, torso, backStrip, head, visor);
+  playerParts = { legL, legR, armL, armR, backpackLed };
+  playerGroup.add(legL, legR, torso, armL, armR, trimL, trimR, backpack, backpackLed, head, visor);
   scene.add(playerGroup);
 }
 
@@ -1144,7 +1425,8 @@ function buildGuards() {
       lookAroundTimer: 0,
       lookBaseYaw: 0,
       investigateTarget: null,
-      investigateTimer: 0
+      investigateTimer: 0,
+      stunTimer: 0
     });
   });
 }
@@ -1221,6 +1503,20 @@ function buildNetHackLabels() {
         ? '[E] BAIXAR DADOS'
         : '[E] SERVIDOR (FIREWALL)'
   );
+
+  cars.forEach((car) => {
+    if (car.isDedsec) {
+      registerTag(
+        () => car.mesh.position.clone().add(new THREE.Vector3(0, 2.0, 0)),
+        () => (gameState.drivingCar ? '[F] SAIR DO CARRO' : '[F] DIRIGIR DEDSEC')
+      );
+    } else {
+      registerTag(
+        () => car.mesh.position.clone().add(new THREE.Vector3(0, 2.0, 0)),
+        () => (car.hackedUsed ? 'CARRO HACKEADO' : '[E] ACELERAR CARRO')
+      );
+    }
+  });
 }
 
 function updateNetHackLabels() {
@@ -1285,6 +1581,8 @@ function setupInputs() {
       cycleSecurityCamera();
     } else if (code === 'KeyE') {
       handleInteractPress();
+    } else if (code === 'KeyF') {
+      toggleDriveDedsecCar();
     } else if (code === 'KeyR' && gameState.activeCamIndex >= 0) {
       overloadActiveCamera();
     }
@@ -1521,6 +1819,23 @@ function handleInteractPress() {
     }
   }
 
+  // 3b. Checar carros estacionados hackeáveis na Visão NetHack (V)
+  if (gameState.netHackActive) {
+    for (const car of cars) {
+      if (car.isDedsec || car.hackedUsed) continue;
+      const distCar = pPos.distanceTo(car.mesh.position);
+      const toCar = car.mesh.position.clone().sub(camera.position).normalize();
+      if (distCar < 32 && camDir.dot(toCar) > 0.88) {
+        car.hackedUsed = true;
+        car.hackedTimer = 2.4;
+        car.speed = 16.5;
+        gameState.hacksUsed += 1;
+        AudioManager.playElectricZap();
+        return;
+      }
+    }
+  }
+
   // 4. Checar se o jogador está olhando/próximo a uma câmera de segurança
   for (let i = 0; i < securityCameras.length; i++) {
     const camObj = securityCameras[i];
@@ -1612,11 +1927,147 @@ function completeTerminalHack() {
   }, 450);
 }
 
+function toggleDriveDedsecCar() {
+  if (!dedsecCar || gameState.terminalOpen || gameState.activeCamIndex >= 0) return;
+
+  if (gameState.drivingCar) {
+    const car = gameState.drivingCar;
+    gameState.drivingCar = null;
+    car.speed = 0;
+    if (car.headlight) car.headlight.intensity = 0;
+    AudioManager.stopEngineSound();
+
+    // Posicionar jogador ao lado do carro
+    const sideX = Math.cos(car.mesh.rotation.y) * 1.9;
+    const sideZ = -Math.sin(car.mesh.rotation.y) * 1.9;
+    playerGroup.position.set(
+      THREE.MathUtils.clamp(car.mesh.position.x + sideX, -35, 35),
+      0,
+      THREE.MathUtils.clamp(car.mesh.position.z + sideZ, -34, 44)
+    );
+    playerGroup.visible = true;
+    car.mesh.updateMatrixWorld(true);
+    car.colliderObj.box.setFromObject(car.mesh);
+    return;
+  }
+
+  if (playerGroup.position.distanceTo(dedsecCar.mesh.position) < 4.0) {
+    gameState.drivingCar = dedsecCar;
+    gameState.isCrouching = false;
+    gameState.isSprinting = false;
+    playerGroup.visible = false;
+    if (dedsecCar.headlight) dedsecCar.headlight.intensity = 2.4;
+    if (!gameState.netHackActive) dom.statusMode.textContent = 'VEÍCULO';
+  }
+}
+
 // ==========================================
-// MOVIMENTAÇÃO, COLISÃO E CÂMERA 3ª PESSOA
+// MOVIMENTAÇÃO, COLISÃO, CARROS E CÂMERA
 // ==========================================
+function updateCars(dt) {
+  cars.forEach((car) => {
+    if (car.isDedsec || car.hackedTimer <= 0) return;
+
+    car.hackedTimer = Math.max(0, car.hackedTimer - dt);
+    const forwardX = Math.sin(car.mesh.rotation.y);
+    const forwardZ = Math.cos(car.mesh.rotation.y);
+    const nextX = car.mesh.position.x + forwardX * car.speed * dt;
+    const nextZ = car.mesh.position.z + forwardZ * car.speed * dt;
+
+    if (
+      Math.abs(nextX) < 34.5 &&
+      nextZ > -33.5 &&
+      nextZ < 43.5 &&
+      !checkCollision(nextX, nextZ, 1.5, car)
+    ) {
+      car.mesh.position.x = nextX;
+      car.mesh.position.z = nextZ;
+      car.mesh.updateMatrixWorld(true);
+      car.colliderObj.box.setFromObject(car.mesh);
+    } else {
+      car.hackedTimer = 0;
+      car.speed = 0;
+    }
+
+    // Distrair/atordoar guardas no caminho
+    guards.forEach((g) => {
+      if (g.mesh.position.distanceTo(car.mesh.position) < 2.8) {
+        g.stunTimer = 6.0;
+        g.state = GUARD_STATE.DISTRACTED;
+      }
+    });
+  });
+}
+
 function updatePlayer(dt) {
   if (gameState.terminalOpen || gameState.activeCamIndex >= 0) return;
+
+  // Pulsação do LED da mochila hacker
+  if (playerParts.backpackLed) {
+    const pulseOn = Math.sin(gameState.elapsedTime * 5) > -0.2;
+    playerParts.backpackLed.material.color.setHex(
+      gameState.isCrouching ? 0xffaa00 : pulseOn ? 0x00ff88 : 0x004433
+    );
+  }
+
+  // Modo Direção do Carro Esporte DedSec
+  if (gameState.drivingCar) {
+    const car = gameState.drivingCar;
+    let throttle = 0;
+    let steer = 0;
+    if (gameState.keys['KeyW'] || gameState.keys['ArrowUp']) throttle += 1;
+    if (gameState.keys['KeyS'] || gameState.keys['ArrowDown']) throttle -= 1;
+    if (gameState.keys['KeyA'] || gameState.keys['ArrowLeft']) steer += 1;
+    if (gameState.keys['KeyD'] || gameState.keys['ArrowRight']) steer -= 1;
+
+    if (throttle !== 0) {
+      car.speed = THREE.MathUtils.clamp(car.speed + throttle * 18 * dt, -8.5, 16.5);
+    } else {
+      car.speed *= Math.max(0, 1 - dt * 3.5);
+      if (Math.abs(car.speed) < 0.08) car.speed = 0;
+    }
+
+    if (Math.abs(car.speed) > 0.4 && steer !== 0) {
+      const dirSign = car.speed >= 0 ? 1 : -1;
+      car.mesh.rotation.y += steer * dirSign * 2.2 * dt;
+    }
+
+    const fx = Math.sin(car.mesh.rotation.y);
+    const fz = Math.cos(car.mesh.rotation.y);
+    const stepX = fx * car.speed * dt;
+    const stepZ = fz * car.speed * dt;
+
+    const cPos = car.mesh.position;
+    if (!checkCollision(cPos.x + stepX, cPos.z, 1.55, car)) {
+      cPos.x += stepX;
+    } else {
+      car.speed *= 0.2;
+    }
+    if (!checkCollision(cPos.x, cPos.z + stepZ, 1.55, car)) {
+      cPos.z += stepZ;
+    } else {
+      car.speed *= 0.2;
+    }
+
+    cPos.x = THREE.MathUtils.clamp(cPos.x, -34.5, 34.5);
+    cPos.z = THREE.MathUtils.clamp(cPos.z, -33.5, 43.5);
+
+    car.mesh.updateMatrixWorld(true);
+    car.colliderObj.box.setFromObject(car.mesh);
+    playerGroup.position.copy(cPos);
+
+    if (Math.abs(car.speed) > 5.0) {
+      guards.forEach((g) => {
+        if (g.mesh.position.distanceTo(cPos) < 2.4) {
+          g.stunTimer = 6.0;
+        }
+      });
+    }
+
+    AudioManager.updateEngineSound(Math.abs(car.speed));
+    if (!gameState.netHackActive) dom.statusMode.textContent = 'VEÍCULO';
+    return;
+  }
 
   let inputZ = 0;
   let inputX = 0;
@@ -1671,9 +2122,9 @@ function updatePlayer(dt) {
       pos.z += stepZ;
     }
 
-    // Limites do mapa jogável
-    pos.x = THREE.MathUtils.clamp(pos.x, -21, 21);
-    pos.z = THREE.MathUtils.clamp(pos.z, -24.5, 29);
+    // Limites do mapa jogável ampliado (X: -36..36, Z: -35..45)
+    pos.x = THREE.MathUtils.clamp(pos.x, -35, 35);
+    pos.z = THREE.MathUtils.clamp(pos.z, -34, 44);
 
     // Rotação suave na direção do movimento
     const targetRot = Math.atan2(moveX, moveZ);
@@ -1682,26 +2133,35 @@ function updatePlayer(dt) {
     while (diff < -Math.PI) diff += Math.PI * 2;
     playerGroup.rotation.y += diff * Math.min(1, dt * 12);
 
-    // Animação simples de caminhada/corrida nas pernas
+    // Animação de caminhada/corrida nas pernas e braços articulados
     const swingFreq = gameState.isSprinting ? 18 : 12;
     const swingAmp = gameState.isSprinting ? 0.5 : 0.35;
     const swing = Math.sin(gameState.elapsedTime * swingFreq) * swingAmp;
     playerParts.legL.rotation.x = swing;
     playerParts.legR.rotation.x = -swing;
+    if (playerParts.armL && playerParts.armR) {
+      playerParts.armL.rotation.x = -swing * 0.85;
+      playerParts.armR.rotation.x = swing * 0.85;
+    }
   } else {
     playerParts.legL.rotation.x = 0;
     playerParts.legR.rotation.x = 0;
+    if (playerParts.armL && playerParts.armR) {
+      playerParts.armL.rotation.x = 0;
+      playerParts.armR.rotation.x = 0;
+    }
   }
 }
 
-function checkCollision(x, z) {
+function checkCollision(x, z, radius = PLAYER_RADIUS, ignoreCar = null) {
   for (const col of colliders) {
+    if (ignoreCar && col === ignoreCar.colliderObj) continue;
     const b = col.box;
     const closestX = THREE.MathUtils.clamp(x, b.min.x, b.max.x);
     const closestZ = THREE.MathUtils.clamp(z, b.min.z, b.max.z);
     const dx = x - closestX;
     const dz = z - closestZ;
-    if (dx * dx + dz * dz < PLAYER_RADIUS * PLAYER_RADIUS) {
+    if (dx * dx + dz * dz < radius * radius) {
       return true;
     }
   }
@@ -1723,13 +2183,16 @@ function updateCamera() {
     return;
   }
 
+  const focusPos = gameState.drivingCar
+    ? gameState.drivingCar.mesh.position
+    : playerGroup.position;
   const target = new THREE.Vector3(
-    playerGroup.position.x,
-    playerGroup.position.y + (gameState.isCrouching ? 1.05 : 1.55),
-    playerGroup.position.z
+    focusPos.x,
+    focusPos.y + (gameState.drivingCar ? 1.4 : gameState.isCrouching ? 1.05 : 1.55),
+    focusPos.z
   );
 
-  const dist = 5.4;
+  const dist = gameState.drivingCar ? 7.6 : 5.4;
   const yaw = gameState.cameraYaw;
   const pitch = gameState.cameraPitch;
 
@@ -1862,6 +2325,13 @@ function updateGuards(dt) {
   const rangeDelta = gameState.isSprinting ? 3.0 : gameState.isCrouching ? -1.5 : 0;
 
   guards.forEach((g) => {
+    if (g.stunTimer > 0) {
+      g.stunTimer = Math.max(0, g.stunTimer - dt);
+      g.coneMat.color.setHex(0xff7700);
+      g.coneMat.opacity = 0.15;
+      return;
+    }
+
     // 1. Máquina de estados de movimentação (DISTRACTED, INVESTIGATE, PATROL)
     if (g.state === GUARD_STATE.DISTRACTED && g.investigateTarget) {
       g.investigateTimer = Math.max(0, g.investigateTimer - dt);
@@ -2056,6 +2526,15 @@ function updateInteractionsAndMission(dt) {
     promptText = '[E] HACKEAR PAINEL DO PORTÃO';
   }
 
+  // Prompt do carro DedSec dirigível
+  if (!promptText && dedsecCar && gameState.activeCamIndex < 0) {
+    if (gameState.drivingCar) {
+      promptText = '[F] SAIR DO CARRO DEDSEC';
+    } else if (pPos.distanceTo(dedsecCar.mesh.position) < 4.0) {
+      promptText = '[F] ENTRAR NO CARRO DEDSEC';
+    }
+  }
+
   // Prompt de caixas elétricas (perto ou mirando na Visão NetHack)
   if (!promptText && gameState.activeCamIndex < 0) {
     const camDir = new THREE.Vector3();
@@ -2158,9 +2637,24 @@ function resetWorldState() {
   if (gameState.netHackActive) toggleNetHack(false);
   if (gameState.activeCamIndex >= 0) cycleSecurityCamera(-1);
 
+  gameState.drivingCar = null;
+  AudioManager.stopEngineSound();
+  playerGroup.visible = true;
   playerGroup.position.set(0, 0, 14);
   playerGroup.rotation.y = 0;
   playerGroup.scale.y = 1;
+
+  // Resetar carros
+  cars.forEach((car) => {
+    car.mesh.position.copy(car.initialPos);
+    car.mesh.rotation.y = car.initialYaw;
+    car.speed = 0;
+    car.hackedTimer = 0;
+    car.hackedUsed = false;
+    if (car.headlight) car.headlight.intensity = 0;
+    car.mesh.updateMatrixWorld(true);
+    car.colliderObj.box.setFromObject(car.mesh);
+  });
 
   // Restaurar portão e colisor caso tenha sido aberto
   gateMesh.position.set(0, 2.2, 6);
@@ -2192,6 +2686,7 @@ function resetWorldState() {
     g.lookBaseYaw = 0;
     g.investigateTarget = null;
     g.investigateTimer = 0;
+    g.stunTimer = 0;
     g.coneMat.color.setHex(0xffd000);
     g.coneMat.opacity = 0.24;
   });
@@ -2240,6 +2735,7 @@ function restartMission() {
 function triggerGameOver() {
   gameState.mission = MISSION_STATE.GAMEOVER;
   AudioManager.stopMusic();
+  AudioManager.stopEngineSound();
   AudioManager.playGameOverSiren();
   if (document.pointerLockElement === dom.canvas) {
     document.exitPointerLock();
@@ -2261,6 +2757,7 @@ function calculateMissionRank() {
 function triggerVictory() {
   gameState.mission = MISSION_STATE.VICTORY;
   AudioManager.stopMusic();
+  AudioManager.stopEngineSound();
   AudioManager.playVictoryChime();
   if (document.pointerLockElement === dom.canvas) {
     document.exitPointerLock();
@@ -2379,6 +2876,29 @@ function updateRadar() {
     ctx.strokeRect(pos.x - rw / 2, pos.y - rd / 2, rw, rd);
   });
 
+  // Quarteirões / prédios laterais da rua
+  ctx.fillStyle = 'rgba(20, 27, 45, 0.9)';
+  ctx.strokeStyle = 'rgba(0, 240, 255, 0.35)';
+  ctx.lineWidth = 1;
+  radarBuildings.forEach((b) => {
+    const bp = toRadar(b.x, b.z);
+    const bw = b.w * scale;
+    const bd = b.d * scale;
+    ctx.fillRect(bp.x - bw / 2, bp.y - bd / 2, bw, bd);
+    ctx.strokeRect(bp.x - bw / 2, bp.y - bd / 2, bw, bd);
+  });
+
+  // Carros (estacionados e DedSec dirigível)
+  cars.forEach((car) => {
+    const cp = toRadar(car.mesh.position.x, car.mesh.position.z);
+    ctx.save();
+    ctx.translate(cp.x, cp.y);
+    ctx.rotate(-car.mesh.rotation.y);
+    ctx.fillStyle = car.isDedsec ? '#00f0ff' : car.hackedUsed ? '#ffaa00' : '#94a3b8';
+    ctx.fillRect(-1.05 * scale, -2.2 * scale, 2.1 * scale, 4.4 * scale);
+    ctx.restore();
+  });
+
   // Servidor central ctOS
   const sPos = toRadar(serverMesh.position.x, serverMesh.position.z);
   ctx.fillStyle = gameState.serverFirewallDisabled ? '#00f0ff' : '#ff0055';
@@ -2453,6 +2973,7 @@ function animate() {
     dom.statusTimer.textContent = formatTime(gameState.elapsedTime);
 
     updatePlayer(dt);
+    updateCars(dt);
     updateElectricBoxes(dt);
     updateGuards(dt);
     updateInteractionsAndMission(dt);

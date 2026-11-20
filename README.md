@@ -31,7 +31,8 @@ Na tela inicial, escolha o nível antes de iniciar a missão:
 | `V` | Alternar **Visão NetHack** (muros wireframe e rede ctOS em neon) |
 | `C` | Hackear / alternar entre **Câmeras de Segurança** e voltar ao agente |
 | `R` | Sobrecarregar e desativar por `15s` a câmera controlada no momento |
-| `E` | Hackear Portão / Firewall, sobrecarregar Caixa Elétrica ou baixar Servidor |
+| `E` | Hackear Portão / Firewall, sobrecarregar Caixa Elétrica, acelerar Carro (NetHack) ou baixar Servidor |
+| `F` | Entrar / sair do Carro Esporte DedSec (dirigir com `WASD`) |
 | `M` | Ligar / silenciar (Mudo) o áudio procedural e a trilha sonora |
 | `ESC` | Cancelar terminal de hack / liberar cursor do mouse |
 
