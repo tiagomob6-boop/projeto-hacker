@@ -42,81 +42,100 @@ const MAPS_CONFIG = {
   COMPLEXO_CTOS: {
     key: 'COMPLEXO_CTOS',
     label: 'COMPLEXO ctOS',
-    bounds: { minX: -35, maxX: 35, minZ: -34, maxZ: 44 },
-    playerStart: [0, 0, 14],
-    extractPos: [0, 0.04, 25],
-    serverPos: [0, 1.65, -21.5],
+    bounds: { minX: -64, maxX: 64, minZ: -64, maxZ: 74 },
+    radarScale: 1.55,
+    playerStart: [0, 0, 26],
+    extractPos: [0, 0.04, 52],
+    serverPos: [0, 1.65, -40],
     gates: [
-      { x: 0, y: 2.2, z: 6, w: 6, h: 4.4, d: 0.6, panelPos: [4.2, 0.75, 6.9], openX: -6.1 }
+      { x: 0, y: 2.2, z: 8, w: 7, h: 4.4, d: 0.6, panelPos: [4.8, 0.75, 9.0], openX: -7.2 }
     ],
     cameras: [
-      { name: 'CAM_01 // PÁTIO_OESTE', pos: [-14.6, 4.3, -1], baseYaw: -2.15, basePitch: -0.35 },
-      { name: 'CAM_02 // SETOR_SERVIDOR', pos: [14.6, 4.3, -17], baseYaw: 1.95, basePitch: -0.32 }
+      { name: 'CAM_01 // GUARITA_ENTRADA', pos: [-26.5, 4.8, 4], baseYaw: -2.15, basePitch: -0.35 },
+      { name: 'CAM_02 // ALA_OESTE', pos: [-26.5, 4.8, -28], baseYaw: -0.85, basePitch: -0.35 },
+      { name: 'CAM_03 // ALA_LESTE', pos: [26.5, 4.8, -24], baseYaw: 1.95, basePitch: -0.32 }
     ],
     electricBoxes: [
-      { name: 'CAIXA_ELETRICA_01', pos: [-11.5, 0.85, -1.5] },
-      { name: 'CAIXA_ELETRICA_02', pos: [11.5, 0.85, -12.5] }
+      { name: 'CAIXA_ALA_OESTE', pos: [-20, 0.85, -4] },
+      { name: 'CAIXA_ALA_LESTE', pos: [20, 0.85, -26] }
     ],
     guards: [
       {
-        waypoints: [[-12, 0, 2], [12, 0, 2], [12, 0, -12], [-12, 0, -12]],
-        speed: 2.8,
+        waypoints: [[-22, 0, 2], [-22, 0, -36], [-6, 0, -36], [-6, 0, 2]],
+        speed: 2.9,
         visionRange: 22
       },
       {
-        waypoints: [[12, 0, -20], [-12, 0, -20], [-12, 0, -4], [12, 0, -4]],
+        waypoints: [[22, 0, -36], [22, 0, 2], [6, 0, 2], [6, 0, -36]],
         speed: 3.1,
         visionRange: 22
-      }
-    ],
-    cars: [
-      { x: -6.5, z: 18.5, yaw: Math.PI / 2, color: 0x111827, neon: 0x00f0ff, isDedsec: true },
-      { x: -12, z: 10.5, yaw: Math.PI / 2, color: 0x26314a, neon: 0xffaa00, isDedsec: false },
-      { x: 11.5, z: 24.5, yaw: -Math.PI / 2, color: 0x2b1d38, neon: 0xff0055, isDedsec: false },
-      { x: -16, z: 27, yaw: 0, color: 0x1e2b3a, neon: 0x38bdf8, isDedsec: false }
-    ]
-  },
-  DOCAS_BAIA_SF: {
-    key: 'DOCAS_BAIA_SF',
-    label: 'DOCAS DA BAÍA SF',
-    bounds: { minX: -20.5, maxX: 20.5, minZ: -26.5, maxZ: 34.5 },
-    playerStart: [0, 0, 22],
-    extractPos: [0, 0.04, 30],
-    serverPos: [0, 1.65, -22.5],
-    gates: [
-      { x: 0, y: 2.2, z: 10, w: 6, h: 4.4, d: 0.6, panelPos: [4.2, 0.75, 10.9], openX: -6.1 },
-      { x: 0, y: 2.2, z: -12, w: 6, h: 4.4, d: 0.6, panelPos: [-4.2, 0.75, -11.1], openX: 6.1 }
-    ],
-    cameras: [
-      { name: 'CAM_01 // ENTRADA_DOCA', pos: [-16.5, 4.5, 6], baseYaw: -2.0, basePitch: -0.35 },
-      { name: 'CAM_02 // CORREDOR_CARGA', pos: [16.5, 4.5, -2], baseYaw: 2.1, basePitch: -0.35 },
-      { name: 'CAM_03 // CONVÉS_BLUME', pos: [-12.5, 4.8, -16], baseYaw: -2.35, basePitch: -0.32 }
-    ],
-    electricBoxes: [
-      { name: 'CAIXA_DOCA_01', pos: [-12, 0.85, 2] },
-      { name: 'CAIXA_DOCA_02', pos: [12, 0.85, -7] }
-    ],
-    guards: [
-      {
-        waypoints: [[-15, 0, 6], [15, 0, 6], [15, 0, -8], [-15, 0, -8]],
-        speed: 2.7,
-        visionRange: 22
       },
       {
-        waypoints: [[15, 0, -8], [-15, 0, -8], [-15, 0, 4], [15, 0, 4]],
-        speed: 3.0,
-        visionRange: 22
-      },
-      {
-        waypoints: [[-10, 0, -15], [10, 0, -15], [10, 0, -23], [-10, 0, -23]],
+        waypoints: [[-14, 0, -42], [14, 0, -42], [14, 0, -14], [-14, 0, -14]],
         speed: 3.2,
         visionRange: 22
       }
     ],
     cars: [
-      { x: -7, z: 24, yaw: Math.PI / 2, color: 0x111827, neon: 0x00f0ff, isDedsec: true },
-      { x: 13, z: 17, yaw: -Math.PI / 2, color: 0x26314a, neon: 0xffaa00, isDedsec: false },
-      { x: -13, z: 15, yaw: Math.PI / 2, color: 0x1e2b3a, neon: 0x38bdf8, isDedsec: false }
+      { x: -7, z: 32, yaw: Math.PI / 2, color: 0x111827, neon: 0x00f0ff, isDedsec: true },
+      { x: -40, z: 28, yaw: 0, color: 0x141720, neon: 0xff0044, isDedsec: false, isPatrol: true },
+      { x: 16, z: 16, yaw: -Math.PI / 2, color: 0x141720, neon: 0xff0044, isDedsec: false, isPatrol: true },
+      { x: -16, z: 16, yaw: Math.PI / 2, color: 0x26314a, neon: 0xffaa00, isDedsec: false },
+      { x: 24, z: 42, yaw: -Math.PI / 2, color: 0x2b1d38, neon: 0xff0055, isDedsec: false },
+      { x: -24, z: 46, yaw: 0, color: 0x1e2b3a, neon: 0x38bdf8, isDedsec: false },
+      { x: -40, z: 38, yaw: Math.PI, color: 0x202a3c, neon: 0x00f0ff, isDedsec: false },
+      { x: 40, z: 12, yaw: 0, color: 0x26314a, neon: 0xffaa00, isDedsec: false }
+    ]
+  },
+  DOCAS_BAIA_SF: {
+    key: 'DOCAS_BAIA_SF',
+    label: 'DOCAS DA BAÍA SF',
+    bounds: { minX: -41.5, maxX: 41.5, minZ: -52, maxZ: 62 },
+    radarScale: 1.75,
+    playerStart: [0, 0, 42],
+    extractPos: [0, 0.04, 54],
+    serverPos: [0, 1.65, -42],
+    gates: [
+      { x: 0, y: 2.2, z: 18, w: 7, h: 4.4, d: 0.6, panelPos: [4.8, 0.75, 19.0], openX: -7.2 },
+      { x: 0, y: 2.2, z: -24, w: 7, h: 4.4, d: 0.6, panelPos: [-4.8, 0.75, -23.0], openX: 7.2 }
+    ],
+    cameras: [
+      { name: 'CAM_01 // ENTRADA_DOCAS', pos: [-32, 5.0, 14], baseYaw: -2.0, basePitch: -0.35 },
+      { name: 'CAM_02 // PATIO_CONTEINERES', pos: [32, 5.0, -6], baseYaw: 2.1, basePitch: -0.35 },
+      { name: 'CAM_03 // CONVES_BLUME', pos: [-18, 5.2, -32], baseYaw: -2.35, basePitch: -0.32 }
+    ],
+    electricBoxes: [
+      { name: 'CAIXA_DOCA_OESTE', pos: [-24, 0.85, 4] },
+      { name: 'CAIXA_DOCA_LESTE', pos: [24, 0.85, -14] }
+    ],
+    guards: [
+      {
+        waypoints: [[-30, 0, 10], [30, 0, 10], [30, 0, -6], [-30, 0, -6]],
+        speed: 2.8,
+        visionRange: 22
+      },
+      {
+        waypoints: [[30, 0, -16], [-30, 0, -16], [-30, 0, 2], [30, 0, 2]],
+        speed: 3.1,
+        visionRange: 22
+      },
+      {
+        waypoints: [[-16, 0, -30], [16, 0, -30], [16, 0, -44], [-16, 0, -44]],
+        speed: 3.2,
+        visionRange: 22
+      },
+      {
+        waypoints: [[-14, 0, 26], [14, 0, 26], [14, 0, 34], [-14, 0, 34]],
+        speed: 2.7,
+        visionRange: 22
+      }
+    ],
+    cars: [
+      { x: -10, z: 44, yaw: Math.PI / 2, color: 0x111827, neon: 0x00f0ff, isDedsec: true },
+      { x: 20, z: 30, yaw: -Math.PI / 2, color: 0x141720, neon: 0xff0044, isDedsec: false, isPatrol: true },
+      { x: -22, z: 28, yaw: Math.PI / 2, color: 0x26314a, neon: 0xffaa00, isDedsec: false },
+      { x: 26, z: -2, yaw: 0, color: 0x1e2b3a, neon: 0x38bdf8, isDedsec: false },
+      { x: -26, z: -12, yaw: Math.PI, color: 0x2b1d38, neon: 0xff0055, isDedsec: false }
     ]
   }
 };
@@ -247,6 +266,8 @@ const projectiles = [];     // { mesh, line, origin, pos, dir, speed, life, dama
 const guardProjectiles = []; // { mesh, pos, dir, speed, life }
 const empWaves = [];        // { mesh, mat, radius, maxRadius }
 const impactFlashes = [];   // { light, life }
+const blinkingLights = [];  // { mat, phase }
+const sirenLights = [];     // { blueMat, redMat, phase }
 const netHackTagItems = []; // { el, getPos, getText }
 let dedsecCar = null;
 
@@ -583,9 +604,9 @@ const AudioManager = {
 function initThree() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x090b1a);
-  scene.fog = new THREE.FogExp2(0x090b1a, 0.017);
+  scene.fog = new THREE.FogExp2(0x090b1a, 0.011);
 
-  camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 200);
+  camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 300);
 
   renderer = new THREE.WebGLRenderer({ canvas: dom.canvas, antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -625,6 +646,8 @@ function buildMap(mapKey) {
   radarBuildings.length = 0;
   radarWalls.length = 0;
   serverParticleData.length = 0;
+  blinkingLights.length = 0;
+  sirenLights.length = 0;
   waterMesh = null;
   dedsecCar = null;
 
@@ -750,38 +773,158 @@ function addStaticBox(w, h, d, x, y, z, color, options = {}) {
   return mesh;
 }
 
+function buildDetailedBuilding(x, z, w, h, d, style = {}) {
+  const accent = style.accent ?? 0x00f0ff;
+  const bodyColor = style.bodyColor ?? 0x141b2d;
+  const collide = style.collide !== false;
+  const occlude = style.occlude !== false;
+
+  if (collide) {
+    radarBuildings.push({ x, z, w, d });
+  }
+
+  // 1. Base / Térreo com pilares nos cantos e vitrines iluminadas
+  const baseH = Math.min(3.4, h * 0.24);
+  addStaticBox(w * 0.92, baseH, d * 0.92, x, baseH / 2, z, 0x0f1626, {
+    collide,
+    occlude,
+    edgesColor: accent,
+    edgesOpacity: 0.35
+  });
+
+  [
+    [-w * 0.46, -d * 0.46],
+    [w * 0.46, -d * 0.46],
+    [-w * 0.46, d * 0.46],
+    [w * 0.46, d * 0.46]
+  ].forEach(([px, pz]) => {
+    addStaticBox(0.55, baseH, 0.55, x + px, baseH / 2, z + pz, 0x202a42, {
+      collide: false,
+      occlude: false
+    });
+  });
+
+  // Vitrines iluminadas no térreo
+  const vitrineMat = {
+    collide: false,
+    occlude: false,
+    emissive: accent,
+    emissiveIntensity: 0.95
+  };
+  addStaticBox(w * 0.72, 1.4, 0.14, x, 1.1, z + d * 0.47, accent, vitrineMat);
+  addStaticBox(w * 0.72, 1.4, 0.14, x, 1.1, z - d * 0.47, accent, vitrineMat);
+
+  // 2. Corpo principal + recuo (setback) nos andares superiores
+  const lowerH = (h - baseH) * 0.62;
+  const upperH = (h - baseH) * 0.38;
+  const lowerY = baseH + lowerH / 2;
+  const upperY = baseH + lowerH + upperH / 2;
+
+  addStaticBox(w, lowerH, d, x, lowerY, z, bodyColor, {
+    collide,
+    occlude,
+    edgesColor: 0x25324d,
+    edgesOpacity: 0.55
+  });
+  addStaticBox(w * 0.8, upperH, d * 0.8, x, upperY, z, 0x101726, {
+    collide: false,
+    occlude,
+    edgesColor: accent,
+    edgesOpacity: 0.4
+  });
+
+  // Molduras horizontais entre andares e fileiras de janelas emissivas
+  const winMat = new THREE.MeshBasicMaterial({
+    color: accent,
+    transparent: true,
+    opacity: 0.45
+  });
+  const floors = Math.max(2, Math.floor(lowerH / 3.2));
+  for (let f = 0; f < floors; f++) {
+    const fy = baseH + 1.4 + f * 3.1;
+    // Moldura horizontal
+    addStaticBox(w + 0.2, 0.18, d + 0.2, x, fy + 1.1, z, 0x222d46, {
+      collide: false,
+      occlude: false
+    });
+    // Fileira de janelas na face frontal/traseira e laterais
+    for (let wx = -w * 0.34; wx <= w * 0.34; wx += 1.6) {
+      const winF = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.95, 0.08), winMat);
+      winF.position.set(x + wx, fy, z + d / 2 + 0.05);
+      worldGroup.add(winF);
+
+      const winB = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.95, 0.08), winMat);
+      winB.position.set(x + wx, fy, z - d / 2 - 0.05);
+      worldGroup.add(winB);
+    }
+  }
+
+  // Letreiro neon vertical na fachada
+  const signSide = x < 0 ? w / 2 + 0.14 : -w / 2 - 0.14;
+  addStaticBox(0.18, lowerH * 0.68, 0.65, x + signSide, lowerY, z, accent, {
+    collide: false,
+    occlude: false,
+    emissive: accent,
+    emissiveIntensity: 1.5
+  });
+
+  // 3. Topo detalhado: parapeito, ar-condicionado/geradores e antena com luz vermelha piscante
+  const roofY = baseH + lowerH + upperH;
+  const rw = w * 0.8;
+  const rd = d * 0.8;
+  addStaticBox(rw, 0.45, 0.25, x, roofY + 0.22, z + rd / 2, 0x25324d, { collide: false, occlude: false });
+  addStaticBox(rw, 0.45, 0.25, x, roofY + 0.22, z - rd / 2, 0x25324d, { collide: false, occlude: false });
+  addStaticBox(1.8, 0.9, 1.4, x - rw * 0.2, roofY + 0.45, z, 0x2e3b55, { collide: false, occlude: false });
+  addStaticBox(0.14, 3.4, 0.14, x + rw * 0.2, roofY + 1.7, z, 0x3b4a68, { collide: false, occlude: false });
+
+  const beaconMat = new THREE.MeshBasicMaterial({ color: 0xff0033 });
+  const beacon = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.28, 0.28), beaconMat);
+  beacon.position.set(x + rw * 0.2, roofY + 3.45, z);
+  worldGroup.add(beacon);
+  blinkingLights.push({ mat: beaconMat, phase: Math.random() * Math.PI * 2 });
+}
+
 function buildEnvironment(cfg) {
-  // Chão principal ampliado (cobre X: -36..36 e Z: -35..45)
+  // Chão principal ampliado (cobre X: -65..65 e Z: -65..75)
   const groundMat = new THREE.MeshStandardMaterial({
     color: 0x101422,
     roughness: 0.88,
     metalness: 0.15
   });
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(92, 102), groundMat);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(164, 174), groundMat);
   ground.rotation.x = -Math.PI / 2;
   ground.position.set(0, 0, 5);
   ground.receiveShadow = true;
   worldGroup.add(ground);
 
-  // Grade neon sutil no chão
-  const grid = new THREE.GridHelper(92, 46, 0x00f0ff, 0x162442);
+  const grid = new THREE.GridHelper(164, 82, 0x00f0ff, 0x162442);
   grid.position.set(0, 0.015, 5);
-  grid.material.opacity = 0.22;
+  grid.material.opacity = 0.2;
   grid.material.transparent = true;
   worldGroup.add(grid);
 
-  // Calçadas elevadas com meio-fio (Oeste, Leste, Sul e frente do complexo)
-  const sidewalkOpts = { collide: false, occlude: false, edgesColor: 0x26324d, edgesOpacity: 0.55 };
-  addStaticBox(14, 0.14, 38, -29, 0.07, 26, 0x1a2234, sidewalkOpts);
-  addStaticBox(14, 0.14, 38, 29, 0.07, 26, 0x1a2234, sidewalkOpts);
-  addStaticBox(72, 0.14, 14, 0, 0.07, 38, 0x1a2234, sidewalkOpts);
-  addStaticBox(16, 0.14, 4.5, -14, 0.07, 8.75, 0x1a2234, sidewalkOpts);
-  addStaticBox(16, 0.14, 4.5, 14, 0.07, 8.75, 0x1a2234, sidewalkOpts);
+  // Calçadas elevadas, praça central e estacionamento coberto
+  const sidewalkOpts = { collide: false, occlude: false, edgesColor: 0x26324d, edgesOpacity: 0.5 };
+  addStaticBox(24, 0.14, 68, -52, 0.07, 34, 0x1a2234, sidewalkOpts);
+  addStaticBox(24, 0.14, 68, 52, 0.07, 34, 0x1a2234, sidewalkOpts);
+  addStaticBox(128, 0.14, 18, 0, 0.07, 65, 0x1a2234, sidewalkOpts);
+  addStaticBox(24, 0.14, 18, 0, 0.07, 48, 0x1d273c, sidewalkOpts); // Praça central da extração
 
-  // Faixas da rua (Avenida principal)
-  for (let x = -20; x <= 20; x += 6) {
+  // Estacionamento coberto na avenida oeste (X: -48..-32, Z: 22..44)
+  addStaticBox(16, 0.35, 22, -40, 4.2, 33, 0x182236, {
+    collide: false,
+    occlude: false,
+    edgesColor: 0x00f0ff,
+    edgesOpacity: 0.55
+  });
+  [[-47, 23], [-33, 23], [-47, 43], [-33, 43]].forEach(([px, pz]) => {
+    addStaticBox(0.55, 4.2, 0.55, px, 2.1, pz, 0x2a3650, { occlude: false });
+  });
+
+  // Faixas da avenida principal e vias laterais
+  for (let x = -34; x <= 34; x += 6) {
     const stripe = new THREE.Mesh(
-      new THREE.BoxGeometry(2.6, 0.03, 0.25),
+      new THREE.BoxGeometry(2.8, 0.03, 0.25),
       new THREE.MeshBasicMaterial({ color: 0x2f436e })
     );
     stripe.position.set(x, 0.02, 20);
@@ -789,10 +932,10 @@ function buildEnvironment(cfg) {
   }
 
   // Faixas de pedestres
-  [-17, 17].forEach((cx) => {
-    for (let z = 14; z <= 26; z += 2.4) {
+  [-28, 28].forEach((cx) => {
+    for (let z = 14; z <= 32; z += 2.4) {
       const zebra = new THREE.Mesh(
-        new THREE.BoxGeometry(2.8, 0.025, 1.1),
+        new THREE.BoxGeometry(3.0, 0.025, 1.1),
         new THREE.MeshBasicMaterial({ color: 0x4b6584 })
       );
       zebra.position.set(cx, 0.02, z);
@@ -800,147 +943,110 @@ function buildEnvironment(cfg) {
     }
   });
 
-  // Hidrantes nas calçadas
-  [[-22.8, 12], [22.8, 12], [-22.8, 30.5], [22.8, 30.5]].forEach(([hx, hz]) => {
+  // Hidrantes e barreiras de concreto urbanas
+  [[-38, 12], [38, 12], [-38, 48], [38, 48]].forEach(([hx, hz]) => {
     addStaticBox(0.42, 0.85, 0.42, hx, 0.5, hz, 0xd63031, { occlude: false });
     addStaticBox(0.52, 0.18, 0.26, hx, 0.72, hz, 0xb2bec3, { collide: false, occlude: false });
   });
 
-  // Barreiras de concreto na avenida (cobertura urbana)
-  [[-9, 13.5], [9, 13.5], [-14, 29.5], [14, 29.5]].forEach(([bx, bz]) => {
-    addStaticBox(3.2, 1.05, 0.8, bx, 0.52, bz, 0x3d485e, {
+  [[-16, 22], [16, 22], [-20, 44], [20, 44], [0, 36]].forEach(([bx, bz]) => {
+    addStaticBox(3.4, 1.05, 0.8, bx, 0.52, bz, 0x3d485e, {
       edgesColor: 0xffaa00,
       edgesOpacity: 0.6
     });
   });
 
-  // Outdoors holográficos neon nas calçadas
-  [
-    { x: -24.5, z: 22, color: 0x00f0ff, rotY: Math.PI / 2 },
-    { x: 24.5, z: 22, color: 0xff0055, rotY: -Math.PI / 2 }
-  ].forEach((bb) => {
-    addStaticBox(0.35, 5.5, 0.35, bb.x, 2.75, bb.z, 0x1e2538, { occlude: false });
-    const panel = new THREE.Mesh(
-      new THREE.BoxGeometry(5.2, 2.4, 0.18),
-      new THREE.MeshStandardMaterial({
-        color: 0x0a1428,
-        emissive: bb.color,
-        emissiveIntensity: 0.9,
-        transparent: true,
-        opacity: 0.85
-      })
-    );
-    panel.position.set(bb.x, 5.2, bb.z);
-    panel.rotation.y = bb.rotY;
-    worldGroup.add(panel);
-  });
+  // Quarteirões urbanos detalhados (com becos laterais entre eles)
+  buildDetailedBuilding(-52, 16, 14, 18, 14, { accent: 0x00f0ff });
+  buildDetailedBuilding(-52, 42, 14, 22, 16, { accent: 0xff0055 });
+  buildDetailedBuilding(-52, -14, 14, 20, 16, { accent: 0x38bdf8 });
+  buildDetailedBuilding(52, 16, 14, 19, 14, { accent: 0xff0055 });
+  buildDetailedBuilding(52, 42, 14, 24, 16, { accent: 0x00f0ff });
+  buildDetailedBuilding(52, -14, 14, 21, 16, { accent: 0xffaa00 });
 
-  // Prédios laterais acessíveis pela rua com fachadas iluminadas
-  const streetBuildings = [
-    [-31, 7, 15, 8, 14, 11, 0x00f0ff],
-    [-31, 8, 32, 8, 16, 12, 0xff0055],
-    [31, 7, 15, 8, 14, 11, 0xff0055],
-    [31, 8, 32, 8, 16, 12, 0x00f0ff]
-  ];
-  streetBuildings.forEach(([x, y, z, w, h, d, accent]) => {
-    radarBuildings.push({ x, z, w, d });
-    addStaticBox(w, h, d, x, y, z, 0x141b2d, {
-      edgesColor: accent,
-      edgesOpacity: 0.4
-    });
-    const facadeX = x < 0 ? x + w / 2 + 0.1 : x - w / 2 - 0.1;
-    addStaticBox(0.16, 0.45, d * 0.85, facadeX, 3.6, z, accent, {
-      collide: false,
-      occlude: false,
-      emissive: accent,
-      emissiveIntensity: 1.1
-    });
-  });
+  // Arranha-céus detalhados do skyline ao fundo (fora da área jogável)
+  buildDetailedBuilding(-76, -32, 14, 34, 14, { accent: 0x00f0ff, collide: false, occlude: false });
+  buildDetailedBuilding(76, -28, 14, 36, 14, { accent: 0xff0055, collide: false, occlude: false });
+  buildDetailedBuilding(-24, -70, 16, 38, 14, { accent: 0x00f0ff, collide: false, occlude: false });
+  buildDetailedBuilding(24, -70, 16, 40, 14, { accent: 0xff0055, collide: false, occlude: false });
+  buildDetailedBuilding(0, -74, 18, 46, 14, { accent: 0x38bdf8, collide: false, occlude: false });
 
-  // Postes cyberpunk na rua
-  [-13, 13].forEach((px) => {
-    addStaticBox(0.35, 5.5, 0.35, px, 2.75, 16, 0x1e2538, { occlude: false });
-    const lamp = new THREE.Mesh(
-      new THREE.BoxGeometry(0.9, 0.2, 0.5),
-      new THREE.MeshBasicMaterial({ color: px < 0 ? 0x00f0ff : 0xff0055 })
-    );
-    lamp.position.set(px + (px < 0 ? 0.3 : -0.3), 5.5, 16);
-    worldGroup.add(lamp);
-  });
-
-  // Silhuetas de prédios de São Francisco ao fundo (fora da área jogável)
-  const skylinePositions = [
-    [-46, 12, -34, 8, 24, 8],
-    [-46, 9, -8, 7, 18, 10],
-    [-46, 11, 18, 8, 22, 10],
-    [46, 13, -30, 9, 26, 9],
-    [46, 8, -4, 7, 16, 10],
-    [46, 12, 20, 8, 24, 10],
-    [-16, 14, -44, 10, 28, 8],
-    [16, 15, -44, 10, 30, 8],
-    [0, 18, -46, 10, 36, 8]
-  ];
-  skylinePositions.forEach(([x, y, z, w, h, d], idx) => {
-    addStaticBox(w, h, d, x, y, z, 0x0c1020, {
-      collide: false,
-      occlude: false,
-      emissive: idx % 2 === 0 ? 0x051828 : 0x1d0618,
-      emissiveIntensity: 0.7
-    });
-
-    // Janelas emissivas sutis nos prédios do skyline
-    const winColor = idx % 2 === 0 ? 0x00f0ff : 0xff4488;
-    const winMat = new THREE.MeshBasicMaterial({
-      color: winColor,
-      transparent: true,
-      opacity: 0.28
-    });
-    const rows = Math.floor(h / 4);
-    for (let r = 1; r < rows; r++) {
-      if ((r + idx) % 2 !== 0) continue;
-      const winBand = new THREE.Mesh(
-        new THREE.BoxGeometry(w * 0.72, 0.32, 0.12),
-        winMat
-      );
-      const faceZ = z < 0 ? z + d / 2 + 0.08 : z - d / 2 - 0.08;
-      winBand.position.set(x, r * 3.6, faceZ);
-      worldGroup.add(winBand);
-    }
-  });
-
-  // Ponte Golden Gate estilizada em laranja-neon ao fundo do horizonte
+  // Ponte Golden Gate estilizada ao fundo
   buildGoldenGateBridge();
 
-  // Muros do Complexo Protegido (X: -16 a +16, Z: -26 a +6)
-  addStaticBox(13, 5, 1, -9.5, 2.5, 6, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.45 });
-  addStaticBox(13, 5, 1, 9.5, 2.5, 6, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.45 });
-  addStaticBox(1, 5, 32, -16, 2.5, -10, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.42 });
-  addStaticBox(1, 5, 32, 16, 2.5, -10, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.42 });
-  addStaticBox(33, 5, 1, 0, 2.5, -26, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.42 });
+  // Base ctOS Ampliada (X: -28..28, Z: -48..8) com Ala Oeste, Ala Leste e Pátio Amplo
+  addStaticBox(24.5, 5.2, 1.2, -15.75, 2.6, 8, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.45 });
+  addStaticBox(24.5, 5.2, 1.2, 15.75, 5.2 - 2.6, 8, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.45 });
+  addStaticBox(1.2, 5.2, 56, -28, 2.6, -20, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.42 });
+  addStaticBox(1.2, 5.2, 56, 28, 2.6, -20, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.42 });
+  addStaticBox(57.2, 5.2, 1.2, 0, 2.6, -48, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.42 });
+
+  // Pilares estruturais espaçados e refletores nos muros da base
+  for (let px = -24; px <= 24; px += 8) {
+    if (Math.abs(px) < 5) continue;
+    addStaticBox(1.5, 5.8, 1.6, px, 2.9, 8, 0x25304a, { collide: false, occlude: false });
+    addStaticBox(0.7, 0.3, 0.4, px, 5.9, 8.5, 0x00f0ff, {
+      collide: false,
+      occlude: false,
+      emissive: 0x00f0ff,
+      emissiveIntensity: 1.2
+    });
+  }
+  for (let pz = -44; pz <= 4; pz += 12) {
+    addStaticBox(1.6, 5.8, 1.5, -28, 2.9, pz, 0x25304a, { collide: false, occlude: false });
+    addStaticBox(1.6, 5.8, 1.5, 28, 2.9, pz, 0x25304a, { collide: false, occlude: false });
+  }
+
+  // Guarita de segurança na entrada com vidro translúcido
+  addStaticBox(3.4, 1.2, 3.0, 6.2, 0.6, 10.2, 0x1c263b, { edgesColor: 0x00f0ff, edgesOpacity: 0.5 });
+  addStaticBox(3.6, 0.3, 3.2, 6.2, 3.1, 10.2, 0x182236, { collide: false, occlude: false });
+  const guaritaGlass = new THREE.Mesh(
+    new THREE.BoxGeometry(3.2, 1.6, 2.8),
+    new THREE.MeshBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.25 })
+  );
+  guaritaGlass.position.set(6.2, 2.0, 10.2);
+  worldGroup.add(guaritaGlass);
+
+  // Divisórias das Alas Oeste e Leste (com passagens)
+  addStaticBox(1.0, 4.5, 18, -12, 2.25, -18, 0x202a42, { edgesColor: 0x00f0ff, edgesOpacity: 0.45 });
+  addStaticBox(1.0, 4.5, 18, 12, 2.25, -18, 0x202a42, { edgesColor: 0x00f0ff, edgesOpacity: 0.45 });
+
+  // Passarela elevada cruzando o pátio + rampas de acesso
+  addStaticBox(28, 0.4, 3.6, 0, 3.2, -18, 0x222e48, {
+    collide: false,
+    occlude: false,
+    edgesColor: 0x00f0ff,
+    edgesOpacity: 0.65
+  });
+  [-16.5, 16.5].forEach((rx) => {
+    const ramp = addStaticBox(6.5, 0.35, 3.2, rx, 1.6, -18, 0x1e2940, {
+      collide: false,
+      occlude: false,
+      edgesColor: 0xffaa00,
+      edgesOpacity: 0.5
+    });
+    ramp.rotation.z = rx < 0 ? 0.5 : -0.5;
+  });
 
   radarWalls.push(
-    { x1: -3, z1: 6, x2: -16, z2: 6 },
-    { x1: -16, z1: 6, x2: -16, z2: -26 },
-    { x1: -16, z1: -26, x2: 16, z2: -26 },
-    { x1: 16, z1: -26, x2: 16, z2: 6 },
-    { x1: 16, z1: 6, x2: 3, z2: 6 }
+    { x1: -3.5, z1: 8, x2: -28, z2: 8 },
+    { x1: -28, z1: 8, x2: -28, z2: -48 },
+    { x1: -28, z1: -48, x2: 28, z2: -48 },
+    { x1: 28, z1: -48, x2: 28, z2: 8 },
+    { x1: 28, z1: 8, x2: 3.5, z2: 8 }
   );
 
-  // Luzes de destaque e letreiros emissivos na fachada da entrada e muros do complexo
-  buildComplexNeonAccents();
-
-  // Portão Eletrônico
   buildMapGates(cfg);
 
-  // Caixas de Cobertura (Stealth) dentro do complexo
+  // Caixas de cobertura dentro da base (Ala Oeste, Pátio Central e Ala Leste)
   const crates = [
-    [-7, 1.15, 0.5, 3.2, 2.3, 2.2],
-    [7, 1.15, 0.5, 3.2, 2.3, 2.2],
-    [0, 1.25, -7.5, 4.5, 2.5, 2.4],
-    [-9.5, 1.15, -10.5, 3.0, 2.3, 3.0],
-    [9.5, 1.15, -10.5, 3.0, 2.3, 3.0],
-    [-5.5, 1.15, -17.5, 2.8, 2.3, 2.4],
-    [5.5, 1.15, -17.5, 2.8, 2.3, 2.4]
+    [-19, 1.15, 0, 3.4, 2.3, 2.4],
+    [19, 1.15, 0, 3.4, 2.3, 2.4],
+    [0, 1.25, -6, 5.0, 2.5, 2.6],
+    [-20, 1.15, -24, 3.2, 2.3, 3.2],
+    [20, 1.15, -24, 3.2, 2.3, 3.2],
+    [-7, 1.15, -33, 3.0, 2.3, 2.4],
+    [7, 1.15, -33, 3.0, 2.3, 2.4]
   ];
   crates.forEach(([x, y, z, w, h, d]) => {
     radarCrates.push({ x, z, w, d });
@@ -1056,7 +1162,7 @@ function buildExtractionZone(ex, ez) {
 }
 
 function buildDocksEnvironment(cfg) {
-  // Água escura brilhante ao redor do píer
+  // Água escura brilhante ao redor do píer ampliado
   const waterMat = new THREE.MeshStandardMaterial({
     color: 0x05182e,
     emissive: 0x03223d,
@@ -1064,110 +1170,101 @@ function buildDocksEnvironment(cfg) {
     roughness: 0.12,
     metalness: 0.85
   });
-  waterMesh = new THREE.Mesh(new THREE.PlaneGeometry(180, 180), waterMat);
+  waterMesh = new THREE.Mesh(new THREE.PlaneGeometry(320, 320), waterMat);
   waterMesh.rotation.x = -Math.PI / 2;
   waterMesh.position.set(0, -0.42, 0);
   worldGroup.add(waterMesh);
 
-  // Plataforma principal do Píer (X: -22..22, Z: -14..36)
-  addStaticBox(44, 0.6, 50, 0, -0.3, 11, 0x182030, {
+  // Plataforma principal do Píer ampliado (X: -43..43, Z: -26..64)
+  addStaticBox(86, 0.6, 90, 0, -0.3, 19, 0x182030, {
     collide: false,
     occlude: false,
     edgesColor: 0x00f0ff,
     edgesOpacity: 0.3
   });
 
-  // Grade sutil no piso do píer
-  const grid = new THREE.GridHelper(44, 22, 0x00f0ff, 0x162442);
-  grid.position.set(0, 0.015, 11);
+  const grid = new THREE.GridHelper(86, 43, 0x00f0ff, 0x162442);
+  grid.position.set(0, 0.015, 19);
   grid.material.opacity = 0.18;
   grid.material.transparent = true;
   worldGroup.add(grid);
 
-  // Muros/Barreiras laterais do píer e divisórias dos 2 portões (Z=10 e Z=-12)
-  addStaticBox(1, 3.2, 48, -21.5, 1.6, 10, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.4 });
-  addStaticBox(1, 3.2, 48, 21.5, 1.6, 10, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.4 });
-  // Guard-rail baixo com luzes de aviso na extremidade sul do píer (Z = 35)
-  addStaticBox(44, 1.1, 0.8, 0, 0.55, 35, 0x26314a, {
-    edgesColor: 0xffaa00,
-    edgesOpacity: 0.75
-  });
-  [-15, -5, 5, 15].forEach((lx) => {
-    addStaticBox(0.55, 0.25, 0.25, lx, 1.2, 35, 0xffaa00, {
+  // Muros laterais com pilares, guard-rail sul (z = 63) e divisórias dos 2 portões (Z=18 e Z=-24)
+  addStaticBox(1.2, 3.6, 88, -42.5, 1.8, 19, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.4 });
+  addStaticBox(1.2, 3.6, 88, 42.5, 1.8, 19, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.4 });
+  addStaticBox(86, 1.1, 0.8, 0, 0.55, 63, 0x26314a, { edgesColor: 0xffaa00, edgesOpacity: 0.75 });
+  [-30, -15, 0, 15, 30].forEach((lx) => {
+    addStaticBox(0.6, 0.28, 0.28, lx, 1.2, 63, 0xffaa00, {
       collide: false,
       occlude: false,
       emissive: 0xffaa00,
       emissiveIntensity: 1.4
     });
   });
-  addStaticBox(18, 4.5, 1, -12, 2.25, 10, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.45 });
-  addStaticBox(18, 4.5, 1, 12, 2.25, 10, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.45 });
-  addStaticBox(18, 4.5, 1, -12, 2.25, -12, 0x1b2236, { edgesColor: 0xff0055, edgesOpacity: 0.45 });
-  addStaticBox(18, 4.5, 1, 12, 2.25, -12, 0x1b2236, { edgesColor: 0xff0055, edgesOpacity: 0.45 });
+
+  addStaticBox(38, 4.8, 1.2, -22.5, 2.4, 18, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.45 });
+  addStaticBox(38, 4.8, 1.2, 22.5, 2.4, 18, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.45 });
+  addStaticBox(38, 4.8, 1.2, -22.5, 2.4, -24, 0x1b2236, { edgesColor: 0xff0055, edgesOpacity: 0.45 });
+  addStaticBox(38, 4.8, 1.2, 22.5, 2.4, -24, 0x1b2236, { edgesColor: 0xff0055, edgesOpacity: 0.45 });
 
   radarWalls.push(
-    { x1: -21.5, z1: 34, x2: -21.5, z2: -14 },
-    { x1: 21.5, z1: 34, x2: 21.5, z2: -14 },
-    { x1: -21, z1: 10, x2: -3, z2: 10 },
-    { x1: 3, z1: 10, x2: 21, z2: 10 },
-    { x1: -21, z1: -12, x2: -3, z2: -12 },
-    { x1: 3, z1: -12, x2: 21, z2: -12 }
+    { x1: -42.5, z1: 63, x2: -42.5, z2: -25 },
+    { x1: 42.5, z1: 63, x2: 42.5, z2: -25 },
+    { x1: -42, z1: 18, x2: -3.5, z2: 18 },
+    { x1: 3.5, z1: 18, x2: 42, z2: 18 },
+    { x1: -42, z1: -24, x2: -3.5, z2: -24 },
+    { x1: 3.5, z1: -24, x2: 42, z2: -24 }
   );
 
-  // Corredores formados por contêineres empilhados (vermelhos, azuis e ciano)
+  // Corredores e múltiplas rotas com contêineres empilhados (Ala Oeste, Centro e Ala Leste)
   const containers = [
-    [-9, 1.35, 3, 6.2, 2.7, 2.6, 0x8b1e24, 0xff4455],
-    [-9, 4.05, 3, 6.2, 2.7, 2.6, 0x1b3b6f, 0x00f0ff],
-    [9, 1.35, 3, 6.2, 2.7, 2.6, 0x0e5a6f, 0x00f0ff],
-    [0, 1.35, -1.5, 5.8, 2.7, 2.6, 0x1b3b6f, 0x38bdf8],
-    [-11, 1.35, -7, 6.2, 2.7, 2.6, 0x0e5a6f, 0x00f0ff],
-    [11, 1.35, -7, 6.2, 2.7, 2.6, 0x8b1e24, 0xff4455],
-    [11, 4.05, -7, 6.2, 2.7, 2.6, 0x1b3b6f, 0x00f0ff],
-    [-7, 1.35, -17, 4.2, 2.7, 2.4, 0x8b1e24, 0xff4455],
-    [7, 1.35, -17, 4.2, 2.7, 2.4, 0x0e5a6f, 0x00f0ff]
+    [-20, 1.35, 8, 7.2, 2.7, 2.8, 0x8b1e24, 0xff4455],
+    [-20, 4.05, 8, 7.2, 2.7, 2.8, 0x1b3b6f, 0x00f0ff],
+    [20, 1.35, 8, 7.2, 2.7, 2.8, 0x0e5a6f, 0x00f0ff],
+    [0, 1.35, -2, 6.8, 2.7, 2.8, 0x1b3b6f, 0x38bdf8],
+    [-22, 1.35, -12, 7.2, 2.7, 2.8, 0x0e5a6f, 0x00f0ff],
+    [22, 1.35, -12, 7.2, 2.7, 2.8, 0x8b1e24, 0xff4455],
+    [22, 4.05, -12, 7.2, 2.7, 2.8, 0x1b3b6f, 0x00f0ff],
+    [-12, 1.35, -34, 4.8, 2.7, 2.6, 0x8b1e24, 0xff4455],
+    [12, 1.35, -34, 4.8, 2.7, 2.6, 0x0e5a6f, 0x00f0ff]
   ];
   containers.forEach(([x, y, z, w, h, d, col, edgeCol]) => {
     if (y < 2.0) radarCrates.push({ x, z, w, d });
-    addStaticBox(w, h, d, x, y, z, col, {
-      edgesColor: edgeCol,
-      edgesOpacity: 0.55
-    });
+    addStaticBox(w, h, d, x, y, z, col, { edgesColor: edgeCol, edgesOpacity: 0.55 });
   });
 
-  // Rampa e Navio / Cargueiro da Blume ancorado ao fundo (Z: -32..-13)
-  addStaticBox(28, 0.7, 18, 0, -0.2, -22, 0x141b2d, {
+  // Navio / Cargueiro da Blume ampliado ancorado ao fundo (Z: -56..-24)
+  addStaticBox(52, 0.7, 30, 0, -0.2, -39, 0x141b2d, {
     collide: false,
     occlude: false,
     edgesColor: 0x00f0ff,
     edgesOpacity: 0.45
   });
-  // Casco lateral do navio e ponte de comando da Blume
-  addStaticBox(1.5, 4.2, 18, -14, 2.1, -22, 0x161d2f, { edgesColor: 0xff0055, edgesOpacity: 0.6 });
-  addStaticBox(1.5, 4.2, 18, 14, 2.1, -22, 0x161d2f, { edgesColor: 0xff0055, edgesOpacity: 0.6 });
-  addStaticBox(29, 8.5, 4.5, 0, 4.25, -29.5, 0x101726, { edgesColor: 0x00f0ff, edgesOpacity: 0.55 });
-  addStaticBox(12, 0.6, 0.25, 0, 6.5, -27.1, 0x00f0ff, {
+  addStaticBox(1.8, 4.5, 30, -26, 2.25, -39, 0x161d2f, { edgesColor: 0xff0055, edgesOpacity: 0.6 });
+  addStaticBox(1.8, 4.5, 30, 26, 2.25, -39, 0x161d2f, { edgesColor: 0xff0055, edgesOpacity: 0.6 });
+  addStaticBox(54, 11, 6, 0, 5.5, -51, 0x101726, { edgesColor: 0x00f0ff, edgesOpacity: 0.55 });
+  addStaticBox(18, 0.7, 0.3, 0, 8.5, -47.8, 0x00f0ff, {
     collide: false,
     occlude: false,
     emissive: 0x00f0ff,
     emissiveIntensity: 1.4
   });
 
-  // Ponte Golden Gate distante no horizonte da baía
+  // Armazém portuário detalhado na borda leste do píer
+  buildDetailedBuilding(-34, 34, 10, 14, 12, { accent: 0xffaa00 });
+  buildDetailedBuilding(34, 34, 10, 14, 12, { accent: 0x00f0ff });
+
   buildGoldenGateBridge();
-
-  // 2 Portões / Barreiras Eletrônicas
   buildMapGates(cfg);
-
-  // Servidor Central no convés do cargueiro + Zona de Extração no início do píer
   buildServerUnit(cfg.serverPos[0], cfg.serverPos[2]);
   buildExtractionZone(cfg.extractPos[0], cfg.extractPos[2]);
 }
 
 function buildGoldenGateBridge() {
   const bridgeGroup = new THREE.Group();
-  const bridgeZ = -52;
-  const deckY = 10;
-  const towerXs = [-22, 22];
+  const bridgeZ = -92;
+  const deckY = 14;
+  const towerXs = [-34, 34];
 
   const neonOrangeMat = new THREE.MeshBasicMaterial({
     color: 0xff5a1f,
@@ -1372,7 +1469,7 @@ function createHackableDevice(w, h, d, x, y, z, glowColor, name) {
 // ==========================================
 // CARROS 3D PROCEDURAIS (ESTACIONADOS + DEDSEC)
 // ==========================================
-function buildCarMesh(color, neonTrim) {
+function buildCarMesh(color, neonTrim, isPatrol = false) {
   const carGroup = new THREE.Group();
   const nethackMat = new THREE.MeshBasicMaterial({
     color: 0x0b3a5c,
@@ -1453,12 +1550,24 @@ function buildCarMesh(color, neonTrim) {
     registerPart(tl, tailMat);
   });
 
+  // Giroflex azul/vermelho piscando para viaturas ctOS
+  if (isPatrol) {
+    const blueMat = new THREE.MeshBasicMaterial({ color: 0x0088ff });
+    const redMat = new THREE.MeshBasicMaterial({ color: 0xff0033 });
+    const barL = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.12, 0.24), blueMat);
+    barL.position.set(-0.26, 1.46, -0.15);
+    const barR = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.12, 0.24), redMat);
+    barR.position.set(0.26, 1.46, -0.15);
+    carGroup.add(barL, barR);
+    sirenLights.push({ blueMat, redMat, phase: Math.random() * Math.PI * 2 });
+  }
+
   return { carGroup, bodyMesh: body };
 }
 
 function buildCars(cfg) {
   cfg.cars.forEach((carCfg, idx) => {
-    const { carGroup, bodyMesh } = buildCarMesh(carCfg.color, carCfg.neon);
+    const { carGroup, bodyMesh } = buildCarMesh(carCfg.color, carCfg.neon, !!carCfg.isPatrol);
     carGroup.position.set(carCfg.x, 0, carCfg.z);
     carGroup.rotation.y = carCfg.yaw;
     worldGroup.add(carGroup);
@@ -2100,7 +2209,7 @@ function toggleNetHack(forceState) {
   } else {
     scene.background.setHex(0x090b1a);
     scene.fog.color.setHex(0x090b1a);
-    scene.fog.density = 0.017;
+    scene.fog.density = 0.011;
     ambientLight.intensity = BASE_AMBIENT_INTENSITY;
     dom.nethackOverlay.classList.add('hidden');
     dom.statusMode.textContent = gameState.activeCamIndex >= 0 ? 'CÂMERA' : 'FURTIVO';
@@ -3704,6 +3813,17 @@ function updateVisualEffects(dt, nowSec) {
       dom.damageFlash.classList.add('hidden');
     }
   }
+
+  blinkingLights.forEach((b) => {
+    const on = Math.sin(nowSec * 3.5 + b.phase) > 0.2;
+    b.mat.color.setHex(on ? 0xff0033 : 0x220008);
+  });
+
+  sirenLights.forEach((s) => {
+    const flip = Math.sin(nowSec * 10 + s.phase) > 0;
+    s.blueMat.color.setHex(flip ? 0x0099ff : 0x001833);
+    s.redMat.color.setHex(flip ? 0x330008 : 0xff0033);
+  });
 }
 
 function updateRadar() {
@@ -3713,7 +3833,8 @@ function updateRadar() {
   const cx = size / 2;
   const cy = size / 2;
   const radius = size / 2 - 2;
-  const scale = 2.85;
+  const mapCfg = MAPS_CONFIG[gameState.selectedMap] || MAPS_CONFIG.COMPLEXO_CTOS;
+  const scale = mapCfg.radarScale || 1.55;
 
   const pPos = playerGroup.position;
 

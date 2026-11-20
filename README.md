@@ -15,8 +15,8 @@ Protótipo funcional de um jogo 3D em terceira pessoa de infiltração e hacking
 ## 🗺️ Mapas e Dificuldade
 
 Na tela inicial, escolha o mapa da operação e o nível de dificuldade antes de iniciar:
-- **MAPA 01: COMPLEXO ctOS (Centro Urbano):** Avenida ampliada com prédios laterais, carros estacionados, carro esporte DedSec dirigível, vista da Ponte Golden Gate, 1 portão eletrônico, 2 guardas e 2 câmeras.
-- **MAPA 02: DOCAS DA BAÍA SF (Terminal Portuário Noturno):** Píer sobre a baía com água noturna animada, labirinto de contêineres empilhados, 2 barreiras eletrônicas, 3 guardas, 3 câmeras e o navio cargueiro da Blume ancorado ao fundo.
+- **MAPA 01: COMPLEXO ctOS (Centro Urbano Ampliado):** Cidade em escala 2x (`X: -64..64`, `Z: -64..74`) com quarteirões detalhados, becos, praça central, estacionamento coberto, viaturas ctOS com giroflex, carro esporte DedSec dirigível, base ctOS com Ala Oeste/Leste, passarela elevada, guarita na entrada, 3 guardas e 3 câmeras.
+- **MAPA 02: DOCAS DA BAÍA SF (Terminal Portuário Ampliado):** Píer portuário (`X: -41.5..41.5`, `Z: -52..62`) com armazéns detalhados, múltiplos corredores de contêineres, 2 barreiras eletrônicas, 4 guardas, 3 câmeras, 5 veículos e o navio cargueiro da Blume ancorado ao fundo.
 - **INICIANTE:** Guardas mais lentos, varredura de câmeras moderada e `12.0s` no terminal.
 - **DEDSEC ELITE:** Guardas mais rápidos, varredura de câmeras acelerada e `7.0s` no terminal.
 
