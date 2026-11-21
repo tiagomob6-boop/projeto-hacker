@@ -313,6 +313,8 @@ export const refs = {
   dedsecCar: null,
   activeHeadlight: null,
   showroomTurntable: null,
+  droneGroup: null,
+  droneRotors: [],
   vehicleDeliveryGroup: null,
   vehicleDeliveryRing: null,
   vehicleDeliveryBeam: null,
@@ -353,6 +355,7 @@ export const netHackTagItems = []; // { el, getPos, getText }
 export const missionMarkers = [];  // { key, ring, beam }
 export const stores = [];          // { type: 'STYLE'|'ARMORY'|'MOTORS', name, pos, ring, color }
 export const lightPoles = [];      // Postes de iluminação urbana com colisão e queda física
+export const trafficLights = [];   // Semáforos hackeáveis nos cruzamentos (V + E)
 export const supplyBoxes = [];     // Caixas de suprimentos (+$100 ou +25 HP) nos interiores acessíveis
 export const policeCars = [];      // Viaturas de reforço policial ctOS spawnadas dinamicamente
 export const remotePlayers = new Map(); // Jogadores remotos (id -> { group, parts, targetPos, targetYaw })
@@ -379,6 +382,12 @@ export const gameState = {
   ownedVehicles: [],
   hasRapidReload: false,
   hasShotgun: false,
+  hasBlackout: false,
+  blackoutTimer: 0,
+  blackoutCooldown: 0,
+  droneActive: false,
+  droneYaw: 0,
+  dronePitch: 0.12,
   shopOpen: false,
   shopCooldown: 0,
   shopMustExitRing: false,

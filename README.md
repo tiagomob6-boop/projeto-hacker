@@ -37,7 +37,9 @@ Explore livremente o mapa contínuo (`-30000..30000`) com `$500` iniciais e ativ
 | `V` | Alternar **Visão NetHack** (muros wireframe, rede ctOS e **Profiler** de pedestres) |
 | `C` | Hackear / alternar entre **Câmeras de Segurança** e voltar ao agente |
 | `R` | Sobrecarregar e desativar por `15s` a câmera controlada no momento |
-| `E` | Hackear Portão / Firewall, sobrecarregar Caixa Elétrica, acelerar Carro, hackear Pedestre (`+$75`) ou acessar **Lojas / SF Motors** |
+| `E` | Hackear Portão / Firewall, Caixa Elétrica, Semáforo, Câmera (`V+E`), Carro, Pedestre (`+$75`) ou acessar **Lojas / SF Motors** |
+| `Q` | Lançar / recolher o **Drone Quadricóptero DedSec** (`WASD` voar, `Space`/`Ctrl` subir/descer, `V+E` hack remoto) |
+| `B` | Ativar **Blackout Geral da Cidade** (`12s`, apaga postes, desativa câmeras laser e reduz visão inimiga em `50%`) |
 | `F` | Roubar/entrar em qualquer carro (ejetando o motorista) ou pilotar / desembarcar da **Lancha DedSec** (`WASD`) |
 | `1` a `5` | Selecionar arma: `[1]` Taser, `[2]` 9mm Silenciada, `[3]` Rifle Automático, `[4]` Pulso EMP, `[5]` Escopeta Tática (HackShop) |
 | `Clique Esquerdo` | Disparar arma equipada (segurar para rajada automática no Rifle `[3]`) |

@@ -31,6 +31,7 @@ import {
   netHackTagItems,
   missionMarkers,
   stores,
+  trafficLights,
   formatTime
 } from './state.js';
 import { AudioManager } from './audio.js';
@@ -110,6 +111,17 @@ export function buildNetHackLabels() {
           ? `${ped.profile.name} // CONTA HACKEADA`
           : `${ped.profile.name} | ${ped.profile.job} | [E] +$75`,
       24
+    );
+  });
+
+  trafficLights.forEach((tl, idx) => {
+    registerTag(
+      () => tl.pos.clone().add(new THREE.Vector3(0, 5.4, 0)),
+      () =>
+        tl.hackedTimer > 0
+          ? `SEMÁFORO_${idx + 1} CAOS (${Math.ceil(tl.hackedTimer)}s)`
+          : `[E] HACKEAR SEMÁFORO`,
+      36
     );
   });
 }
@@ -556,6 +568,16 @@ export function openShopModal(storeType) {
           buy: () => {
             gameState.hasShotgun = true;
             refs.onSelectWeapon?.(WEAPON_TYPE.SHOTGUN);
+          }
+        },
+        {
+          id: 'blackout',
+          title: '[B] Blackout Geral ctOS',
+          desc: 'Apaga postes por 12s, desativa câmeras laser e reduz visão inimiga em 50% (gratuito no modo Elite).',
+          price: 900,
+          owned: gameState.hasBlackout || gameState.difficulty === 'DEDSEC_ELITE',
+          buy: () => {
+            gameState.hasBlackout = true;
           }
         }
       ];

@@ -35,6 +35,7 @@ import {
   missionMarkers,
   stores,
   lightPoles,
+  trafficLights,
   supplyBoxes,
   policeCars,
   missionServers,
@@ -297,6 +298,7 @@ export function buildMap() {
   missionMarkers.length = 0;
   stores.length = 0;
   lightPoles.length = 0;
+  trafficLights.length = 0;
   supplyBoxes.length = 0;
   policeCars.length = 0;
   refs.waterMesh = null;
@@ -480,9 +482,7 @@ export function buildUrbanDetailsAndMidBlocks() {
     buildDetailedBuilding(bx, bz, bw, bh, bd, { accent: acc });
   });
 
-  // 2. Semáforos com luzes verde/vermelha nos cruzamentos principais
-  const greenLensMat = new THREE.MeshBasicMaterial({ color: 0x00ff88 });
-  const redLensMat = new THREE.MeshBasicMaterial({ color: 0xff0044 });
+  // 2. Semáforos funcionais e hackeáveis (V + E) nos cruzamentos principais
   [
     [-30, 28],
     [30, 28],
@@ -491,14 +491,23 @@ export function buildUrbanDetailsAndMidBlocks() {
     [-60, 175],
     [428, 28]
   ].forEach(([sx, sz], idx) => {
+    const greenMat = new THREE.MeshBasicMaterial({ color: idx % 2 === 0 ? 0x00ff88 : 0x163022 });
+    const redMat = new THREE.MeshBasicMaterial({ color: idx % 2 === 0 ? 0x330a12 : 0xff0044 });
     addStaticBox(0.32, 5.2, 0.32, sx, 2.6, sz, 0x1c2538, { occlude: false });
     addStaticBox(2.6, 0.25, 0.25, sx + 1.2, 4.9, sz, 0x1c2538, { collide: false, occlude: false });
     addStaticBox(0.45, 1.05, 0.36, sx + 2.2, 4.75, sz, 0x0c111d, { collide: false, occlude: false });
-    const gLens = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.24, 0.40), idx % 2 === 0 ? greenLensMat : redLensMat);
+    const gLens = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.24, 0.40), greenMat);
     gLens.position.set(sx + 2.2, 4.96, sz);
-    const rLens = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.24, 0.40), idx % 2 === 0 ? redLensMat : greenLensMat);
+    const rLens = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.24, 0.40), redMat);
     rLens.position.set(sx + 2.2, 4.54, sz);
     refs.worldGroup.add(gLens, rLens);
+    trafficLights.push({
+      id: idx,
+      pos: new THREE.Vector3(sx + 2.2, 0, sz),
+      greenMat,
+      redMat,
+      hackedTimer: 0
+    });
   });
 
   // 3. Paradas de ônibus futuristas com cobertura translúcida e totem neon
@@ -2677,6 +2686,10 @@ export function resetWorldState(keepPlayerPos = false) {
   gameState.wantedStatus = 'OCULTO';
   gameState.ctosRevealTimer = 0;
   gameState.policeSpawnCooldown = 0;
+  gameState.blackoutTimer = 0;
+  gameState.blackoutCooldown = 0;
+  gameState.droneActive = false;
+  if (refs.droneGroup) refs.droneGroup.visible = false;
   if (dom.ctosRevealBanner) dom.ctosRevealBanner.classList.add('hidden');
   updateWantedHUD();
   gameState.mouseDown = false;

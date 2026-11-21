@@ -13,6 +13,7 @@ import {
   CAMERA_OVERLOAD_DURATION,
   ELECTRIC_COOLDOWN,
   ELECTRIC_INVESTIGATE_TIME,
+  BASE_AMBIENT_INTENSITY,
   DIFFICULTY_PRESETS,
   dom,
   refs,
@@ -32,7 +33,9 @@ import {
   missionMarkers,
   stores,
   lightPoles,
+  trafficLights,
   supplyBoxes,
+  policeCars,
   remotePlayers,
   playersMap,
   colliders,
@@ -417,6 +420,79 @@ export function buildPlayer() {
   playersMap.set(gameState.localPlayerId || 'local', { group, parts, isLocal: true });
   refs.scene.add(refs.playerGroup);
   applyPlayerSkin(gameState.equippedSkin || 'classic');
+
+  // Drone Quadricóptero DedSec (Tecla Q)
+  const droneGroup = new THREE.Group();
+  const droneBodyMat = new THREE.MeshStandardMaterial({ color: 0x101828, roughness: 0.35, metalness: 0.7 });
+  const droneCyanMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
+  const core = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.14, 0.52), droneBodyMat);
+  const lens = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.08, 0.06), droneCyanMat);
+  lens.position.set(0, -0.02, -0.27);
+  droneGroup.add(core, lens);
+
+  refs.droneRotors = [];
+  [
+    [-0.36, 0.06, -0.34],
+    [0.36, 0.06, -0.34],
+    [-0.36, 0.06, 0.34],
+    [0.36, 0.06, 0.34]
+  ].forEach(([rx, ry, rz]) => {
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.04, 0.05), droneBodyMat);
+    arm.position.set(rx * 0.5, 0.02, rz * 0.5);
+    arm.rotation.y = Math.atan2(rx, rz);
+    const rotor = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.018, 0.045), droneCyanMat);
+    rotor.position.set(rx, ry, rz);
+    droneGroup.add(arm, rotor);
+    refs.droneRotors.push(rotor);
+  });
+  droneGroup.visible = false;
+  refs.droneGroup = droneGroup;
+  refs.scene.add(droneGroup);
+}
+
+export function toggleDrone() {
+  if (gameState.drivingCar || gameState.drivingBoat || gameState.terminalOpen || gameState.missionModalOpen || gameState.shopOpen) return;
+  if (!refs.droneGroup) return;
+
+  gameState.droneActive = !gameState.droneActive;
+  if (gameState.droneActive) {
+    const pPos = refs.playerGroup.position;
+    refs.droneGroup.position.set(pPos.x, pPos.y + 1.85, pPos.z);
+    gameState.droneYaw = gameState.cameraYaw;
+    gameState.dronePitch = 0.12;
+    refs.droneGroup.visible = true;
+    if (!gameState.netHackActive) dom.statusMode.textContent = 'DRONE';
+    AudioManager.playNetHackPulse(true);
+  } else {
+    refs.droneGroup.visible = false;
+    if (!gameState.netHackActive) dom.statusMode.textContent = 'FURTIVO';
+    AudioManager.playNetHackPulse(false);
+  }
+}
+
+export function triggerBlackout() {
+  const unlocked = gameState.hasBlackout || gameState.difficulty === 'DEDSEC_ELITE';
+  if (!unlocked || gameState.blackoutCooldown > 0) return;
+
+  gameState.blackoutTimer = 12.0;
+  gameState.blackoutCooldown = 35.0;
+  gameState.hacksUsed += 1;
+  AudioManager.playEmpPulse();
+
+  // Apagar postes de luz e escurecer a iluminação ambiente
+  if (lightPoles.length > 0 && lightPoles[0].headMesh?.material?.color) {
+    lightPoles[0].headMesh.material.color.setHex(0x0b101a);
+  }
+  if (refs.ambientLight && !gameState.netHackActive) {
+    refs.ambientLight.intensity = 0.65;
+  }
+
+  // Desativar todas as câmeras com laser vermelho durante os 12s
+  securityCameras.forEach((camObj) => {
+    camObj.disabledTimer = Math.max(camObj.disabledTimer, 12.0);
+    camObj.mesh.userData.normalMaterial.emissive.setHex(0x334155);
+    if (camObj.laserMesh) camObj.laserMesh.visible = false;
+  });
 }
 
 export function upsertRemotePlayer(packet) {
@@ -755,12 +831,13 @@ export function handleInteractPress() {
     return;
   }
 
-  const pPos = refs.playerGroup.position;
+  const pPos = gameState.droneActive && refs.droneGroup ? refs.droneGroup.position : refs.playerGroup.position;
+  const gateDistLimit = gameState.droneActive ? 18.0 : 3.6;
 
   // 1. Checar proximidade dos painéis de portão não destravados
   for (let i = 0; i < gates.length; i++) {
     const g = gates[i];
-    if (!g.unlocked && pPos.distanceTo(g.panelMesh.position) < 3.6) {
+    if (!g.unlocked && pPos.distanceTo(g.panelMesh.position) < gateDistLimit) {
       gameState.activeGateIndex = i;
       openTerminal('GATE');
       return;
@@ -818,8 +895,29 @@ export function handleInteractPress() {
     }
   }
 
-  // 3b. Checar carros hackeáveis ou pedestres (Profiler +$75) na Visão NetHack (V)
+  // 3b. Checar semáforos, carros hackeáveis ou pedestres (Profiler +$75) na Visão NetHack (V)
   if (gameState.netHackActive) {
+    for (const tl of trafficLights) {
+      if (tl.hackedTimer > 0) continue;
+      const distTl = pPos.distanceTo(tl.pos);
+      const toTl = tl.pos.clone().add(new THREE.Vector3(0, 4.8, 0)).sub(refs.camera.position).normalize();
+      if (distTl < 36 && camDir.dot(toTl) > 0.88) {
+        tl.hackedTimer = 10.0;
+        tl.greenMat.color.setHex(0x00ff88);
+        tl.redMat.color.setHex(0x00ff88);
+        gameState.hacksUsed += 1;
+        AudioManager.playElectricZap();
+        // Acelerar carros de tráfego próximos causando caos e bloqueando viaturas policiais
+        trafficCars.forEach((tc) => {
+          if (!tc.destroyed && tc !== gameState.drivingCar && tc.mesh.position.distanceTo(tl.pos) < 44) {
+            tc.hackedTimer = 4.0;
+            tc.speed = 21.0;
+          }
+        });
+        return;
+      }
+    }
+
     for (const ped of pedestrians) {
       if (ped.profile.hacked) continue;
       const distPed = pPos.distanceTo(ped.mesh.position);
@@ -1105,6 +1203,17 @@ function knockDownLightPole(pole, dirX, dirZ) {
 // MOVIMENTAÇÃO, COLISÃO, CARROS E CÂMERA
 // ==========================================
 export function updateCars(dt) {
+  // Atualizar timers de semáforos hackeados
+  trafficLights.forEach((tl, idx) => {
+    if (tl.hackedTimer > 0) {
+      tl.hackedTimer = Math.max(0, tl.hackedTimer - dt);
+      if (tl.hackedTimer === 0) {
+        tl.greenMat.color.setHex(idx % 2 === 0 ? 0x00ff88 : 0x163022);
+        tl.redMat.color.setHex(idx % 2 === 0 ? 0x330a12 : 0xff0044);
+      }
+    }
+  });
+
   // Animação física de queda dos postes atingidos e faíscas elétricas
   lightPoles.forEach((pole) => {
     if (pole.falling && pole.fallGroup) {
@@ -1278,6 +1387,57 @@ export function updatePlayer(dt) {
     refs.playerParts.backpackLed.material.color.setHex(
       gameState.isCrouching ? 0xffaa00 : pulseOn ? 0x00ff88 : 0x004433
     );
+  }
+
+  // Modo Drone Quadricóptero DedSec (Tecla Q)
+  if (gameState.droneActive && refs.droneGroup) {
+    refs.droneRotors.forEach((r) => {
+      r.rotation.y += dt * 28;
+    });
+
+    let inZ = 0;
+    let inX = 0;
+    let inY = 0;
+    if (gameState.keys['KeyW'] || gameState.keys['ArrowUp']) inZ += 1;
+    if (gameState.keys['KeyS'] || gameState.keys['ArrowDown']) inZ -= 1;
+    if (gameState.keys['KeyA'] || gameState.keys['ArrowLeft']) inX -= 1;
+    if (gameState.keys['KeyD'] || gameState.keys['ArrowRight']) inX += 1;
+    if (gameState.keys['Space']) inY += 1;
+    if (gameState.keys['ControlLeft'] || gameState.keys['ControlRight']) inY -= 1;
+
+    const dyaw = gameState.droneYaw;
+    const fwdX = -Math.sin(dyaw);
+    const fwdZ = -Math.cos(dyaw);
+    const rightX = Math.cos(dyaw);
+    const rightZ = -Math.sin(dyaw);
+
+    const dPos = refs.droneGroup.position;
+    const dSpeed = 14.0;
+    dPos.x += (fwdX * inZ + rightX * inX) * dSpeed * dt;
+    dPos.z += (fwdZ * inZ + rightZ * inX) * dSpeed * dt;
+    dPos.y = THREE.MathUtils.clamp(dPos.y + inY * 9.0 * dt, 1.0, 48.0);
+
+    // Manter drone dentro do raio de sinal de 95m do agente
+    const pPos = refs.playerGroup.position;
+    const dx = dPos.x - pPos.x;
+    const dz = dPos.z - pPos.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist > 95) {
+      dPos.x = pPos.x + (dx / dist) * 95;
+      dPos.z = pPos.z + (dz / dist) * 95;
+    }
+    refs.droneGroup.rotation.y = dyaw;
+
+    // Na Visão NetHack com Drone, marcar guardas através das paredes
+    if (gameState.netHackActive) {
+      guards.forEach((g) => {
+        if (g.state !== GUARD_STATE.DEAD && g.mesh.position.distanceTo(dPos) < 38) {
+          g.marked = true;
+        }
+      });
+    }
+    if (!gameState.netHackActive) dom.statusMode.textContent = 'DRONE';
+    return;
   }
 
   // Modo Navegação de Lancha DedSec na Baía
@@ -1586,6 +1746,25 @@ function setFirstPersonBodyVisibility(hideBody) {
 }
 
 export function updateCamera() {
+  // Modo Câmera do Drone Quadricóptero DedSec (Q)
+  if (gameState.droneActive && refs.droneGroup) {
+    setFirstPersonBodyVisibility(false);
+    if (dom.cockpitHud) dom.cockpitHud.classList.add('hidden');
+    const dPos = refs.droneGroup.position;
+    const yaw = gameState.droneYaw;
+    const pitch = THREE.MathUtils.clamp(gameState.dronePitch, -0.85, 0.85);
+    refs.camera.position.set(
+      dPos.x + Math.sin(yaw) * 1.15,
+      dPos.y + 0.35,
+      dPos.z + Math.cos(yaw) * 1.15
+    );
+    const lookX = -Math.sin(yaw) * Math.cos(pitch);
+    const lookY = -Math.sin(pitch);
+    const lookZ = -Math.cos(yaw) * Math.cos(pitch);
+    refs.camera.lookAt(dPos.x + lookX * 14, dPos.y + lookY * 14, dPos.z + lookZ * 14);
+    return;
+  }
+
   if (gameState.activeCamIndex >= 0) {
     setFirstPersonBodyVisibility(false);
     if (dom.cockpitHud) dom.cockpitHud.classList.add('hidden');
@@ -1894,6 +2073,20 @@ export function updateGuards(dt) {
   if (gameState.policeSpawnCooldown > 0) {
     gameState.policeSpawnCooldown = Math.max(0, gameState.policeSpawnCooldown - dt);
   }
+  if (gameState.blackoutCooldown > 0) {
+    gameState.blackoutCooldown = Math.max(0, gameState.blackoutCooldown - dt);
+  }
+  if (gameState.blackoutTimer > 0) {
+    gameState.blackoutTimer = Math.max(0, gameState.blackoutTimer - dt);
+    if (gameState.blackoutTimer === 0) {
+      if (lightPoles.length > 0 && lightPoles[0].headMesh?.material?.color) {
+        lightPoles[0].headMesh.material.color.setHex(0x00f0ff);
+      }
+      if (refs.ambientLight && !gameState.netHackActive) {
+        refs.ambientLight.intensity = BASE_AMBIENT_INTENSITY;
+      }
+    }
+  }
   if (gameState.ctosRevealTimer > 0) {
     gameState.ctosRevealTimer = Math.max(0, gameState.ctosRevealTimer - dt);
     if (gameState.ctosRevealTimer === 0 && dom.ctosRevealBanner) {
@@ -1956,7 +2149,7 @@ export function updateGuards(dt) {
     const toPlayer = playerPos.clone().sub(g.mesh.position);
     toPlayer.y = 0;
     const distToPlayer = toPlayer.length();
-    const effectiveRange = g.visionRange + rangeDelta;
+    const effectiveRange = (g.visionRange + rangeDelta) * (gameState.blackoutTimer > 0 ? 0.5 : 1.0);
 
     let guardSeesPlayer = false;
     const isContractGuard =
@@ -2298,6 +2491,18 @@ export function updateInteractionsAndMission(dt) {
     refs.camera.getWorldDirection(camDir);
 
     if (gameState.netHackActive) {
+      for (const tl of trafficLights) {
+        if (tl.hackedTimer > 0) continue;
+        const distTl = pPos.distanceTo(tl.pos);
+        const toTl = tl.pos.clone().add(new THREE.Vector3(0, 4.8, 0)).sub(refs.camera.position).normalize();
+        if (distTl < 36 && camDir.dot(toTl) > 0.88) {
+          promptText = '[E] HACKEAR SEMÁFORO (CAOS NO TRÁFEGO)';
+          break;
+        }
+      }
+    }
+
+    if (!promptText && gameState.netHackActive) {
       for (const camObj of securityCameras) {
         if (camObj.disabledTimer > 0) continue;
         const distCam = pPos.distanceTo(camObj.pos);

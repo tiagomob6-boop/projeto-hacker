@@ -38,6 +38,8 @@ import {
   handleInteractPress,
   toggleDriveDedsecCar,
   toggleFirstPerson,
+  toggleDrone,
+  triggerBlackout,
   applyPlayerSkin,
   upsertRemotePlayer,
   updatePlayer,
@@ -114,6 +116,10 @@ function setupInputs() {
       toggleDriveDedsecCar();
     } else if (code === 'KeyP') {
       toggleFirstPerson();
+    } else if (code === 'KeyQ') {
+      toggleDrone();
+    } else if (code === 'KeyB') {
+      triggerBlackout();
     } else if (code === 'Digit1' || code === 'Numpad1') {
       selectWeapon(WEAPON_TYPE.TASER);
     } else if (code === 'Digit2' || code === 'Numpad2') {
@@ -146,6 +152,9 @@ function setupInputs() {
       const camObj = securityCameras[gameState.activeCamIndex];
       camObj.yawOffset = THREE.MathUtils.clamp(camObj.yawOffset - e.movementX * sens, -0.9, 0.9);
       camObj.pitchOffset = THREE.MathUtils.clamp(camObj.pitchOffset - e.movementY * sens, -0.45, 0.35);
+    } else if (gameState.droneActive) {
+      gameState.droneYaw -= e.movementX * sens;
+      gameState.dronePitch = THREE.MathUtils.clamp(gameState.dronePitch + e.movementY * sens, -0.85, 0.85);
     } else {
       gameState.cameraYaw -= e.movementX * sens;
       const minPitch = gameState.firstPerson ? -0.85 : 0.08;
