@@ -228,7 +228,8 @@ function setupInputs() {
       gameState.tacticalMapOpen ||
       gameState.quickGuideOpen ||
       gameState.activeCamIndex >= 0 ||
-      gameState.drivingCar
+      gameState.drivingCar ||
+      gameState.drivingBoat
     ) {
       return;
     }

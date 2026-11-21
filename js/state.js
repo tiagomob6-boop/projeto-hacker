@@ -653,6 +653,22 @@ export function checkDroneCollision(x, y, z, radius = 0.45) {
   return false;
 }
 
+// Libera da GPU geometrias e materiais de um objeto e de todos os seus filhos (texturas compartilhadas são preservadas)
+export function disposeHierarchy(obj) {
+  if (!obj) return;
+  const disposeMat = (m) => {
+    if (m && typeof m.dispose === 'function') m.dispose();
+  };
+  obj.traverse((child) => {
+    if (child.geometry && typeof child.geometry.dispose === 'function') child.geometry.dispose();
+    if (Array.isArray(child.material)) child.material.forEach(disposeMat);
+    else disposeMat(child.material);
+    disposeMat(child.userData?.normalMaterial);
+    disposeMat(child.userData?.nethackMaterial);
+    disposeMat(child.userData?.edgesMaterial);
+  });
+}
+
 export function formatTime(seconds) {
   const m = String(Math.floor(seconds / 60)).padStart(2, '0');
   const s = String(Math.floor(seconds % 60)).padStart(2, '0');

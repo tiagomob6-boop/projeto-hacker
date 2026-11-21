@@ -1,4 +1,4 @@
-﻿import * as THREE from 'three';
+import * as THREE from 'three';
 import {
   MISSION_STATE,
   GUARD_STATE,
@@ -40,6 +40,7 @@ import {
   playersMap,
   colliders,
   getSurfaceHeight,
+  disposeHierarchy,
   createHackableDevice,
   isWaterArea,
   isWaterForBoats,
@@ -1410,6 +1411,7 @@ export function updateCars(dt) {
     drv.armR.rotation.x = -2.2 - swing * 0.4;
     if (drv.timer <= 0) {
       refs.worldGroup.remove(drv.mesh);
+      disposeHierarchy(drv.mesh);
       fleeingDrivers.splice(i, 1);
     }
   }
@@ -2793,10 +2795,16 @@ export function updateInteractionsAndMission(dt) {
   });
 
   // Rotação do núcleo do servidor e pulso da zona de extração
-  refs.serverCoreMesh.rotation.y += dt * 1.6;
-  refs.serverCoreMesh.rotation.x += dt * 0.9;
+  if (refs.serverCoreMesh) {
+    refs.serverCoreMesh.rotation.y += dt * 1.6;
+    refs.serverCoreMesh.rotation.x += dt * 0.9;
+  }
   const pulse = 1 + Math.sin(gameState.elapsedTime * 4) * 0.08;
-  refs.extractionRing.scale.set(pulse, pulse, 1);
+  if (refs.extractionRing) {
+    refs.extractionRing.scale.set(pulse, pulse, 1);
+    // Brilho pulsante via material (substitui a PointLight removida da zona de extração)
+    if (refs.extractionRing.material) refs.extractionRing.material.opacity = 0.6 + (pulse - 0.92) * 2.5;
+  }
 
   // Timer do minigame de terminal
   if (gameState.terminalOpen) {

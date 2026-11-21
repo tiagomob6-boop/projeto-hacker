@@ -307,7 +307,8 @@ export function completeTerminalHack() {
   dom.hackFeedback.textContent = '> ACESSO CONCEDIDO // PORTÃO DESTRAVADO!';
   dom.hackFeedback.style.color = '#00ff88';
 
-  if (gameState.mission === MISSION_STATE.INFILTRATE) {
+  // Só avança o objetivo para o download de dados quando TODOS os portões da missão estiverem destravados
+  if (gameState.mission === MISSION_STATE.INFILTRATE && gameState.gateUnlocked) {
     setMissionState(MISSION_STATE.STEAL_DATA);
   }
 

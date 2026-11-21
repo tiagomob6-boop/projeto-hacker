@@ -42,6 +42,7 @@ import {
   missionExtractions,
   serverParticleData,
   getSurfaceHeight,
+  disposeHierarchy,
   isWaterArea,
   checkCollision,
   createHackableDevice
@@ -338,20 +339,7 @@ export function initThree() {
 }
 
 export function buildMap() {
-  refs.worldGroup.traverse((obj) => {
-    if (obj.geometry) obj.geometry.dispose();
-    const disposeMat = (m) => {
-      if (m && typeof m.dispose === 'function') m.dispose();
-    };
-    if (Array.isArray(obj.material)) {
-      obj.material.forEach(disposeMat);
-    } else {
-      disposeMat(obj.material);
-    }
-    disposeMat(obj.userData?.normalMaterial);
-    disposeMat(obj.userData?.nethackMaterial);
-    disposeMat(obj.userData?.edgesMaterial);
-  });
+  disposeHierarchy(refs.worldGroup);
   while (refs.worldGroup.children.length > 0) {
     refs.worldGroup.remove(refs.worldGroup.children[0]);
   }
@@ -2324,10 +2312,6 @@ export function buildExtractionZone(ex, ez, missionKey) {
   beam.position.y = 4.5;
   group.add(beam);
 
-  const extractionLight = new THREE.PointLight(0x00ff88, 1.8, 12);
-  extractionLight.position.set(0, 1.8, 0);
-  group.add(extractionLight);
-
   refs.worldGroup.add(group);
   missionExtractions[missionKey] = { group, ring, beam };
   if (missionKey === 'COMPLEXO_CTOS') {
@@ -3608,11 +3592,13 @@ export function resetWorldState(keepPlayerPos = false) {
   }
   for (let i = fleeingDrivers.length - 1; i >= 0; i--) {
     refs.worldGroup.remove(fleeingDrivers[i].mesh);
+    disposeHierarchy(fleeingDrivers[i].mesh);
     fleeingDrivers.splice(i, 1);
   }
   for (let i = policeCars.length - 1; i >= 0; i--) {
     const pc = policeCars[i];
     refs.worldGroup.remove(pc.mesh);
+    disposeHierarchy(pc.mesh);
     const cIdx = cars.indexOf(pc);
     if (cIdx !== -1) cars.splice(cIdx, 1);
     const colIdx = colliders.indexOf(pc.colliderObj);
