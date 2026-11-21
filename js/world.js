@@ -22,6 +22,8 @@ import {
   radarWalls,
   gates,
   cars,
+  trafficCars,
+  pedestrians,
   fleeingDrivers,
   boats,
   projectiles,
@@ -274,6 +276,8 @@ export function buildMap() {
   electricBoxes.length = 0;
   guards.length = 0;
   cars.length = 0;
+  trafficCars.length = 0;
+  pedestrians.length = 0;
   fleeingDrivers.length = 0;
   boats.length = 0;
   gates.length = 0;
@@ -322,8 +326,10 @@ export function buildMap() {
   // Marcadores Holográficos de Missão no Mapa
   buildMissionMarkers();
 
-  // Veículos e Barcos do Mundo Aberto
+  // Veículos, Tráfego, Pedestres e Barcos do Mundo Aberto
   buildCars();
+  buildTrafficCars();
+  buildPedestrians();
   buildBoatPiersAndBoats();
 
   // Câmeras, Caixas Elétricas e Guardas das missões e contratos VIP
@@ -1880,6 +1886,214 @@ export function buildCars() {
     };
     cars.push(carObj);
     if (carCfg.isDedsec) refs.dedsecCar = carObj;
+  });
+}
+
+export function buildTrafficCars() {
+  const routes = [
+    // Rota 1: Circuito Downtown (mão dupla)
+    [[-56, 32], [56, 32], [56, 66], [-56, 66]],
+    [[56, 39], [-56, 39], [-56, 72], [56, 72]],
+    // Rota 2: Golden Gate <-> Docas (Leste / Oeste)
+    [[24, 31], [420, 31], [485, 31], [485, 40], [420, 40], [24, 40]],
+    [[460, 39], [60, 39], [-36, 39], [-36, 31], [60, 31], [460, 31]],
+    // Rota 3: Downtown <-> Distrito Sul <-> Ponte Sul <-> Portuário
+    [[-56, 60], [-56, 316], [430, 316], [430, 324], [-48, 324], [-48, 60]],
+    [[410, 324], [-52, 324], [-52, 190], [-130, 190], [-130, 316], [410, 316]]
+  ];
+
+  const configs = [
+    { bodyType: 'HATCH', color: 0x2a3b5c, neon: 0x00f0ff, isPatrol: false, routeIdx: 0, startWp: 0, speed: 9.5 },
+    { bodyType: 'SPORT', color: 0x6b21a8, neon: 0xd946ef, isPatrol: false, routeIdx: 0, startWp: 2, speed: 12.0 },
+    { bodyType: 'SUV', color: 0x141720, neon: 0xff0044, isPatrol: true, routeIdx: 1, startWp: 0, speed: 10.5 },
+    { bodyType: 'HATCH', color: 0x1e3a5f, neon: 0x38bdf8, isPatrol: false, routeIdx: 1, startWp: 2, speed: 9.0 },
+    { bodyType: 'SPORT', color: 0x0f766e, neon: 0x00ff88, isPatrol: false, routeIdx: 2, startWp: 0, speed: 12.5 },
+    { bodyType: 'SUV', color: 0x334155, neon: 0xffaa00, isPatrol: false, routeIdx: 2, startWp: 1, speed: 10.0 },
+    { bodyType: 'HATCH', color: 0x475569, neon: 0x00f0ff, isPatrol: false, routeIdx: 3, startWp: 0, speed: 9.8 },
+    { bodyType: 'SUV', color: 0x141720, neon: 0xff0044, isPatrol: true, routeIdx: 3, startWp: 2, speed: 11.0 },
+    { bodyType: 'HATCH', color: 0x3b2f4a, neon: 0xff0055, isPatrol: false, routeIdx: 4, startWp: 0, speed: 9.5 },
+    { bodyType: 'SPORT', color: 0x1e293b, neon: 0x00f0ff, isPatrol: false, routeIdx: 4, startWp: 2, speed: 12.2 },
+    { bodyType: 'SUV', color: 0x26314a, neon: 0xffaa00, isPatrol: false, routeIdx: 5, startWp: 0, speed: 10.2 },
+    { bodyType: 'HATCH', color: 0x1f2937, neon: 0x38bdf8, isPatrol: false, routeIdx: 5, startWp: 3, speed: 9.2 }
+  ];
+
+  configs.forEach((cfg, i) => {
+    const waypoints = routes[cfg.routeIdx];
+    const [sx, sz] = waypoints[cfg.startWp];
+    const nextWp = (cfg.startWp + 1) % waypoints.length;
+    const [nx, nz] = waypoints[nextWp];
+    const yaw = Math.atan2(nx - sx, nz - sz);
+
+    const { carGroup, bodyMesh, driverMesh } = buildCarMesh(cfg.color, cfg.neon, cfg.isPatrol, cfg.bodyType, true);
+    const sy = getSurfaceHeight(sx, sz);
+    carGroup.position.set(sx, sy, sz);
+    carGroup.rotation.y = yaw;
+    refs.worldGroup.add(carGroup);
+
+    const headlight = new THREE.PointLight(cfg.neon, 0, 16);
+    headlight.position.set(0, 1.0, 2.8);
+    carGroup.add(headlight);
+
+    const smokeCount = 22;
+    const smokePos = new Float32Array(smokeCount * 3);
+    const smokeData = [];
+    for (let s = 0; s < smokeCount; s++) {
+      smokePos[s * 3] = (Math.random() - 0.5) * 0.7;
+      smokePos[s * 3 + 1] = 0.8 + Math.random() * 1.4;
+      smokePos[s * 3 + 2] = 1.3 + (Math.random() - 0.5) * 0.6;
+      smokeData.push({ speed: 1.2 + Math.random() * 1.4, phase: Math.random() * Math.PI * 2 });
+    }
+    const smokeGeo = new THREE.BufferGeometry();
+    smokeGeo.setAttribute('position', new THREE.BufferAttribute(smokePos, 3));
+    const smokePoints = new THREE.Points(
+      smokeGeo,
+      new THREE.PointsMaterial({ color: 0x2b2b2b, size: 0.55, transparent: true, opacity: 0.75, depthWrite: false })
+    );
+    smokePoints.visible = false;
+    carGroup.add(smokePoints);
+
+    carGroup.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(carGroup);
+    const colliderObj = { box, mesh: bodyMesh, carIndex: cars.length };
+    colliders.push(colliderObj);
+    occluders.push(bodyMesh);
+
+    const carObj = {
+      id: 100 + i,
+      mesh: carGroup,
+      bodyMesh,
+      driverMesh,
+      initialHasDriver: true,
+      hasDriver: true,
+      isTraffic: true,
+      waypoints,
+      currentTarget: nextWp,
+      baseSpeed: cfg.speed,
+      hornCooldown: Math.random() * 2,
+      colliderObj,
+      initialPos: new THREE.Vector3(sx, sy, sz),
+      initialYaw: yaw,
+      initialColor: cfg.color,
+      isDedsec: false,
+      isDrivable: true,
+      vipMissionKey: null,
+      maxHp: cfg.bodyType === 'SUV' ? 140 : 100,
+      hp: cfg.bodyType === 'SUV' ? 140 : 100,
+      destroyed: false,
+      smokePoints,
+      smokeData,
+      speed: cfg.speed,
+      hackedTimer: 0,
+      hackedUsed: false,
+      headlight
+    };
+    cars.push(carObj);
+    trafficCars.push(carObj);
+  });
+}
+
+export function buildPedestrians() {
+  const profiles = [
+    ['Lucas Vance', 'Eng. de Redes ctOS'],
+    ['Marina Sato', 'Analista de Dados Blume'],
+    ['Rafael Cruz', 'Desenvolvedor Indie'],
+    ['Camila Ortiz', 'Jornalista Investigativa'],
+    ['Bruno Meyer', 'Técnico de Fibra Óptica'],
+    ['Sofia Alencar', 'Arquiteta Urbana'],
+    ['Diego Nogueira', 'Operador Portuário'],
+    ['Helena Park', 'Pesquisadora de IA'],
+    ['Tiago Borges', 'Entregador Autônomo'],
+    ['Larissa Kurosawa', 'Designer Holográfica'],
+    ['Mateus Silva', 'Segurança Privado'],
+    ['Ana Beatriz', 'Médica de Emergência'],
+    ['Gabriel Costa', 'DJ Underground'],
+    ['Beatriz Lin', 'Corretora Financeira'],
+    ['Felipe Rocha', 'Mecânico de Drones'],
+    ['Juliana Duarte', 'Advogada Corporativa'],
+    ['Pedro Henrique', 'Estudante de Robótica'],
+    ['Vitoria Ramos', 'Produtora Musical'],
+    ['Daniel Mendes', 'Fiscal de Tráfego'],
+    ['Clara Freitas', 'Fotógrafa Urbana']
+  ];
+
+  const jacketColors = [0x2563eb, 0x9333ea, 0x059669, 0xd97706, 0xdc2626, 0x0891b2, 0x475569, 0xdb2777];
+  const pantsColors = [0x111827, 0x1e293b, 0x312e81, 0x27272a];
+  const skinColors = [0xc89678, 0xe0b596, 0x8d5524, 0xf1c27d];
+  const zones = [
+    [-38, 48, 22],
+    [28, 52, 22],
+    [0, 56, 26],
+    [-64, 18, 24],
+    [60, 62, 18],
+    [-115, 315, 24],
+    [DOCKS_OFFSET_X - 24, 55, 20],
+    [DOCKS_OFFSET_X + 26, 48, 20]
+  ];
+
+  profiles.forEach(([name, job], i) => {
+    const pedGroup = new THREE.Group();
+    const jacketMat = new THREE.MeshStandardMaterial({ color: jacketColors[i % jacketColors.length], roughness: 0.72 });
+    const pantsMat = new THREE.MeshStandardMaterial({ color: pantsColors[i % pantsColors.length], roughness: 0.8 });
+    const skinMat = new THREE.MeshStandardMaterial({ color: skinColors[i % skinColors.length], roughness: 0.65 });
+    const hairMat = new THREE.MeshStandardMaterial({ color: i % 3 === 0 ? 0x3b2314 : 0x111827, roughness: 0.8 });
+
+    const legL = new THREE.Mesh(new THREE.CapsuleGeometry(0.068, 0.44, 4, 8), pantsMat);
+    legL.position.set(-0.10, 0.42, 0);
+    legL.castShadow = true;
+    const legR = new THREE.Mesh(new THREE.CapsuleGeometry(0.068, 0.44, 4, 8), pantsMat);
+    legR.position.set(0.10, 0.42, 0);
+    legR.castShadow = true;
+
+    const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.34, 6, 10), jacketMat);
+    torso.scale.set(1.1, 1.0, 0.75);
+    torso.position.y = 1.12;
+    torso.castShadow = true;
+
+    const armL = new THREE.Mesh(new THREE.CapsuleGeometry(0.05, 0.36, 4, 8), jacketMat);
+    armL.position.set(-0.24, 1.12, 0);
+    const armR = new THREE.Mesh(new THREE.CapsuleGeometry(0.05, 0.36, 4, 8), jacketMat);
+    armR.position.set(0.24, 1.12, 0);
+
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.145, 12, 10), skinMat);
+    head.position.y = 1.56;
+    head.castShadow = true;
+    const hair = new THREE.Mesh(
+      new THREE.SphereGeometry(0.152, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55),
+      hairMat
+    );
+    hair.position.y = 1.57;
+
+    pedGroup.add(legL, legR, torso, armL, armR, head, hair);
+
+    const [zx, zz, rad] = zones[i % zones.length];
+    const ang = (i / profiles.length) * Math.PI * 2;
+    const px = zx + Math.cos(ang) * (rad * 0.45);
+    const pz = zz + Math.sin(ang) * (rad * 0.45);
+    pedGroup.position.set(px, getSurfaceHeight(px, pz), pz);
+    refs.worldGroup.add(pedGroup);
+
+    const wps = [
+      [zx + Math.cos(ang) * rad * 0.5, zz + Math.sin(ang) * rad * 0.5],
+      [zx + Math.cos(ang + 1.8) * rad * 0.5, zz + Math.sin(ang + 1.8) * rad * 0.5],
+      [zx + Math.cos(ang + 3.6) * rad * 0.5, zz + Math.sin(ang + 3.6) * rad * 0.5]
+    ];
+
+    pedestrians.push({
+      id: i,
+      mesh: pedGroup,
+      legL,
+      legR,
+      armL,
+      armR,
+      waypoints: wps,
+      currentTarget: 1,
+      walkSpeed: 1.8 + (i % 4) * 0.25,
+      phase: Math.random() * Math.PI * 2,
+      panickedTimer: 0,
+      panicDirX: 1,
+      panicDirZ: 0,
+      profile: { name, job, hacked: false }
+    });
   });
 }
 

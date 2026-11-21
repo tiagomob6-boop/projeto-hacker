@@ -205,6 +205,11 @@ export const AudioManager = {
     this._tone(160, 55, 0.16, 'square', 0.16, 700);
   },
 
+  playHorn() {
+    this._tone(415, 410, 0.18, 'sawtooth', 0.08, 1200, 0);
+    this._tone(523, 518, 0.18, 'triangle', 0.07, 1400, 0);
+  },
+
   playBaseAlertSiren() {
     this._tone(620, 880, 0.28, 'sawtooth', 0.16, 1500, 0);
     this._tone(880, 540, 0.32, 'sawtooth', 0.16, 1500, 0.28);

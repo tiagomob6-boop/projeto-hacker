@@ -13,6 +13,7 @@ import {
   occluders,
   securityCameras,
   guards,
+  pedestrians,
   projectiles,
   guardProjectiles,
   empWaves,
@@ -42,6 +43,20 @@ export function damagePlayer(amount) {
   if (gameState.hp <= 0) {
     triggerGameOver('AGENTE ABATIDO', 'Você foi neutralizado pelo fogo hostil dos guardas da ctOS.');
   }
+}
+
+export function panicPedestrians(originPos, radius = 26) {
+  pedestrians.forEach((ped) => {
+    const dist = ped.mesh.position.distanceTo(originPos);
+    if (dist <= radius) {
+      ped.panickedTimer = 6.5;
+      const dx = ped.mesh.position.x - originPos.x;
+      const dz = ped.mesh.position.z - originPos.z;
+      const len = Math.hypot(dx, dz) || 1;
+      ped.panicDirX = dx / len;
+      ped.panicDirZ = dz / len;
+    }
+  });
 }
 
 export function alertGuardsByNoise(originPos, radius) {
@@ -167,6 +182,9 @@ export function fireEquippedWeapon() {
   });
 
   alertGuardsByNoise(refs.playerGroup.position, cfg.noiseRadius);
+  if (cfg.noiseRadius > 0) {
+    panicPedestrians(refs.playerGroup.position, Math.max(24, cfg.noiseRadius));
+  }
 }
 
 export function fireEmpPulse() {
@@ -351,6 +369,7 @@ export function explodeCar(car) {
   }
 
   AudioManager.playExplosion();
+  panicPedestrians(car.mesh.position, 32);
   spawnImpactFlash(car.mesh.position.clone().add(new THREE.Vector3(0, 1.3, 0)), 0xff5500);
 
   const ringGeo = new THREE.RingGeometry(0.6, 1.4, 32);

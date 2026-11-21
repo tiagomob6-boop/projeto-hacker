@@ -39,6 +39,7 @@ import {
   updateCars,
   updateCamera,
   updateElectricBoxes,
+  updatePedestrians,
   updateGuards,
   updateInteractionsAndMission
 } from './js/entities.js';
@@ -241,6 +242,7 @@ function animate() {
     updateGuardProjectiles(dt);
     updateEmpWaves(dt);
     updateElectricBoxes(dt);
+    updatePedestrians(dt);
     updateGuards(dt);
     updateInteractionsAndMission(dt);
     updateRadar();

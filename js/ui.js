@@ -24,6 +24,7 @@ import {
   radarWalls,
   gates,
   cars,
+  pedestrians,
   boats,
   netHackTagItems,
   missionMarkers,
@@ -36,11 +37,11 @@ export function buildNetHackLabels() {
   dom.nethackLabels.innerHTML = '';
   netHackTagItems.length = 0;
 
-  const registerTag = (getPos, getText) => {
+  const registerTag = (getPos, getText, maxDist = Infinity) => {
     const el = document.createElement('div');
     el.className = 'nethack-tag';
     dom.nethackLabels.appendChild(el);
-    netHackTagItems.push({ el, getPos, getText });
+    netHackTagItems.push({ el, getPos, getText, maxDist });
   };
 
   gates.forEach((g, idx) => {
@@ -86,6 +87,8 @@ export function buildNetHackLabels() {
             ? 'SUCATA QUEIMADA'
             : gameState.drivingCar === car
             ? '[F] SAIR DO VEÍCULO'
+            : car.isTraffic
+            ? '[E] ACELERAR / [F] ROUBAR'
             : `[F] DIRIGIR (${Math.ceil((car.hp / car.maxHp) * 100)}% HP)`
       );
     } else {
@@ -95,15 +98,31 @@ export function buildNetHackLabels() {
       );
     }
   });
+
+  pedestrians.forEach((ped) => {
+    registerTag(
+      () => ped.mesh.position.clone().add(new THREE.Vector3(0, 2.15, 0)),
+      () =>
+        ped.profile.hacked
+          ? `${ped.profile.name} // CONTA HACKEADA`
+          : `${ped.profile.name} | ${ped.profile.job} | [E] +$75`,
+      24
+    );
+  });
 }
 
 export function updateNetHackLabels() {
   if (!gameState.netHackActive || !dom.nethackLabels) return;
   const w = window.innerWidth;
   const h = window.innerHeight;
+  const pPos = refs.playerGroup?.position;
 
   netHackTagItems.forEach((item) => {
     const pos = item.getPos();
+    if (item.maxDist < Infinity && pPos && pos.distanceTo(pPos) > item.maxDist) {
+      item.el.style.display = 'none';
+      return;
+    }
     const projected = pos.project(refs.camera);
     if (
       projected.z > 1 ||
@@ -580,6 +599,8 @@ export function updateRadar() {
       ? '#00f0ff'
       : car.hackedUsed
       ? '#ffaa00'
+      : car.isTraffic
+      ? '#38bdf8'
       : '#94a3b8';
     ctx.fillRect(-1.05 * scale, -2.2 * scale, 2.1 * scale, 4.4 * scale);
     ctx.restore();

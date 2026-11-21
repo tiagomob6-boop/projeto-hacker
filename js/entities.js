@@ -23,6 +23,8 @@ import {
   electricBoxes,
   gates,
   cars,
+  trafficCars,
+  pedestrians,
   fleeingDrivers,
   boats,
   missionMarkers,
@@ -39,6 +41,7 @@ import {
   openMissionModal,
   triggerGameOver,
   triggerVictory,
+  updateMoneyHUD,
   updateVehicleHpHUD
 } from './ui.js';
 import {
@@ -641,10 +644,24 @@ export function handleInteractPress() {
     }
   }
 
-  // 3b. Checar carros estacionados hackeáveis na Visão NetHack (V)
+  // 3b. Checar carros hackeáveis ou pedestres (Profiler +$75) na Visão NetHack (V)
   if (gameState.netHackActive) {
+    for (const ped of pedestrians) {
+      if (ped.profile.hacked) continue;
+      const distPed = pPos.distanceTo(ped.mesh.position);
+      const toPed = ped.mesh.position.clone().add(new THREE.Vector3(0, 1.3, 0)).sub(refs.camera.position).normalize();
+      if (distPed < 22 && camDir.dot(toPed) > 0.91) {
+        ped.profile.hacked = true;
+        gameState.money += 75;
+        gameState.hacksUsed += 1;
+        updateMoneyHUD();
+        AudioManager.playTerminalSuccess();
+        return;
+      }
+    }
+
     for (const car of cars) {
-      if (car.isDedsec || car.hackedUsed) continue;
+      if (car.isDedsec || car.destroyed || car.hackedUsed) continue;
       const distCar = pPos.distanceTo(car.mesh.position);
       const toCar = car.mesh.position.clone().sub(refs.camera.position).normalize();
       if (distCar < 32 && camDir.dot(toCar) > 0.88) {
@@ -881,7 +898,74 @@ export function updateCars(dt) {
       }
     }
 
-    if (car.isDrivable || car.destroyed || car.hackedTimer <= 0) return;
+    if (car.destroyed) return;
+
+    // Tráfego autônomo em movimento pelas avenidas e pontes
+    if (car.isTraffic && car !== gameState.drivingCar && car.hasDriver && car.hackedTimer <= 0) {
+      car.hornCooldown = Math.max(0, (car.hornCooldown || 0) - dt);
+      const [tx, tz] = car.waypoints[car.currentTarget];
+      const dx = tx - car.mesh.position.x;
+      const dz = tz - car.mesh.position.z;
+      const distWp = Math.hypot(dx, dz);
+      if (distWp < 3.0) {
+        car.currentTarget = (car.currentTarget + 1) % car.waypoints.length;
+      } else {
+        const desiredYaw = Math.atan2(dx, dz);
+        let diff = desiredYaw - car.mesh.rotation.y;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        car.mesh.rotation.y += diff * Math.min(1, dt * 4.5);
+      }
+
+      const fwdX = Math.sin(car.mesh.rotation.y);
+      const fwdZ = Math.cos(car.mesh.rotation.y);
+
+      // Detecção frontal de outros veículos ou do jogador
+      let blocked = false;
+      const pPos = refs.playerGroup.position;
+      const toPlayerX = pPos.x - car.mesh.position.x;
+      const toPlayerZ = pPos.z - car.mesh.position.z;
+      const distPlayer = Math.hypot(toPlayerX, toPlayerZ);
+      if (distPlayer < 7.5 && (toPlayerX * fwdX + toPlayerZ * fwdZ) / (distPlayer || 1) > 0.72 && Math.abs(pPos.y - car.mesh.position.y) < 3.0) {
+        blocked = true;
+        if (car.hornCooldown <= 0) {
+          AudioManager.playHorn();
+          car.hornCooldown = 3.5;
+        }
+      }
+
+      if (!blocked) {
+        for (const other of cars) {
+          if (other === car || other.destroyed) continue;
+          const ox = other.mesh.position.x - car.mesh.position.x;
+          const oz = other.mesh.position.z - car.mesh.position.z;
+          const od = Math.hypot(ox, oz);
+          if (od < 8.5 && (ox * fwdX + oz * fwdZ) / (od || 1) > 0.75 && Math.abs(other.mesh.position.y - car.mesh.position.y) < 3.0) {
+            blocked = true;
+            if (car.hornCooldown <= 0 && distPlayer < 45) {
+              AudioManager.playHorn();
+              car.hornCooldown = 4.0;
+            }
+            break;
+          }
+        }
+      }
+
+      const targetSpeed = blocked ? 0 : car.baseSpeed;
+      car.speed = THREE.MathUtils.lerp(car.speed, targetSpeed, Math.min(1, dt * (blocked ? 6.0 : 2.5)));
+      if (car.speed > 0.15) {
+        const nx = car.mesh.position.x + fwdX * car.speed * dt;
+        const nz = car.mesh.position.z + fwdZ * car.speed * dt;
+        car.mesh.position.x = nx;
+        car.mesh.position.z = nz;
+        car.mesh.position.y = getSurfaceHeight(nx, nz);
+        car.mesh.updateMatrixWorld(true);
+        car.colliderObj.box.setFromObject(car.mesh);
+      }
+      return;
+    }
+
+    if ((car.isDrivable && !car.isTraffic) || car.hackedTimer <= 0) return;
 
     car.hackedTimer = Math.max(0, car.hackedTimer - dt);
     const forwardX = Math.sin(car.mesh.rotation.y);
@@ -1292,6 +1376,61 @@ export function updateSecurityCameras(dt, playerPos, playerCenter) {
   return camSpotted;
 }
 
+export function updatePedestrians(dt) {
+  pedestrians.forEach((ped) => {
+    const pos = ped.mesh.position;
+    let moveX = 0;
+    let moveZ = 0;
+    let speed = ped.walkSpeed;
+
+    if (ped.panickedTimer > 0) {
+      ped.panickedTimer = Math.max(0, ped.panickedTimer - dt);
+      moveX = ped.panicDirX;
+      moveZ = ped.panicDirZ;
+      speed = 5.2;
+    } else {
+      const [tx, tz] = ped.waypoints[ped.currentTarget];
+      const dx = tx - pos.x;
+      const dz = tz - pos.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist < 1.2) {
+        ped.currentTarget = (ped.currentTarget + 1) % ped.waypoints.length;
+      } else {
+        moveX = dx / dist;
+        moveZ = dz / dist;
+      }
+    }
+
+    if (moveX !== 0 || moveZ !== 0) {
+      const nx = pos.x + moveX * speed * dt;
+      const nz = pos.z + moveZ * speed * dt;
+      if (!checkCollision(nx, nz, 0.35) && !isWaterArea(nx, nz)) {
+        pos.x = nx;
+        pos.z = nz;
+        pos.y = getSurfaceHeight(nx, nz);
+      } else if (ped.panickedTimer > 0) {
+        ped.panicDirX = -ped.panicDirX;
+        ped.panicDirZ = -ped.panicDirZ;
+      } else {
+        ped.currentTarget = (ped.currentTarget + 1) % ped.waypoints.length;
+      }
+
+      const targetYaw = Math.atan2(moveX, moveZ);
+      let diff = targetYaw - ped.mesh.rotation.y;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      ped.mesh.rotation.y += diff * Math.min(1, dt * 8);
+
+      ped.phase += dt * (ped.panickedTimer > 0 ? 15 : 8.5);
+      const swing = Math.sin(ped.phase) * (ped.panickedTimer > 0 ? 0.65 : 0.4);
+      ped.legL.rotation.x = swing;
+      ped.legR.rotation.x = -swing;
+      ped.armL.rotation.x = ped.panickedTimer > 0 ? -2.1 + swing * 0.4 : -swing * 0.7;
+      ped.armR.rotation.x = ped.panickedTimer > 0 ? -2.1 - swing * 0.4 : swing * 0.7;
+    }
+  });
+}
+
 export function updateGuards(dt) {
   const playerPos = refs.playerGroup.position;
   const playerCenter = new THREE.Vector3(
@@ -1598,11 +1737,26 @@ export function updateInteractionsAndMission(dt) {
     }
   }
 
-  // Prompt de caixas elétricas (perto ou mirando na Visão NetHack)
+  // Prompt de Profiler ctOS em pedestres (Visão NetHack) e caixas elétricas
   if (!promptText && gameState.activeCamIndex < 0) {
     const camDir = new THREE.Vector3();
     refs.camera.getWorldDirection(camDir);
-    for (const box of electricBoxes) {
+
+    if (gameState.netHackActive) {
+      for (const ped of pedestrians) {
+        const distPed = pPos.distanceTo(ped.mesh.position);
+        const toPed = ped.mesh.position.clone().add(new THREE.Vector3(0, 1.3, 0)).sub(refs.camera.position).normalize();
+        if (distPed < 22 && camDir.dot(toPed) > 0.91) {
+          promptText = ped.profile.hacked
+            ? `PROFILER: ${ped.profile.name} (${ped.profile.job}) — CONTA HACKEADA`
+            : `[E] PROFILER: ${ped.profile.name} (${ped.profile.job}) — HACKEAR CONTA (+$75)`;
+          break;
+        }
+      }
+    }
+
+    if (!promptText) {
+      for (const box of electricBoxes) {
       const distBox = pPos.distanceTo(box.mesh.position);
       const toBox = box.mesh.position.clone().sub(refs.camera.position).normalize();
       const lookingInNetHack = gameState.netHackActive && distBox < 28 && camDir.dot(toBox) > 0.90;
@@ -1613,6 +1767,7 @@ export function updateInteractionsAndMission(dt) {
             : '[E] SOBRECARREGAR CAIXA ELÉTRICA (DISTRAÇÃO)';
         break;
       }
+    }
     }
   }
 

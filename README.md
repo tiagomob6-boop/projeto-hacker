@@ -31,11 +31,11 @@ Explore livremente o mapa contínuo (`-30000..30000`) com `$500` iniciais e ativ
 | `Shift` | Correr mais rápido (aumenta o alcance de detecção dos guardas) |
 | `Ctrl` | Agachar (reduz altura para cobertura atrás de caixas e diminui detecção) |
 | `Mouse` (Pointer Lock) | Orbitar câmera em 3ª pessoa / Girar câmera de segurança |
-| `V` | Alternar **Visão NetHack** (muros wireframe e rede ctOS em neon) |
+| `V` | Alternar **Visão NetHack** (muros wireframe, rede ctOS e **Profiler** de pedestres) |
 | `C` | Hackear / alternar entre **Câmeras de Segurança** e voltar ao agente |
 | `R` | Sobrecarregar e desativar por `15s` a câmera controlada no momento |
-| `E` | Hackear Portão / Firewall, sobrecarregar Caixa Elétrica, acelerar Carro (NetHack) ou baixar Servidor |
-| `F` | Entrar / sair do Carro Esporte DedSec ou pilotar / desembarcar da **Lancha DedSec** (`WASD`) |
+| `E` | Hackear Portão / Firewall, sobrecarregar Caixa Elétrica, acelerar Carro ou hackear conta de Pedestre (`+$75` no NetHack) |
+| `F` | Roubar/entrar em qualquer carro (ejetando o motorista) ou pilotar / desembarcar da **Lancha DedSec** (`WASD`) |
 | `1` `2` `3` `4` | Selecionar arma: `[1]` Taser, `[2]` 9mm Silenciada, `[3]` Rifle Automático, `[4]` Pulso EMP |
 | `Clique Esquerdo` | Disparar arma equipada (segurar para rajada automática no Rifle `[3]`) |
 | `M` | Ligar / silenciar (Mudo) o áudio procedural e a trilha sonora |
