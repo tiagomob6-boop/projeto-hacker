@@ -31,6 +31,9 @@ import {
   boats,
   missionMarkers,
   stores,
+  lightPoles,
+  supplyBoxes,
+  colliders,
   getSurfaceHeight,
   createHackableDevice,
   isWaterArea,
@@ -47,6 +50,7 @@ import {
   triggerGameOver,
   triggerVictory,
   updateMoneyHUD,
+  updateHpHUD,
   updateVehicleHpHUD
 } from './ui.js';
 import {
@@ -674,10 +678,29 @@ export function handleInteractPress() {
     }
   }
 
-  // 1b. Checar lojas interativas (DedSec Style / HackShop Armory)
+  // 1b. Checar lojas interativas (DedSec Style / HackShop Armory / SF Motors)
   for (const st of stores) {
     if (pPos.distanceTo(st.pos) < 3.6) {
       openShopModal(st.type);
+      return;
+    }
+  }
+
+  // 1c. Checar caixas de suprimentos nos prédios abertos (+$100 ou +25 HP)
+  for (const sb of supplyBoxes) {
+    if (!sb.used && pPos.distanceTo(sb.pos) < 3.0) {
+      sb.used = true;
+      if (sb.mesh?.userData?.normalMaterial?.emissive) {
+        sb.mesh.userData.normalMaterial.emissiveIntensity = 0.08;
+      }
+      if (sb.rewardType === 'MONEY') {
+        gameState.money += 100;
+        updateMoneyHUD();
+      } else {
+        gameState.hp = Math.min(gameState.maxHp || 100, gameState.hp + 25);
+        updateHpHUD();
+      }
+      AudioManager.playTerminalSuccess();
       return;
     }
   }
@@ -917,10 +940,89 @@ function spawnFleeingDriver(car) {
   });
 }
 
+function knockDownLightPole(pole, dirX, dirZ) {
+  if (!pole || pole.fallen) return;
+  pole.fallen = true;
+  pole.falling = true;
+  pole.fallProgress = 0;
+  const len = Math.hypot(dirX, dirZ) || 1;
+  pole.fallDirX = dirX / len;
+  pole.fallDirZ = dirZ / len;
+
+  // Remover colisor para liberar a passagem
+  const colIdx = colliders.indexOf(pole.colliderObj);
+  if (colIdx !== -1) colliders.splice(colIdx, 1);
+
+  // Ocultar a instância original do InstancedMesh
+  const zeroDummy = new THREE.Object3D();
+  zeroDummy.scale.set(0, 0, 0);
+  zeroDummy.updateMatrix();
+  pole.poleMesh.setMatrixAt(pole.id, zeroDummy.matrix);
+  pole.headMesh.setMatrixAt(pole.id, zeroDummy.matrix);
+  pole.poleMesh.instanceMatrix.needsUpdate = true;
+  pole.headMesh.instanceMatrix.needsUpdate = true;
+
+  // Criar poste tombável com pivô na base + faíscas elétricas
+  const fallGroup = new THREE.Group();
+  fallGroup.position.set(pole.x, 0, pole.z);
+  fallGroup.rotation.y = Math.atan2(pole.fallDirX, pole.fallDirZ);
+
+  const shaft = new THREE.Mesh(
+    new THREE.BoxGeometry(0.35, 5.8, 0.35),
+    new THREE.MeshStandardMaterial({ color: 0x1e2538, roughness: 0.6 })
+  );
+  shaft.position.y = 2.9;
+  const lamp = new THREE.Mesh(
+    new THREE.BoxGeometry(1.1, 0.22, 0.45),
+    new THREE.MeshBasicMaterial({ color: 0x00f0ff })
+  );
+  lamp.position.y = 5.85;
+  fallGroup.add(shaft, lamp);
+  refs.worldGroup.add(fallGroup);
+  pole.fallGroup = fallGroup;
+
+  // Faíscas elétricas na base
+  const sparkCount = 18;
+  const sparkPos = new Float32Array(sparkCount * 3);
+  for (let i = 0; i < sparkCount; i++) {
+    sparkPos[i * 3] = pole.x + (Math.random() - 0.5) * 0.9;
+    sparkPos[i * 3 + 1] = 0.2 + Math.random() * 1.4;
+    sparkPos[i * 3 + 2] = pole.z + (Math.random() - 0.5) * 0.9;
+  }
+  const sparkGeo = new THREE.BufferGeometry();
+  sparkGeo.setAttribute('position', new THREE.BufferAttribute(sparkPos, 3));
+  const sparkPoints = new THREE.Points(
+    sparkGeo,
+    new THREE.PointsMaterial({ color: 0x00f0ff, size: 0.28, transparent: true, opacity: 0.95 })
+  );
+  refs.worldGroup.add(sparkPoints);
+  pole.sparkPoints = sparkPoints;
+  pole.sparkTimer = 1.4;
+
+  AudioManager.playMetalCrash();
+}
+
 // ==========================================
 // MOVIMENTAÇÃO, COLISÃO, CARROS E CÂMERA
 // ==========================================
 export function updateCars(dt) {
+  // Animação física de queda dos postes atingidos e faíscas elétricas
+  lightPoles.forEach((pole) => {
+    if (pole.falling && pole.fallGroup) {
+      pole.fallProgress = Math.min(1, pole.fallProgress + dt * 2.1);
+      const eased = 1 - Math.pow(1 - pole.fallProgress, 2);
+      pole.fallGroup.rotation.x = eased * (Math.PI / 2 - 0.08);
+      if (pole.fallProgress >= 1) pole.falling = false;
+    }
+    if (pole.sparkPoints && pole.sparkTimer > 0) {
+      pole.sparkTimer = Math.max(0, pole.sparkTimer - dt);
+      pole.sparkPoints.material.opacity = pole.sparkTimer / 1.4;
+      if (pole.sparkTimer <= 0) {
+        refs.worldGroup.remove(pole.sparkPoints);
+        pole.sparkPoints = null;
+      }
+    }
+  });
   for (let i = fleeingDrivers.length - 1; i >= 0; i--) {
     const drv = fleeingDrivers[i];
     drv.timer -= dt;
@@ -1171,6 +1273,19 @@ export function updatePlayer(dt) {
     const stepZ = fz * car.speed * dt;
 
     const cPos = car.mesh.position;
+
+    // Derrubar postes de luz se o carro colidir em alta velocidade (speed >= 6)
+    if (Math.abs(car.speed) >= 6.0) {
+      for (const pole of lightPoles) {
+        if (pole.fallen) continue;
+        const dPole = Math.hypot(cPos.x + stepX - pole.x, cPos.z + stepZ - pole.z);
+        if (dPole < 2.2) {
+          knockDownLightPole(pole, fx * Math.sign(car.speed), fz * Math.sign(car.speed));
+          car.speed *= 0.84;
+        }
+      }
+    }
+
     if (!checkCarCollision(cPos.x + stepX, cPos.z, car.mesh.rotation.y, car)) {
       cPos.x += stepX;
     } else {
@@ -1892,6 +2007,19 @@ export function updateInteractionsAndMission(dt) {
       }
       if (!promptText && dStore < 3.6) {
         promptText = `[E] ACESSAR ${st.name}`;
+      }
+    }
+  }
+
+  // Prompt de caixas de suprimentos nos prédios abertos
+  if (!promptText && gameState.activeCamIndex < 0) {
+    for (const sb of supplyBoxes) {
+      if (!sb.used && pPos.distanceTo(sb.pos) < 3.0) {
+        promptText =
+          sb.rewardType === 'MONEY'
+            ? '[E] COLETAR SUPRIMENTOS (+$100)'
+            : '[E] USAR KIT MÉDICO (+25 HP)';
+        break;
       }
     }
   }

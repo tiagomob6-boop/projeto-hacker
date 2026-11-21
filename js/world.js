@@ -34,6 +34,8 @@ import {
   sirenLights,
   missionMarkers,
   stores,
+  lightPoles,
+  supplyBoxes,
   missionServers,
   missionExtractions,
   serverParticleData,
@@ -290,6 +292,8 @@ export function buildMap() {
   sirenLights.length = 0;
   missionMarkers.length = 0;
   stores.length = 0;
+  lightPoles.length = 0;
+  supplyBoxes.length = 0;
   refs.waterMesh = null;
   refs.dedsecCar = null;
   refs.showroomTurntable = null;
@@ -581,6 +585,33 @@ export function buildInstancedWorldElements() {
     dummy.position.set(lx, 5.85, lz);
     dummy.updateMatrix();
     headMesh.setMatrixAt(i, dummy.matrix);
+
+    const colliderObj = {
+      box: new THREE.Box3(
+        new THREE.Vector3(lx - 0.32, 0, lz - 0.32),
+        new THREE.Vector3(lx + 0.32, 5.8, lz + 0.32)
+      ),
+      mesh: poleMesh,
+      isLightPole: true,
+      poleIndex: i
+    };
+    colliders.push(colliderObj);
+    lightPoles.push({
+      id: i,
+      x: lx,
+      z: lz,
+      poleMesh,
+      headMesh,
+      colliderObj,
+      fallen: false,
+      falling: false,
+      fallProgress: 0,
+      fallDirX: 0,
+      fallDirZ: 1,
+      fallGroup: null,
+      sparkPoints: null,
+      sparkTimer: 0
+    });
   });
   refs.worldGroup.add(poleMesh, headMesh);
 
@@ -1213,6 +1244,125 @@ export function buildDetailedBuilding(x, z, w, h, d, style = {}) {
   blinkingLights.push({ mat: beaconMat, phase: Math.random() * Math.PI * 2 });
 }
 
+export function buildEnterableBuilding(x, z, w, h, d, opts = {}) {
+  const accent = opts.accent || 0x00f0ff;
+  const doorSide = opts.doorSide || 'EAST';
+  const theme = opts.theme || 'CAFE';
+  const floorH = 4.6;
+  const doorW = 4.4;
+  const wallT = 0.55;
+
+  // Piso interno iluminado
+  addStaticBox(w - 0.6, 0.14, d - 0.6, x, 0.12, z, 0x131c30, {
+    collide: false,
+    occlude: false,
+    edgesColor: accent,
+    edgesOpacity: 0.45
+  });
+
+  // Paredes do térreo (com vão de entrada livre na face voltada para a avenida)
+  addStaticBox(w, floorH, wallT, x, floorH / 2, z - d / 2, 0x192338, { edgesColor: accent, edgesOpacity: 0.45 });
+  addStaticBox(w, floorH, wallT, x, floorH / 2, z + d / 2, 0x192338, { edgesColor: accent, edgesOpacity: 0.45 });
+
+  const segD = (d - doorW) / 2;
+  if (doorSide === 'EAST') {
+    // Parede oeste fechada, parede leste com porta aberta
+    addStaticBox(wallT, floorH, d, x - w / 2, floorH / 2, z, 0x192338, { edgesColor: accent, edgesOpacity: 0.45 });
+    addStaticBox(wallT, floorH, segD, x + w / 2, floorH / 2, z - (doorW / 2 + segD / 2), 0x192338, { edgesColor: accent, edgesOpacity: 0.55 });
+    addStaticBox(wallT, floorH, segD, x + w / 2, floorH / 2, z + (doorW / 2 + segD / 2), 0x192338, { edgesColor: accent, edgesOpacity: 0.55 });
+    // Letreiro neon acima da porta
+    addStaticBox(0.24, 0.65, 5.4, x + w / 2 + 0.35, floorH - 0.35, z, accent, {
+      collide: false,
+      occlude: false,
+      emissive: accent,
+      emissiveIntensity: 1.25
+    });
+  } else {
+    // Parede leste fechada, parede oeste com porta aberta
+    addStaticBox(wallT, floorH, d, x + w / 2, floorH / 2, z, 0x192338, { edgesColor: accent, edgesOpacity: 0.45 });
+    addStaticBox(wallT, floorH, segD, x - w / 2, floorH / 2, z - (doorW / 2 + segD / 2), 0x192338, { edgesColor: accent, edgesOpacity: 0.55 });
+    addStaticBox(wallT, floorH, segD, x - w / 2, floorH / 2, z + (doorW / 2 + segD / 2), 0x192338, { edgesColor: accent, edgesOpacity: 0.55 });
+    addStaticBox(0.24, 0.65, 5.4, x - w / 2 - 0.35, floorH - 0.35, z, accent, {
+      collide: false,
+      occlude: false,
+      emissive: accent,
+      emissiveIntensity: 1.25
+    });
+  }
+
+  // Laje do teto do térreo + torre superior estilizada (acima de y = floorH, sem bloquear interior)
+  const upperH = Math.max(6, h - floorH);
+  const facadeTex = TextureGenerator.getBuildingFacadeTexture(2, 3);
+  const upperMat = new THREE.MeshStandardMaterial({
+    color: 0xd0dcf5,
+    map: facadeTex,
+    emissive: 0x18253d,
+    emissiveMap: facadeTex,
+    emissiveIntensity: 0.65,
+    roughness: 0.6
+  });
+  const upperMesh = new THREE.Mesh(new THREE.BoxGeometry(w - 0.3, upperH, d - 0.3), upperMat);
+  upperMesh.position.set(x, floorH + upperH / 2, z);
+  upperMesh.castShadow = true;
+  upperMesh.userData.normalMaterial = upperMat;
+  upperMesh.userData.nethackMaterial = new THREE.MeshBasicMaterial({ color: 0x0b3a5c, wireframe: true, transparent: true, opacity: 0.45 });
+  structureMeshes.push(upperMesh);
+  refs.worldGroup.add(upperMesh);
+
+  // Luz interna e tela holográfica na parede dos fundos
+  const backX = doorSide === 'EAST' ? x - w / 2 + 0.45 : x + w / 2 - 0.45;
+  addStaticBox(0.14, 1.8, 3.8, backX, 2.3, z, accent, {
+    collide: false,
+    occlude: false,
+    emissive: accent,
+    emissiveIntensity: 0.95
+  });
+  const intLight = new THREE.PointLight(accent, 1.6, 15);
+  intLight.position.set(x, 3.6, z);
+  refs.worldGroup.add(intLight);
+
+  // Mobília interna com colisão e oclusão (para cobertura em tiroteios internos)
+  const midDir = doorSide === 'EAST' ? -1 : 1;
+  // Balcão / Parede divisória central baixa (cobertura tática)
+  addStaticBox(1.1, 1.15, 4.6, x + midDir * 2.4, 0.65, z, 0x222f47, { edgesColor: accent, edgesOpacity: 0.6 });
+
+  if (theme === 'CAFE' || theme === 'HIDEOUT') {
+    // Mesas, cadeiras e sofá
+    [-3.4, 3.4].forEach((oz) => {
+      addStaticBox(1.6, 0.85, 1.6, x - midDir * 1.4, 0.48, z + oz, 0x26344d, { edgesColor: accent, edgesOpacity: 0.45 });
+      addStaticBox(0.65, 0.55, 0.65, x - midDir * 2.5, 0.32, z + oz, 0x1b2438, { occlude: false });
+    });
+    // Sofá lateral
+    addStaticBox(1.2, 0.85, 3.2, x + midDir * 4.6, 0.48, z - 3.6, 0x2d1e3e, { edgesColor: accent, edgesOpacity: 0.4 });
+  } else {
+    // Escritório ctOS / Oficina: mesas com terminais de computador e bancadas
+    [-3.4, 3.4].forEach((oz) => {
+      addStaticBox(2.2, 0.95, 1.1, x - midDir * 1.0, 0.52, z + oz, 0x202b40, { edgesColor: accent, edgesOpacity: 0.5 });
+      addStaticBox(0.85, 0.55, 0.14, x - midDir * 1.0, 1.32, z + oz, accent, {
+        collide: false,
+        occlude: false,
+        emissive: accent,
+        emissiveIntensity: 0.9
+      });
+    });
+  }
+
+  // Caixa de Suprimentos interativa (+$100 ou +25 HP com E)
+  const rewardType = theme === 'CAFE' || theme === 'GARAGE' ? 'MONEY' : 'HP';
+  const supColor = rewardType === 'MONEY' ? 0x00ff88 : 0x00f0ff;
+  const supX = x + midDir * 4.4;
+  const supZ = z + 3.6;
+  const supMesh = createHackableDevice(0.95, 0.72, 0.95, supX, 0.48, supZ, supColor, `SUPRIMENTO_${theme}`);
+  supplyBoxes.push({
+    id: supplyBoxes.length,
+    mesh: supMesh,
+    pos: new THREE.Vector3(supX, 0.48, supZ),
+    rewardType,
+    used: false
+  });
+  radarBuildings.push({ x, z, w, d });
+}
+
 export function buildEnvironment(cfg) {
   // Chão principal ampliado (cobre X: -65..65 e Z: -65..75) com textura procedural de asfalto
   const asphaltTex = TextureGenerator.getAsphaltTexture(22, 24);
@@ -1287,12 +1437,12 @@ export function buildEnvironment(cfg) {
     });
   });
 
-  // Quarteirões urbanos detalhados (com becos laterais entre eles)
-  buildDetailedBuilding(-52, 16, 14, 18, 14, { accent: 0x00f0ff });
-  buildDetailedBuilding(-52, 42, 14, 22, 16, { accent: 0xff0055 });
+  // Quarteirões urbanos: 4 prédios principais com portas abertas e interiores mobiliados + prédios laterais
+  buildEnterableBuilding(-52, 16, 14, 18, 14, { accent: 0x00f0ff, doorSide: 'EAST', theme: 'CAFE', title: 'CAFÉ CYBER' });
+  buildEnterableBuilding(-52, 42, 14, 22, 16, { accent: 0xffaa00, doorSide: 'EAST', theme: 'GARAGE', title: 'OFICINA DEDSEC' });
   buildDetailedBuilding(-52, -14, 14, 20, 16, { accent: 0x38bdf8 });
-  buildDetailedBuilding(52, 16, 14, 19, 14, { accent: 0xff0055 });
-  buildDetailedBuilding(52, 42, 14, 24, 16, { accent: 0x00f0ff });
+  buildEnterableBuilding(52, 16, 14, 19, 14, { accent: 0xff0055, doorSide: 'WEST', theme: 'OFFICE', title: 'ESCRITÓRIO ctOS' });
+  buildEnterableBuilding(52, 42, 14, 24, 16, { accent: 0x00ff88, doorSide: 'WEST', theme: 'HIDEOUT', title: 'ESCONDERIJO DEDSEC' });
   buildDetailedBuilding(52, -14, 14, 21, 16, { accent: 0xffaa00 });
 
   // Arranha-céus detalhados do skyline ao fundo (fora da área jogável)

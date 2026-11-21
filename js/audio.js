@@ -210,6 +210,11 @@ export const AudioManager = {
     this._tone(523, 518, 0.18, 'triangle', 0.07, 1400, 0);
   },
 
+  playMetalCrash() {
+    this._tone(320, 88, 0.24, 'square', 0.18, 1400, 0);
+    this._tone(780, 190, 0.28, 'sawtooth', 0.14, 2200, 0.02);
+  },
+
   playBaseAlertSiren() {
     this._tone(620, 880, 0.28, 'sawtooth', 0.16, 1500, 0);
     this._tone(880, 540, 0.32, 'sawtooth', 0.16, 1500, 0.28);

@@ -345,7 +345,9 @@ export const blinkingLights = [];  // { mat, phase }
 export const sirenLights = [];     // { blueMat, redMat, phase }
 export const netHackTagItems = []; // { el, getPos, getText }
 export const missionMarkers = [];  // { key, ring, beam }
-export const stores = [];          // { type: 'STYLE'|'ARMORY', name, pos, ring, color }
+export const stores = [];          // { type: 'STYLE'|'ARMORY'|'MOTORS', name, pos, ring, color }
+export const lightPoles = [];      // Postes de iluminação urbana com colisão e queda física
+export const supplyBoxes = [];     // Caixas de suprimentos (+$100 ou +25 HP) nos interiores acessíveis
 export const missionServers = {};  // { COMPLEXO_CTOS: { mesh, core, particles, particleData }, DOCAS_BAIA_SF: ... }
 export const missionExtractions = {}; // { COMPLEXO_CTOS: { group, ring, beam }, DOCAS_BAIA_SF: ... }
 
