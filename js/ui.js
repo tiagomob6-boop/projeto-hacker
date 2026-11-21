@@ -5,6 +5,7 @@ import {
   WEAPON_TYPE,
   WEAPON_CONFIG,
   SKINS_CATALOG,
+  VEHICLES_CATALOG,
   MAPS_CONFIG,
   HACK_CODES,
   FIREWALL_CODES,
@@ -387,13 +388,24 @@ export function openShopModal(storeType) {
   if (!dom.shopModal || !dom.shopItems) return;
   gameState.shopOpen = true;
   const isStyle = storeType === 'STYLE';
+  const isMotors = storeType === 'MOTORS';
   if (dom.shopTitle) {
-    dom.shopTitle.textContent = isStyle ? 'DEDSEC STYLE // ROUPAS & SKINS' : 'HACKSHOP ARMORY // ARMAS & TÁTICA';
-    dom.shopTitle.className = isStyle ? 'status-title neon-magenta' : 'status-title neon-cyan';
+    dom.shopTitle.textContent = isStyle
+      ? 'DEDSEC STYLE // ROUPAS & SKINS'
+      : isMotors
+      ? 'SF MOTORS // CONCESSIONÁRIA'
+      : 'HACKSHOP ARMORY // ARMAS & TÁTICA';
+    dom.shopTitle.className = isStyle
+      ? 'status-title neon-magenta'
+      : isMotors
+      ? 'status-title neon-cyan'
+      : 'status-title neon-green';
   }
   if (dom.shopSubtitle) {
     dom.shopSubtitle.textContent = isStyle
       ? 'Compre e equipe visuais completos para alterar seu agente em tempo real.'
+      : isMotors
+      ? 'Compre veículos exclusivos e faça spawn imediato na vaga externa da loja.'
       : 'Adquira blindagem extra, recarga rápida e armamento pesado DedSec.';
   }
 
@@ -401,7 +413,44 @@ export function openShopModal(storeType) {
     if (dom.shopMoney) dom.shopMoney.textContent = `$${gameState.money.toLocaleString('pt-BR')}`;
     dom.shopItems.innerHTML = '';
 
-    if (isStyle) {
+    if (isMotors) {
+      VEHICLES_CATALOG.forEach((veh) => {
+        const owned = gameState.ownedVehicles.includes(veh.id);
+        const row = document.createElement('div');
+        row.className = 'shop-item';
+        row.innerHTML = `
+          <div class="shop-item-info">
+            <div class="shop-item-title">${veh.name}</div>
+            <div class="shop-item-desc">${veh.desc}</div>
+          </div>
+        `;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `cyber-btn shop-item-btn ${owned ? 'green-btn' : ''}`;
+        if (owned) {
+          btn.textContent = 'SPAWNAR NA VAGA';
+          btn.addEventListener('click', () => {
+            refs.onSpawnVehicle?.(veh);
+            AudioManager.playTerminalSuccess();
+            closeShopModal();
+          });
+        } else {
+          btn.textContent = `COMPRAR $${veh.price}`;
+          btn.disabled = gameState.money < veh.price;
+          btn.addEventListener('click', () => {
+            if (gameState.money < veh.price) return;
+            gameState.money -= veh.price;
+            gameState.ownedVehicles.push(veh.id);
+            updateMoneyHUD();
+            refs.onSpawnVehicle?.(veh);
+            AudioManager.playTerminalSuccess();
+            closeShopModal();
+          });
+        }
+        row.appendChild(btn);
+        dom.shopItems.appendChild(row);
+      });
+    } else if (isStyle) {
       SKINS_CATALOG.forEach((skin) => {
         const owned = gameState.ownedSkins.includes(skin.id);
         const equipped = gameState.equippedSkin === skin.id;
@@ -658,14 +707,38 @@ export function updateRadar() {
     ctx.stroke();
   }
 
-  // Lojas interativas no radar
+  // Lojas interativas no radar (ícones distintos: Roupas, Armas e Concessionária)
   stores.forEach((st) => {
     const sp = toRadar(st.pos.x, st.pos.z);
-    ctx.fillStyle = st.type === 'STYLE' ? '#d946ef' : '#ffaa00';
-    ctx.fillRect(sp.x - 4, sp.y - 4, 8, 8);
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(sp.x - 4, sp.y - 4, 8, 8);
+    if (st.type === 'STYLE') {
+      // Losango magenta para Loja de Roupas
+      ctx.fillStyle = '#d946ef';
+      ctx.beginPath();
+      ctx.moveTo(sp.x, sp.y - 5);
+      ctx.lineTo(sp.x + 5, sp.y);
+      ctx.lineTo(sp.x, sp.y + 5);
+      ctx.lineTo(sp.x - 5, sp.y);
+      ctx.closePath();
+      ctx.fill();
+    } else if (st.type === 'MOTORS') {
+      // Anel duplo ciano para Concessionária SF Motors
+      ctx.strokeStyle = '#00f0ff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(sp.x, sp.y, 5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = '#00f0ff';
+      ctx.beginPath();
+      ctx.arc(sp.x, sp.y, 2, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // Quadrado âmbar para Loja de Armas
+      ctx.fillStyle = '#ffaa00';
+      ctx.fillRect(sp.x - 4, sp.y - 4, 8, 8);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(sp.x - 4, sp.y - 4, 8, 8);
+    }
   });
 
   // Marcadores de missão no radar

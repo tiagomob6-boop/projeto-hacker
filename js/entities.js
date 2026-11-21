@@ -1129,8 +1129,13 @@ export function updatePlayer(dt) {
     if (gameState.keys['KeyA'] || gameState.keys['ArrowLeft']) steer += 1;
     if (gameState.keys['KeyD'] || gameState.keys['ArrowRight']) steer -= 1;
 
+    const nitroActive = !!(car.hasNitro && (gameState.keys['ShiftLeft'] || gameState.keys['ShiftRight']) && throttle > 0);
+    const maxFwd = (car.maxSpeed || 18) * (nitroActive ? 1.42 : 1.0);
+    const accel = (car.accel || 18) * (nitroActive ? 1.5 : 1.0);
+    const turnRate = car.turnRate || 2.2;
+
     if (throttle !== 0) {
-      car.speed = THREE.MathUtils.clamp(car.speed + throttle * 18 * dt, -8.5, 16.5);
+      car.speed = THREE.MathUtils.clamp(car.speed + throttle * accel * dt, -9.0, maxFwd);
     } else {
       car.speed *= Math.max(0, 1 - dt * 3.5);
       if (Math.abs(car.speed) < 0.08) car.speed = 0;
@@ -1138,7 +1143,7 @@ export function updatePlayer(dt) {
 
     if (Math.abs(car.speed) > 0.4 && steer !== 0) {
       const dirSign = car.speed >= 0 ? 1 : -1;
-      car.mesh.rotation.y += steer * dirSign * 2.2 * dt;
+      car.mesh.rotation.y += steer * dirSign * turnRate * dt;
     }
 
     const fx = Math.sin(car.mesh.rotation.y);
@@ -1175,7 +1180,9 @@ export function updatePlayer(dt) {
     }
 
     AudioManager.updateEngineSound(Math.abs(car.speed));
-    if (!gameState.netHackActive) dom.statusMode.textContent = 'VEÍCULO';
+    if (!gameState.netHackActive) {
+      dom.statusMode.textContent = nitroActive ? 'VEÍCULO [NITRO]' : 'VEÍCULO';
+    }
     return;
   }
 

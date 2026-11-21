@@ -292,6 +292,7 @@ export function buildMap() {
   stores.length = 0;
   refs.waterMesh = null;
   refs.dedsecCar = null;
+  refs.showroomTurntable = null;
 
   // Água da Baía de São Francisco cobrindo todo o mundo aberto 50x (WORLD_BOUNDS: -30000..30000)
   refs.waterTexture = TextureGenerator.getWaterTexture();
@@ -737,15 +738,16 @@ export function buildMissionMarkers() {
 
 export function buildStores() {
   const storeConfigs = [
-    { type: 'STYLE', name: 'DEDSEC STYLE', x: -32, z: 68, color: 0xd946ef },
-    { type: 'ARMORY', name: 'HACKSHOP ARMORY', x: 32, z: 68, color: 0xffaa00 }
+    { type: 'STYLE', name: 'DEDSEC STYLE', x: -32, z: 68, w: 13, d: 11, color: 0xd946ef },
+    { type: 'MOTORS', name: 'SF MOTORS', x: 0, z: 68, w: 17, d: 13, color: 0x00f0ff },
+    { type: 'ARMORY', name: 'HACKSHOP ARMORY', x: 32, z: 68, w: 13, d: 11, color: 0xffaa00 }
   ];
 
   storeConfigs.forEach((st) => {
-    const w = 13;
-    const d = 11;
-    const h = 4.4;
-    const doorW = 4.6;
+    const w = st.w;
+    const d = st.d;
+    const h = st.type === 'MOTORS' ? 5.0 : 4.4;
+    const doorW = st.type === 'MOTORS' ? 5.6 : 4.6;
     const frontZ = st.z - d / 2;
     const backZ = st.z + d / 2;
     const segW = (w - doorW) / 2;
@@ -786,6 +788,25 @@ export function buildStores() {
         refs.worldGroup.add(manBody, manHead);
         void ped;
       });
+    } else if (st.type === 'MOTORS') {
+      // Plataforma giratória 3D com carro esporte em destaque + vitrines amplas
+      const turntable = new THREE.Group();
+      turntable.position.set(st.x, 0.24, st.z + 1.6);
+      const disc = new THREE.Mesh(
+        new THREE.CylinderGeometry(3.1, 3.3, 0.22, 32),
+        new THREE.MeshStandardMaterial({ color: 0x152238, roughness: 0.3, metalness: 0.7 })
+      );
+      const discTrim = new THREE.Mesh(
+        new THREE.RingGeometry(3.05, 3.25, 32),
+        new THREE.MeshBasicMaterial({ color: 0x00f0ff, side: THREE.DoubleSide })
+      );
+      discTrim.rotation.x = -Math.PI / 2;
+      discTrim.position.y = 0.12;
+      const { carGroup: demoCar } = buildCarMesh(0x0088ff, 0x00f0ff, false, 'SPORT', false);
+      demoCar.position.y = 0.12;
+      turntable.add(disc, discTrim, demoCar);
+      refs.worldGroup.add(turntable);
+      refs.showroomTurntable = turntable;
     } else {
       // Vitrines de armas no interior
       [-3.8, 3.8].forEach((wx) => {
@@ -805,7 +826,8 @@ export function buildStores() {
       new THREE.MeshBasicMaterial({ color: st.color, side: THREE.DoubleSide, transparent: true, opacity: 0.9 })
     );
     ring.rotation.x = -Math.PI / 2;
-    ring.position.set(st.x, 0.2, st.z - 0.5);
+    const triggerZ = st.type === 'MOTORS' ? st.z - 3.0 : st.z - 0.5;
+    ring.position.set(st.x, 0.2, triggerZ);
     refs.worldGroup.add(ring);
 
     const shopLight = new THREE.PointLight(st.color, 1.8, 14);
@@ -815,7 +837,7 @@ export function buildStores() {
     stores.push({
       type: st.type,
       name: st.name,
-      pos: new THREE.Vector3(st.x, 0, st.z - 0.5),
+      pos: new THREE.Vector3(st.x, 0, triggerZ),
       ring,
       color: st.color
     });
@@ -2552,7 +2574,81 @@ export function onWindowResize() {
   refs.renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
+export function spawnPurchasedVehicle(vehCfg) {
+  if (!vehCfg || !refs.worldGroup) return;
+  const sx = 10;
+  const sz = 56;
+  const yaw = Math.PI / 2;
+
+  const { carGroup, bodyMesh, driverMesh } = buildCarMesh(vehCfg.color, vehCfg.neon, false, vehCfg.bodyType, false);
+  carGroup.position.set(sx, getSurfaceHeight(sx, sz), sz);
+  carGroup.rotation.y = yaw;
+  refs.worldGroup.add(carGroup);
+
+  const headlight = new THREE.PointLight(vehCfg.neon || 0x00f0ff, 0, 16);
+  headlight.position.set(0, 1.0, 2.8);
+  carGroup.add(headlight);
+
+  const smokeCount = 22;
+  const smokePos = new Float32Array(smokeCount * 3);
+  const smokeData = [];
+  for (let s = 0; s < smokeCount; s++) {
+    smokePos[s * 3] = (Math.random() - 0.5) * 0.7;
+    smokePos[s * 3 + 1] = 0.8 + Math.random() * 1.4;
+    smokePos[s * 3 + 2] = 1.3 + (Math.random() - 0.5) * 0.6;
+    smokeData.push({ speed: 1.2 + Math.random() * 1.4, phase: Math.random() * Math.PI * 2 });
+  }
+  const smokeGeo = new THREE.BufferGeometry();
+  smokeGeo.setAttribute('position', new THREE.BufferAttribute(smokePos, 3));
+  const smokePoints = new THREE.Points(
+    smokeGeo,
+    new THREE.PointsMaterial({ color: 0x2b2b2b, size: 0.55, transparent: true, opacity: 0.75, depthWrite: false })
+  );
+  smokePoints.visible = false;
+  carGroup.add(smokePoints);
+
+  carGroup.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(carGroup);
+  const colliderObj = { box, mesh: bodyMesh, carIndex: cars.length };
+  colliders.push(colliderObj);
+  occluders.push(bodyMesh);
+
+  cars.push({
+    id: 500 + cars.length,
+    mesh: carGroup,
+    bodyMesh,
+    driverMesh,
+    initialHasDriver: false,
+    hasDriver: false,
+    isTraffic: false,
+    colliderObj,
+    initialPos: new THREE.Vector3(sx, getSurfaceHeight(sx, sz), sz),
+    initialYaw: yaw,
+    initialColor: vehCfg.color,
+    isDedsec: false,
+    isDrivable: true,
+    vipMissionKey: null,
+    maxHp: vehCfg.maxHp || 100,
+    hp: vehCfg.maxHp || 100,
+    maxSpeed: vehCfg.maxSpeed || 22,
+    accel: vehCfg.accel || 24,
+    turnRate: vehCfg.turnRate || 2.3,
+    hasNitro: !!vehCfg.hasNitro,
+    destroyed: false,
+    smokePoints,
+    smokeData,
+    speed: 0,
+    hackedTimer: 0,
+    hackedUsed: false,
+    headlight
+  });
+  buildNetHackLabels();
+}
+
 export function updateVisualEffects(dt, nowSec) {
+  if (refs.showroomTurntable) {
+    refs.showroomTurntable.rotation.y += dt * 0.65;
+  }
   if (refs.skyDome && refs.camera) {
     refs.skyDome.position.copy(refs.camera.position);
   }

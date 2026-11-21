@@ -47,6 +47,13 @@ export const SKINS_CATALOG = [
   { id: 'shadow', name: 'Operativo Shadow Roxo/Magenta', price: 1000, jacket: 0x1a102b, inner: 0x0e071a, pants: 0x120b20, cap: 0x3b0764, primary: 0xd946ef, secondary: 0x8b5cf6 }
 ];
 
+export const VEHICLES_CATALOG = [
+  { id: 'hatch_neon', name: 'Hatch Urbano Neon', price: 500, bodyType: 'HATCH', maxHp: 100, maxSpeed: 22, accel: 24, turnRate: 2.7, hasNitro: false, color: 0x1e3a5f, neon: 0x00f0ff, desc: 'Compacto ágil e econômico para manobras rápidas (100 HP).' },
+  { id: 'dedsec_gt', name: 'Esportivo DedSec GT', price: 1400, bodyType: 'SPORT', maxHp: 120, maxSpeed: 31, accel: 30, turnRate: 2.4, hasNitro: false, color: 0x141928, neon: 0x00ff88, desc: 'Cupê de altíssima velocidade com aerodinâmica de corrida (120 HP).' },
+  { id: 'ctos_suv', name: 'SUV Blindado ctOS', price: 2200, bodyType: 'SUV', maxHp: 280, maxSpeed: 21, accel: 20, turnRate: 1.95, hasNitro: false, color: 0x262f40, neon: 0xffaa00, desc: 'Blindagem pesada super resistente a tiros (280 HP).' },
+  { id: 'hyper_x', name: 'Interceptor Hyper-X', price: 3200, bodyType: 'SPORT', maxHp: 160, maxSpeed: 34, accel: 34, turnRate: 2.6, hasNitro: true, color: 0x2b0a3d, neon: 0xff0055, desc: 'Protótipo com turbo e Nitro ativado com [Shift] (160 HP).' }
+];
+
 export const TASER_COOLDOWN = WEAPON_CONFIG.TASER.cooldown;
 export const EMP_COOLDOWN = WEAPON_CONFIG.EMP.cooldown;
 
@@ -296,13 +303,15 @@ export const refs = {
   waterMesh: null,
   waterTexture: null,
   dedsecCar: null,
+  showroomTurntable: null,
   vehicleDeliveryGroup: null,
   vehicleDeliveryRing: null,
   vehicleDeliveryBeam: null,
   onFirewallDisabled: null,
   onAcceptMission: null,
   onApplySkin: null,
-  onSelectWeapon: null
+  onSelectWeapon: null,
+  onSpawnVehicle: null
 };
 
 export const serverParticleData = [];
@@ -352,6 +361,7 @@ export const gameState = {
   maxHp: 100,
   ownedSkins: ['classic'],
   equippedSkin: 'classic',
+  ownedVehicles: [],
   hasRapidReload: false,
   hasShotgun: false,
   shopOpen: false,

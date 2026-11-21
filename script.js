@@ -51,6 +51,7 @@ import {
   startContract,
   returnToFreeRoam,
   startMission,
+  spawnPurchasedVehicle,
   updateVisualEffects
 } from './js/world.js';
 
@@ -59,6 +60,7 @@ refs.onFirewallDisabled = triggerBaseAlert;
 refs.onAcceptMission = startContract;
 refs.onApplySkin = applyPlayerSkin;
 refs.onSelectWeapon = selectWeapon;
+refs.onSpawnVehicle = spawnPurchasedVehicle;
 
 function setupInputs() {
   window.addEventListener('keydown', (e) => {
