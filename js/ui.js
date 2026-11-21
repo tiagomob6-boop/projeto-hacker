@@ -33,7 +33,8 @@ import {
   stores,
   trafficLights,
   formatTime,
-  saveProgress
+  saveProgress,
+  getSurfaceHeight
 } from './state.js';
 import { AudioManager } from './audio.js';
 
@@ -463,6 +464,7 @@ export function acceptPendingMission() {
 export function openShopModal(storeType) {
   if (!dom.shopModal || !dom.shopItems) return;
   gameState.shopOpen = true;
+  if (document.pointerLockElement) document.exitPointerLock();
   const isStyle = storeType === 'STYLE';
   const isMotors = storeType === 'MOTORS';
   if (dom.shopTitle) {
@@ -963,6 +965,19 @@ export function triggerVictory() {
   gameState.mission = MISSION_STATE.VICTORY;
   gameState.droneActive = false;
   if (refs.droneGroup) refs.droneGroup.visible = false;
+  // Desvincula o carro entregue (contratos VIP) e coloca o jogador ao lado dele, visível e a pé
+  const deliveredCar = gameState.drivingCar;
+  if (deliveredCar && refs.playerGroup) {
+    const yaw = deliveredCar.mesh.rotation.y;
+    const outX = deliveredCar.mesh.position.x + Math.cos(yaw) * 2.8;
+    const outZ = deliveredCar.mesh.position.z - Math.sin(yaw) * 2.8;
+    refs.playerGroup.position.set(outX, getSurfaceHeight(outX, outZ), outZ);
+    deliveredCar.speed = 0;
+    if (deliveredCar.headlight) deliveredCar.headlight.intensity = 0;
+  }
+  gameState.drivingCar = null;
+  gameState.drivingBoat = null;
+  if (refs.activeHeadlight) refs.activeHeadlight.intensity = 0;
   if (refs.playerGroup) refs.playerGroup.visible = true;
   if (dom.droneHud) dom.droneHud.classList.add('hidden');
   if (dom.cameraOverlay) dom.cameraOverlay.classList.add('hidden');

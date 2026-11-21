@@ -3496,6 +3496,22 @@ export function resetWorldState(keepPlayerPos = false) {
 
   gameState.drivingCar = null;
   AudioManager.stopEngineSound();
+
+  // Natação: restaura estado a pé, esconde ondulação e reexibe a arma
+  gameState.isSwimming = false;
+  if (refs.playerParts) {
+    if (refs.playerParts.swimRipple) refs.playerParts.swimRipple.visible = false;
+    if (refs.playerParts.weaponMount) refs.playerParts.weaponMount.visible = true;
+  }
+
+  // Civis: limpa pânico, atordoamento e denúncias pendentes ao ctOS
+  pedestrians.forEach((ped) => {
+    ped.panickedTimer = 0;
+    ped.stunnedTimer = 0;
+    ped.callingPolice = false;
+    if (ped.phoneIcon) ped.phoneIcon.visible = false;
+    if (ped.mesh) ped.mesh.rotation.x = 0;
+  });
   const mapCfg = MAPS_CONFIG[gameState.selectedMap] || MAPS_CONFIG.COMPLEXO_CTOS;
   if (!keepPlayerPos) {
     gameState.drivingCar = null;
@@ -3734,6 +3750,9 @@ export function returnToFreeRoam() {
   gameState.targetCar = null;
   if (refs.vehicleDeliveryGroup) refs.vehicleDeliveryGroup.visible = false;
   gameState.markerCooldown = 3.5;
+  // Garante que o jogador saia do carro entregue (contratos VIP) e fique visível
+  gameState.drivingCar = null;
+  if (refs.playerGroup) refs.playerGroup.visible = true;
   resetWorldState(keepPos);
   dom.gameoverScreen.classList.add('hidden');
   dom.victoryScreen.classList.add('hidden');

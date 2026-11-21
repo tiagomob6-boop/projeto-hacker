@@ -376,7 +376,7 @@ export function updateProjectiles(dt) {
       hitPed.callingPolice = false;
       if (hitPed.phoneIcon) hitPed.phoneIcon.visible = false;
       hitPed.mesh.rotation.x = -Math.PI / 2;
-      hitPed.mesh.position.y = 0.2;
+      hitPed.mesh.position.y = getSurfaceHeight(hitPed.mesh.position.x, hitPed.mesh.position.z) + 0.2;
       if (gameState.wantedLevel === 0) {
         gameState.wantedStatus = 'OCULTO';
         updateWantedHUD();
