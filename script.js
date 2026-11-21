@@ -7,7 +7,8 @@ import {
   refs,
   gameState,
   securityCameras,
-  formatTime
+  formatTime,
+  loadProgress
 } from './js/state.js';
 import { AudioManager } from './js/audio.js';
 import { networkManager } from './js/network.js';
@@ -340,11 +341,13 @@ function showFatalError(err) {
 // BOOTSTRAP
 // ==========================================
 try {
+  loadProgress();
   initThree();
   setupInputs();
   setMissionState(MISSION_STATE.FREE_ROAM);
   updateMoneyHUD();
   updateHpHUD();
+  if (dom.btnRain) dom.btnRain.textContent = gameState.rainEnabled ? 'CHUVA: ON' : 'CHUVA: OFF';
   animate();
 } catch (err) {
   showFatalError(err);

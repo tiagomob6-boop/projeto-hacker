@@ -32,7 +32,8 @@ import {
   missionMarkers,
   stores,
   trafficLights,
-  formatTime
+  formatTime,
+  saveProgress
 } from './state.js';
 import { AudioManager } from './audio.js';
 
@@ -394,6 +395,7 @@ export function updateMoneyHUD() {
   if (dom.statusMoney) {
     dom.statusMoney.textContent = `$${gameState.money.toLocaleString('pt-BR')}`;
   }
+  saveProgress();
 }
 
 export function openMissionModal(missionKey) {
@@ -515,6 +517,7 @@ export function openShopModal(storeType) {
           btn.addEventListener('click', () => {
             gameState.equippedSkin = skin.id;
             refs.onApplySkin?.(skin.id);
+            saveProgress();
             AudioManager.playTerminalSuccess();
             renderShop();
           });
@@ -641,6 +644,7 @@ export function toggleRain() {
   gameState.rainEnabled = !gameState.rainEnabled;
   if (refs.rainPoints) refs.rainPoints.visible = gameState.rainEnabled;
   if (dom.btnRain) dom.btnRain.textContent = gameState.rainEnabled ? 'CHUVA: ON' : 'CHUVA: OFF';
+  saveProgress();
 }
 
 export function getActiveGpsTarget() {

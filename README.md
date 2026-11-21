@@ -30,7 +30,8 @@ Explore livremente o mapa contínuo (`-30000..30000`) com `$500` iniciais e ativ
 | Tecla / Ação | Função |
 | :--- | :--- |
 | `W` `A` `S` `D` (ou Setas) | Movimentar o personagem |
-| `Shift` | Correr mais rápido a pé ou ativar **Nitro** no **Interceptor Hyper-X** (SF Motors) |
+| `Shift` | Correr mais rápido a pé ou ativar **Nitro** (com FOV dinâmico e rastro neon) no **Interceptor Hyper-X** |
+| `Space` | Subir com o Drone (`Q`) ou ativar **Drift / Freio de Mão** dirigindo carros em alta velocidade |
 | `Ctrl` | Agachar (reduz altura para cobertura atrás de caixas e diminui detecção) |
 | `Mouse` (Pointer Lock) | Orbitar câmera em 3ª pessoa / Olhar em 1ª pessoa / Girar câmera de segurança |
 | `P` | Alternar câmera entre **3ª Pessoa** e **1ª Pessoa** (a pé com arma visível ou visão de **Cockpit** no carro) |

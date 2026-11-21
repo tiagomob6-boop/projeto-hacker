@@ -586,5 +586,50 @@ export function formatTime(seconds) {
   return `${m}:${s}`;
 }
 
+export const SAVE_KEY = 'projeto_hacker_dedsec_save_v1';
+
+export function saveProgress() {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    const data = {
+      money: gameState.money,
+      maxHp: gameState.maxHp,
+      ownedSkins: gameState.ownedSkins,
+      equippedSkin: gameState.equippedSkin,
+      ownedVehicles: gameState.ownedVehicles,
+      hasRapidReload: gameState.hasRapidReload,
+      hasShotgun: gameState.hasShotgun,
+      hasBlackout: gameState.hasBlackout,
+      rainEnabled: gameState.rainEnabled
+    };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+  } catch {
+    // Ignora falhas de quota/modo privado
+  }
+}
+
+export function loadProgress() {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    if (typeof data.money === 'number') gameState.money = data.money;
+    if (typeof data.maxHp === 'number') {
+      gameState.maxHp = data.maxHp;
+      gameState.hp = data.maxHp;
+    }
+    if (Array.isArray(data.ownedSkins) && data.ownedSkins.length > 0) gameState.ownedSkins = data.ownedSkins;
+    if (typeof data.equippedSkin === 'string') gameState.equippedSkin = data.equippedSkin;
+    if (Array.isArray(data.ownedVehicles)) gameState.ownedVehicles = data.ownedVehicles;
+    if (typeof data.hasRapidReload === 'boolean') gameState.hasRapidReload = data.hasRapidReload;
+    if (typeof data.hasShotgun === 'boolean') gameState.hasShotgun = data.hasShotgun;
+    if (typeof data.hasBlackout === 'boolean') gameState.hasBlackout = data.hasBlackout;
+    if (typeof data.rainEnabled === 'boolean') gameState.rainEnabled = data.rainEnabled;
+  } catch {
+    // Ignora JSON inválido
+  }
+}
+
 // ==========================================
 // CONTROLE DE TELAS E CICLO PRINCIPAL

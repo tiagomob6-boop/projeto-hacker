@@ -215,6 +215,14 @@ export const AudioManager = {
     this._tone(780, 190, 0.28, 'sawtooth', 0.14, 2200, 0.02);
   },
 
+  playTireScreech() {
+    this._tone(1150, 920, 0.14, 'sawtooth', 0.045, 2200, 0);
+  },
+
+  playLowHpWarning() {
+    this._tone(880, 880, 0.08, 'square', 0.06, 1800, 0);
+  },
+
   playBaseAlertSiren() {
     this._tone(620, 880, 0.28, 'sawtooth', 0.16, 1500, 0);
     this._tone(880, 540, 0.32, 'sawtooth', 0.16, 1500, 0.28);

@@ -65,7 +65,8 @@ import {
   stunGuard,
   triggerBaseAlert,
   fireGuardBullet,
-  reportCrimeToCivilians
+  reportCrimeToCivilians,
+  spawnTaserFlash
 } from './combat.js';
 
 function createAgentNameTag(labelText) {
@@ -1255,10 +1256,22 @@ export function updateCars(dt) {
     }
   }
   cars.forEach((car) => {
-    // Fumaça escura quando integridade <= 35%
+    // Dano progressivo: fumaça branca leve <= 65% HP, fumaça preta espessa <= 35% HP
     if (car.smokePoints) {
-      if (car.hp <= 35) {
+      const hpPct = car.hp / (car.maxHp || 100);
+      if (hpPct <= 0.65) {
         car.smokePoints.visible = true;
+        if (car.smokePoints.material) {
+          if (hpPct <= 0.35) {
+            car.smokePoints.material.color.setHex(0x1f1f1f);
+            car.smokePoints.material.opacity = 0.8;
+            car.smokePoints.material.size = 0.62;
+          } else {
+            car.smokePoints.material.color.setHex(0xcbd5e1);
+            car.smokePoints.material.opacity = 0.42;
+            car.smokePoints.material.size = 0.42;
+          }
+        }
         const posAttr = car.smokePoints.geometry.getAttribute('position');
         for (let s = 0; s < car.smokeData.length; s++) {
           const sd = car.smokeData[s];
@@ -1512,9 +1525,10 @@ export function updatePlayer(dt) {
     if (gameState.keys['KeyD'] || gameState.keys['ArrowRight']) steer -= 1;
 
     const nitroActive = !!(car.hasNitro && (gameState.keys['ShiftLeft'] || gameState.keys['ShiftRight']) && throttle > 0);
+    const driftActive = !!(gameState.keys['Space'] && Math.abs(car.speed) > 6.5 && steer !== 0);
     const maxFwd = (car.maxSpeed || 18) * (nitroActive ? 1.42 : 1.0);
     const accel = (car.accel || 18) * (nitroActive ? 1.5 : 1.0);
-    const turnRate = car.turnRate || 2.2;
+    const turnRate = (car.turnRate || 2.2) * (driftActive ? 1.65 : 1.0);
 
     if (throttle !== 0) {
       car.speed = THREE.MathUtils.clamp(car.speed + throttle * accel * dt, -9.0, maxFwd);
@@ -1522,10 +1536,48 @@ export function updatePlayer(dt) {
       car.speed *= Math.max(0, 1 - dt * 3.5);
       if (Math.abs(car.speed) < 0.08) car.speed = 0;
     }
+    if (driftActive) {
+      car.speed *= Math.max(0, 1 - dt * 1.1);
+      car.driftSoundCd = Math.max(0, (car.driftSoundCd || 0) - dt);
+      if (car.driftSoundCd <= 0) {
+        AudioManager.playTireScreech();
+        car.driftSoundCd = 0.28;
+      }
+    }
 
     if (Math.abs(car.speed) > 0.4 && steer !== 0) {
       const dirSign = car.speed >= 0 ? 1 : -1;
       car.mesh.rotation.y += steer * dirSign * turnRate * dt;
+    }
+    // Inclinação sutil da carroceria no drift
+    const targetTilt = driftActive ? steer * 0.075 : 0;
+    car.mesh.rotation.z = THREE.MathUtils.lerp(car.mesh.rotation.z, targetTilt, Math.min(1, dt * 10));
+
+    // FOV dinâmico e rastro neon no Nitro
+    if (refs.camera) {
+      const targetFov = nitroActive ? 74 : 62;
+      if (Math.abs(refs.camera.fov - targetFov) > 0.05) {
+        refs.camera.fov = THREE.MathUtils.lerp(refs.camera.fov, targetFov, Math.min(1, dt * 7));
+        refs.camera.updateProjectionMatrix();
+      }
+    }
+    if (nitroActive) {
+      car.nitroTrailCd = Math.max(0, (car.nitroTrailCd || 0) - dt);
+      if (car.nitroTrailCd <= 0) {
+        const backX = car.mesh.position.x - Math.sin(car.mesh.rotation.y) * 2.2;
+        const backZ = car.mesh.position.z - Math.cos(car.mesh.rotation.y) * 2.2;
+        spawnTaserFlash(new THREE.Vector3(backX, car.mesh.position.y + 0.45, backZ), 0xff0055);
+        car.nitroTrailCd = 0.07;
+      }
+    }
+
+    // Alerta sonoro crítico quando integridade do carro <= 15%
+    if (car.hp / (car.maxHp || 100) <= 0.15) {
+      car.warnCd = Math.max(0, (car.warnCd || 0) - dt);
+      if (car.warnCd <= 0) {
+        AudioManager.playLowHpWarning();
+        car.warnCd = 0.85;
+      }
     }
 
     const fx = Math.sin(car.mesh.rotation.y);
@@ -1601,12 +1653,16 @@ export function updatePlayer(dt) {
 
     AudioManager.updateEngineSound(Math.abs(car.speed));
     if (!gameState.netHackActive) {
-      dom.statusMode.textContent = nitroActive ? 'VEÍCULO [NITRO]' : 'VEÍCULO';
+      dom.statusMode.textContent = nitroActive ? 'VEÍCULO [NITRO]' : driftActive ? 'VEÍCULO [DRIFT]' : 'VEÍCULO';
     }
     return;
   }
 
   if (refs.activeHeadlight) refs.activeHeadlight.intensity = 0;
+  if (refs.camera && Math.abs(refs.camera.fov - 62) > 0.05) {
+    refs.camera.fov = THREE.MathUtils.lerp(refs.camera.fov, 62, Math.min(1, dt * 8));
+    refs.camera.updateProjectionMatrix();
+  }
 
   let inputZ = 0;
   let inputX = 0;
