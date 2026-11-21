@@ -464,16 +464,16 @@ export const raycaster = new THREE.Raycaster();
 // TEXTURAS PROCEDURAIS (HTML5 CANVAS -> CanvasTexture)
 
 export function getSurfaceHeight(x, z) {
-  // Ponte Golden Gate atravessável (X: 80..400, Z: 26..44, idêntico a isWaterForLand)
-  if (z >= 26 && z <= 44 && x >= 78 && x <= 402) {
+  // Ponte Golden Gate atravessável (X: 70..410, Z: 25.0..45.0)
+  if (z >= 25.0 && z <= 45.0 && x >= 70 && x <= 410) {
     if (x <= 80) return 0;
     if (x < 120) return ((x - 80) / 40) * 10;
     if (x <= 360) return 10;
     if (x <= 400) return ((400 - x) / 40) * 10;
     return 0;
   }
-  // Ponte Sul ligando Distrito Residencial ao Portuário (X: 80..400, Z: 312..328)
-  if (z >= 312 && z <= 328 && x >= 78 && x <= 402) {
+  // Ponte Sul ligando Distrito Residencial ao Portuário (X: 70..410, Z: 310.0..330.0)
+  if (z >= 310.0 && z <= 330.0 && x >= 70 && x <= 410) {
     if (x <= 80) return 0;
     if (x < 120) return ((x - 80) / 40) * 7;
     if (x <= 360) return 7;
@@ -576,10 +576,10 @@ export function isWaterForBoats(x, z) {
 }
 
 export function isWaterForLand(x, z) {
-  // Pista da Ponte Golden Gate atravessável (X: 78..402, Z: 26..44)
-  if (x >= 78 && x <= 402 && z >= 26 && z <= 44) return false;
-  // Pista da Ponte Sul atravessável (X: 78..402, Z: 312..328)
-  if (x >= 78 && x <= 402 && z >= 312 && z <= 328) return false;
+  // Pista da Ponte Golden Gate atravessável com margem de segurança (X: 70..410, Z: 25.0..45.0)
+  if (x >= 70 && x <= 410 && z >= 25.0 && z <= 45.0) return false;
+  // Pista da Ponte Sul atravessável com margem de segurança (X: 70..410, Z: 310.0..330.0)
+  if (x >= 70 && x <= 410 && z >= 310.0 && z <= 330.0) return false;
 
   // Canal da Baía de São Francisco
   if (x > BAY_MIN_X && x < BAY_MAX_X) return true;
@@ -613,6 +613,7 @@ export function checkCarCollision(x, z, yaw, ignoreCar = null) {
   const fwdZ = Math.cos(yaw);
   const rightX = Math.cos(yaw);
   const rightZ = -Math.sin(yaw);
+  // Dimensões do chassi físico (~4.1m de comprimento x 1.84m de largura, sem o feixe visual dos faróis)
   const halfL = 2.05;
   const halfW = 0.92;
 
@@ -626,7 +627,7 @@ export function checkCarCollision(x, z, yaw, ignoreCar = null) {
   ];
 
   for (const [px, pz] of samplePoints) {
-    if (isWaterArea(px, pz)) return true;
+    if (isWaterForLand(px, pz)) return true;
     if (checkCollision(px, pz, 0.42, ignoreCar)) return true;
   }
   return false;

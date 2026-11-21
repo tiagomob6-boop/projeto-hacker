@@ -1942,8 +1942,8 @@ export function updatePlayer(dt) {
 
   const pos = refs.playerGroup.position;
   const overBridgeFootprint =
-    (pos.z >= 26 && pos.z <= 44 && pos.x >= 78 && pos.x <= 402) ||
-    (pos.z >= 312 && pos.z <= 328 && pos.x >= 78 && pos.x <= 402);
+    (pos.z >= 25.0 && pos.z <= 45.0 && pos.x >= 70 && pos.x <= 410) ||
+    (pos.z >= 310.0 && pos.z <= 330.0 && pos.x >= 70 && pos.x <= 410);
   // Só está "na ponte" se a altura real do jogador estiver próxima do tabuleiro (evita sugar quem nada por baixo)
   const bridgeHeight = overBridgeFootprint ? getSurfaceHeight(pos.x, pos.z) : 0;
   const onElevatedBridge = overBridgeFootprint && pos.y >= bridgeHeight - 2.5;
