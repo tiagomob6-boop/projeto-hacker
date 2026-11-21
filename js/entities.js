@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+﻿import * as THREE from 'three';
 import {
   MISSION_STATE,
   GUARD_STATE,
@@ -1345,8 +1345,8 @@ export function disembarkPoliceCar(car) {
   buildGuards(
     {
       guards: [
-        { waypoints: [[cx + rx, getSurfaceHeight(cx + rx, cz + rz), cz + rz], [pPos.x, 0, pPos.z]], speed: 3.8, visionRange: 28 },
-        { waypoints: [[cx - rx, getSurfaceHeight(cx - rx, cz - rz), cz - rz], [pPos.x, 0, pPos.z]], speed: 4.0, visionRange: 28 }
+        { waypoints: [[cx + rx, getSurfaceHeight(cx + rx, cz + rz), cz + rz], [pPos.x, getSurfaceHeight(pPos.x, pPos.z), pPos.z]], speed: 3.8, visionRange: 28 },
+        { waypoints: [[cx - rx, getSurfaceHeight(cx - rx, cz - rz), cz - rz], [pPos.x, getSurfaceHeight(pPos.x, pPos.z), pPos.z]], speed: 4.0, visionRange: 28 }
       ]
     },
     'POLICE'
@@ -2338,6 +2338,10 @@ export function updateSecurityCameras(dt, playerPos, playerCenter) {
   let camSpotted = false;
 
   securityCameras.forEach((camObj, idx) => {
+    if (gameState.blackoutTimer > 0) {
+      if (camObj.laserMesh) camObj.laserMesh.visible = false;
+      return;
+    }
     camObj.alertCooldown = Math.max(0, (camObj.alertCooldown || 0) - dt);
     if (camObj.disabledTimer > 0) {
       camObj.disabledTimer = Math.max(0, camObj.disabledTimer - dt);
@@ -2592,11 +2596,11 @@ export function updateGuards(dt) {
     if (guardSeesPlayer) {
       spottedThisFrame = true;
       g.state = GUARD_STATE.COMBAT;
-      g.lastKnownPos = new THREE.Vector3(playerPos.x, 0, playerPos.z);
+      g.lastKnownPos = new THREE.Vector3(playerPos.x, playerPos.y, playerPos.z);
       g.lookAroundTimer = 0;
     } else if (isContractGuard && gameState.baseAlert) {
       g.state = GUARD_STATE.COMBAT;
-      g.lastKnownPos = new THREE.Vector3(playerPos.x, 0, playerPos.z);
+      g.lastKnownPos = new THREE.Vector3(playerPos.x, playerPos.y, playerPos.z);
     }
 
     // 2. Máquina de estados de movimentação e combate

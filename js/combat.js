@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+﻿import * as THREE from 'three';
 import {
   MISSION_STATE,
   GUARD_STATE,
@@ -13,6 +13,8 @@ import {
   occluders,
   securityCameras,
   guards,
+  cars,
+  policeCars,
   pedestrians,
   projectiles,
   guardProjectiles,
@@ -335,7 +337,8 @@ export function updateProjectiles(dt) {
     for (const g of guards) {
       if (g.state === GUARD_STATE.DEAD || g.state === GUARD_STATE.STUNNED) continue;
       const distFlat = Math.hypot(p.pos.x - g.mesh.position.x, p.pos.z - g.mesh.position.z);
-      if (distFlat < 0.95 && p.pos.y >= 0 && p.pos.y <= 2.2) {
+      const guardCenterY = g.mesh.position.y + 1.1;
+      if (distFlat < 0.95 && Math.abs(p.pos.y - guardCenterY) <= 1.15) {
         hitGuard = g;
         break;
       }
@@ -360,7 +363,8 @@ export function updateProjectiles(dt) {
     for (const ped of pedestrians) {
       if (ped.stunnedTimer > 0) continue;
       const dPed = Math.hypot(p.pos.x - ped.mesh.position.x, p.pos.z - ped.mesh.position.z);
-      if (dPed < 0.85 && p.pos.y >= 0 && p.pos.y <= 2.0) {
+      const pedCenterY = ped.mesh.position.y + 1.0;
+      if (dPed < 0.85 && Math.abs(p.pos.y - pedCenterY) <= 1.0) {
         hitPed = ped;
         break;
       }
@@ -379,6 +383,29 @@ export function updateProjectiles(dt) {
       }
       if (!p.isTaser) {
         reportCrimeToCivilians(hitPed.mesh.position, 22, 2);
+      }
+      disposePlayerProjectile(p);
+      projectiles.splice(i, 1);
+      continue;
+    }
+
+    // Acerto em veículos (viaturas policiais e carros civis/tráfego) via Box3
+    let hitCar = null;
+    for (const car of cars) {
+      if (!car || car.destroyed || !car.colliderObj) continue;
+      if (car.colliderObj.box.clone().expandByScalar(0.2).containsPoint(p.pos)) {
+        hitCar = car;
+        break;
+      }
+    }
+    if (hitCar) {
+      spawnTaserFlash(p.pos, p.color);
+      if (!p.isTaser) {
+        damageCar(hitCar, p.damage || 10);
+        triggerHitmarker(false);
+        if (policeCars.includes(hitCar) || hitCar.isPolice) {
+          reportCrimeToCivilians(hitCar.mesh.position, 22, 2);
+        }
       }
       disposePlayerProjectile(p);
       projectiles.splice(i, 1);
@@ -407,6 +434,22 @@ export function updateGuardProjectiles(dt) {
     gp.pos.addScaledVector(gp.dir, step);
     gp.mesh.position.copy(gp.pos);
 
+    let hitOtherCar = null;
+    for (const car of cars) {
+      if (!car || car.destroyed || !car.colliderObj || car === gameState.drivingCar) continue;
+      if (car.colliderObj.box.clone().expandByScalar(0.2).containsPoint(gp.pos)) {
+        hitOtherCar = car;
+        break;
+      }
+    }
+    if (hitOtherCar) {
+      // Viaturas absorvem o tiro (fogo amigo não causa dano); carros civis sofrem dano
+      if (!policeCars.includes(hitOtherCar) && !hitOtherCar.isPolice) damageCar(hitOtherCar, 12);
+      refs.scene.remove(gp.mesh);
+      guardProjectiles.splice(i, 1);
+      continue;
+    }
+
     if (gameState.drivingCar && !gameState.drivingCar.destroyed) {
       const carBox = gameState.drivingCar.colliderObj.box.clone().expandByScalar(0.35);
       if (carBox.containsPoint(gp.pos)) {
@@ -417,8 +460,9 @@ export function updateGuardProjectiles(dt) {
       }
     } else {
       const distPlayer = Math.hypot(gp.pos.x - pPos.x, gp.pos.z - pPos.z);
-      const maxPlayerY = gameState.isCrouching ? 1.25 : 2.05;
-      if (distPlayer < 0.72 && gp.pos.y >= 0.1 && gp.pos.y <= maxPlayerY) {
+      const playerHalfH = gameState.isCrouching ? 0.6 : 0.975;
+      const playerCenterY = pPos.y + playerHalfH + 0.1;
+      if (distPlayer < 0.72 && Math.abs(gp.pos.y - playerCenterY) <= playerHalfH) {
         damagePlayer(12);
         refs.scene.remove(gp.mesh);
         guardProjectiles.splice(i, 1);
