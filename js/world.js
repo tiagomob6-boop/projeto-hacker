@@ -322,6 +322,7 @@ export function buildMap() {
 
   // Setor 4: Distrito Residencial & Colinas Sul + Ponte Sul
   buildSouthDistrictAndBridge();
+  buildUrbanDetailsAndMidBlocks();
 
   // Elementos repetitivos otimizados via THREE.InstancedMesh (60 FPS)
   buildInstancedWorldElements();
@@ -426,6 +427,129 @@ export function buildSouthDistrictAndBridge() {
   });
 }
 
+export function buildUrbanDetailsAndMidBlocks() {
+  // 1. Quarteirões intermediários dividindo espaços vazios em ruas de 2 faixas com calçadas reais
+  [
+    [-92, 122, 20, 26, 18, 0x00f0ff],
+    [-162, 122, 22, 30, 18, 0xff0055],
+    [-218, 42, 22, 28, 20, 0x38bdf8],
+    [-218, 178, 20, 24, 18, 0xffaa00],
+    [-16, 212, 22, 20, 18, 0x00ff88],
+    [-148, 378, 24, 22, 18, 0xd946ef],
+    [492, 148, 24, 16, 20, 0xffaa00],
+    [526, 206, 22, 18, 18, 0x00f0ff]
+  ].forEach(([bx, bz, bw, bh, bd, acc]) => {
+    addStaticBox(bw + 6, 0.14, bd + 6, bx, 0.07, bz, 0x1a2234, { collide: false, occlude: false, edgesColor: 0x26324d, edgesOpacity: 0.45 });
+    buildDetailedBuilding(bx, bz, bw, bh, bd, { accent: acc });
+  });
+
+  // 2. Semáforos com luzes verde/vermelha nos cruzamentos principais
+  const greenLensMat = new THREE.MeshBasicMaterial({ color: 0x00ff88 });
+  const redLensMat = new THREE.MeshBasicMaterial({ color: 0xff0044 });
+  [
+    [-30, 28],
+    [30, 28],
+    [-60, 62],
+    [60, 62],
+    [-60, 175],
+    [428, 28]
+  ].forEach(([sx, sz], idx) => {
+    addStaticBox(0.32, 5.2, 0.32, sx, 2.6, sz, 0x1c2538, { occlude: false });
+    addStaticBox(2.6, 0.25, 0.25, sx + 1.2, 4.9, sz, 0x1c2538, { collide: false, occlude: false });
+    addStaticBox(0.45, 1.05, 0.36, sx + 2.2, 4.75, sz, 0x0c111d, { collide: false, occlude: false });
+    const gLens = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.24, 0.40), idx % 2 === 0 ? greenLensMat : redLensMat);
+    gLens.position.set(sx + 2.2, 4.96, sz);
+    const rLens = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.24, 0.40), idx % 2 === 0 ? redLensMat : greenLensMat);
+    rLens.position.set(sx + 2.2, 4.54, sz);
+    refs.worldGroup.add(gLens, rLens);
+  });
+
+  // 3. Paradas de ônibus futuristas com cobertura translúcida e totem neon
+  const glassCanopyMat = new THREE.MeshStandardMaterial({
+    color: 0x00f0ff,
+    transparent: true,
+    opacity: 0.32,
+    roughness: 0.15
+  });
+  [
+    [-22, 58],
+    [22, 58],
+    [-62, 138],
+    [430, 48]
+  ].forEach(([px, pz]) => {
+    addStaticBox(0.25, 2.6, 0.25, px - 1.8, 1.3, pz, 0x1e293b, { occlude: false });
+    addStaticBox(0.25, 2.6, 0.25, px + 1.8, 1.3, pz, 0x1e293b, { occlude: false });
+    const canopy = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.14, 1.8), glassCanopyMat);
+    canopy.position.set(px, 2.65, pz);
+    refs.worldGroup.add(canopy);
+    addStaticBox(2.8, 0.48, 0.65, px, 0.42, pz + 0.2, 0x26344d, { occlude: false, edgesColor: 0x00f0ff });
+    addStaticBox(0.18, 2.2, 0.7, px + 2.2, 1.1, pz, 0x00f0ff, {
+      collide: false,
+      occlude: false,
+      emissive: 0x00f0ff,
+      emissiveIntensity: 0.9
+    });
+  });
+
+  // 4. Canteiros centrais com árvores dividindo as avenidas largas
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x3b281e, roughness: 0.9 });
+  const crownMat = new THREE.MeshStandardMaterial({ color: 0x0e5a46, emissive: 0x042820, emissiveIntensity: 0.4, roughness: 0.7 });
+  [
+    [-16, 24],
+    [16, 24],
+    [-82, 76],
+    [-82, 152],
+    [-82, 232]
+  ].forEach(([mx, mz]) => {
+    addStaticBox(5.2, 0.32, 2.2, mx, 0.16, mz, 0x182534, { occlude: false, edgesColor: 0x00ff88, edgesOpacity: 0.45 });
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.3, 2.2, 7), trunkMat);
+    trunk.position.set(mx, 1.25, mz);
+    const crown = new THREE.Mesh(new THREE.OctahedronGeometry(1.55, 0), crownMat);
+    crown.position.set(mx, 3.0, mz);
+    refs.worldGroup.add(trunk, crown);
+  });
+
+  // 5. Bancas / Quiosques DedSec nas praças
+  [[-16, 54], [16, 54]].forEach(([kx, kz], idx) => {
+    const kColor = idx === 0 ? 0xd946ef : 0x00f0ff;
+    addStaticBox(3.4, 2.2, 2.4, kx, 1.1, kz, 0x162033, { edgesColor: kColor, edgesOpacity: 0.7 });
+    addStaticBox(3.8, 0.24, 3.0, kx, 2.35, kz, kColor, {
+      collide: false,
+      occlude: false,
+      emissive: kColor,
+      emissiveIntensity: 0.95
+    });
+  });
+
+  // 6. Passarelas / Viadutos elevados cruzando as avenidas
+  [
+    { x: -56, z: 102, w: 22, d: 3.4, rotY: 0 },
+    { x: 0, z: 26, w: 34, d: 3.2, rotY: 0 }
+  ].forEach((ov) => {
+    addStaticBox(ov.w, 0.45, ov.d, ov.x, 5.4, ov.z, 0x182338, {
+      collide: false,
+      occlude: false,
+      edgesColor: 0x00f0ff,
+      edgesOpacity: 0.75
+    });
+    addStaticBox(ov.w, 0.85, 0.18, ov.x, 5.95, ov.z - ov.d / 2, 0x00f0ff, {
+      collide: false,
+      occlude: false,
+      emissive: 0x00f0ff,
+      emissiveIntensity: 0.7
+    });
+    addStaticBox(ov.w, 0.85, 0.18, ov.x, 5.95, ov.z + ov.d / 2, 0x00f0ff, {
+      collide: false,
+      occlude: false,
+      emissive: 0x00f0ff,
+      emissiveIntensity: 0.7
+    });
+    [-ov.w / 2 + 0.6, ov.w / 2 - 0.6].forEach((px) => {
+      addStaticBox(0.85, 5.4, 0.85, ov.x + px, 2.7, ov.z, 0x22304a, { occlude: false });
+    });
+  });
+}
+
 export function buildInstancedWorldElements() {
   const dummy = new THREE.Object3D();
 
@@ -485,10 +609,18 @@ export function buildInstancedWorldElements() {
     dummy.position.set(tx, 3.6 * sc, tz);
     dummy.updateMatrix();
     crownMesh.setMatrixAt(i, dummy.matrix);
+    // Registrar colisão do tronco das árvores na área jogável
+    colliders.push({
+      box: new THREE.Box3(
+        new THREE.Vector3(tx - 0.55 * sc, 0, tz - 0.55 * sc),
+        new THREE.Vector3(tx + 0.55 * sc, 3.0 * sc, tz + 0.55 * sc)
+      ),
+      mesh: trunkMesh
+    });
   });
   refs.worldGroup.add(trunkMesh, crownMesh);
 
-  // 3. Barreiras Urbanas (InstancedMesh)
+  // 3. Barreiras Urbanas (InstancedMesh + colliders)
   const barrierPositions = [];
   for (let x = -280; x <= 700; x += 48) {
     if (x > 70 && x < 410) continue;
@@ -504,6 +636,13 @@ export function buildInstancedWorldElements() {
     dummy.scale.set(1, 1, 1);
     dummy.updateMatrix();
     barrierMesh.setMatrixAt(i, dummy.matrix);
+    colliders.push({
+      box: new THREE.Box3(
+        new THREE.Vector3(bx - 1.7, 0, bz - 0.38),
+        new THREE.Vector3(bx + 1.7, 1.0, bz + 0.38)
+      ),
+      mesh: barrierMesh
+    });
   });
   refs.worldGroup.add(barrierMesh);
 
@@ -2003,15 +2142,15 @@ export function buildCars() {
 
 export function buildTrafficCars() {
   const routes = [
-    // Rota 1: Circuito Downtown (mão dupla)
-    [[-56, 32], [56, 32], [56, 66], [-56, 66]],
-    [[56, 39], [-56, 39], [-56, 72], [56, 72]],
-    // Rota 2: Golden Gate <-> Docas (Leste / Oeste)
-    [[24, 31], [420, 31], [485, 31], [485, 40], [420, 40], [24, 40]],
-    [[460, 39], [60, 39], [-36, 39], [-36, 31], [60, 31], [460, 31]],
-    // Rota 3: Downtown <-> Distrito Sul <-> Ponte Sul <-> Portuário
-    [[-56, 60], [-56, 316], [430, 316], [430, 324], [-48, 324], [-48, 60]],
-    [[410, 324], [-52, 324], [-52, 190], [-130, 190], [-130, 316], [410, 316]]
+    // Rota 1: Circuito ortogonal Downtown (avenida principal Z=31 / Z=39 e vias X=±36)
+    [[-36, 31], [36, 31], [36, 39], [-36, 39]],
+    [[36, 39], [-36, 39], [-36, 31], [36, 31]],
+    // Rota 2: Golden Gate <-> Docas (estritamente ortogonal nas pistas Z=31 e Z=39)
+    [[24, 31], [420, 31], [472, 31], [472, 39], [420, 39], [24, 39]],
+    [[460, 39], [60, 39], [-32, 39], [-32, 31], [60, 31], [460, 31]],
+    // Rota 3: Avenida Sul <-> Ponte Sul <-> Portuário (eixos ortogonais X=-66 / X=436, Z=316 / Z=324)
+    [[-66, 62], [-66, 316], [436, 316], [436, 324], [-58, 324], [-58, 62]],
+    [[416, 324], [-58, 324], [-58, 190], [-126, 190], [-126, 316], [416, 316]]
   ];
 
   const configs = [

@@ -30,7 +30,8 @@ Explore livremente o mapa contínuo (`-30000..30000`) com `$500` iniciais e ativ
 | `W` `A` `S` `D` (ou Setas) | Movimentar o personagem |
 | `Shift` | Correr mais rápido a pé ou ativar **Nitro** no **Interceptor Hyper-X** (SF Motors) |
 | `Ctrl` | Agachar (reduz altura para cobertura atrás de caixas e diminui detecção) |
-| `Mouse` (Pointer Lock) | Orbitar câmera em 3ª pessoa / Girar câmera de segurança |
+| `Mouse` (Pointer Lock) | Orbitar câmera em 3ª pessoa / Olhar em 1ª pessoa / Girar câmera de segurança |
+| `P` | Alternar câmera entre **3ª Pessoa** e **1ª Pessoa** (a pé com arma visível ou visão de **Cockpit** no carro) |
 | `V` | Alternar **Visão NetHack** (muros wireframe, rede ctOS e **Profiler** de pedestres) |
 | `C` | Hackear / alternar entre **Câmeras de Segurança** e voltar ao agente |
 | `R` | Sobrecarregar e desativar por `15s` a câmera controlada no momento |

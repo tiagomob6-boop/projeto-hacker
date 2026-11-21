@@ -36,6 +36,7 @@ import {
   overloadActiveCamera,
   handleInteractPress,
   toggleDriveDedsecCar,
+  toggleFirstPerson,
   applyPlayerSkin,
   updatePlayer,
   updateCars,
@@ -105,6 +106,8 @@ function setupInputs() {
       handleInteractPress();
     } else if (code === 'KeyF') {
       toggleDriveDedsecCar();
+    } else if (code === 'KeyP') {
+      toggleFirstPerson();
     } else if (code === 'Digit1' || code === 'Numpad1') {
       selectWeapon(WEAPON_TYPE.TASER);
     } else if (code === 'Digit2' || code === 'Numpad2') {
@@ -139,10 +142,12 @@ function setupInputs() {
       camObj.pitchOffset = THREE.MathUtils.clamp(camObj.pitchOffset - e.movementY * sens, -0.45, 0.35);
     } else {
       gameState.cameraYaw -= e.movementX * sens;
+      const minPitch = gameState.firstPerson ? -0.85 : 0.08;
+      const maxPitch = gameState.firstPerson ? 0.85 : 1.15;
       gameState.cameraPitch = THREE.MathUtils.clamp(
         gameState.cameraPitch + e.movementY * sens,
-        0.08,
-        1.15
+        minPitch,
+        maxPitch
       );
     }
   });

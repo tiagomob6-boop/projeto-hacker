@@ -71,6 +71,10 @@
           <span>ARMA:</span>
           <span id="status-weapon" class="neon-cyan">[1] TASER (PRONTO)</span>
         </div>
+        <div class="status-row">
+          <span>CÂMERA:</span>
+          <span id="status-camera" class="neon-cyan">[P] 3ª PESSOA</span>
+        </div>
       </div>
     </div>
 
@@ -90,6 +94,24 @@
       <div class="download-label">INTEGRIDADE DO VEÍCULO <span id="vehicle-hp-percent">100%</span></div>
       <div class="progress-track cyan-track">
         <div id="vehicle-hp-bar" class="progress-fill hp-fill"></div>
+      </div>
+    </div>
+
+    <!-- Painel Holográfico de Cockpit (1ª Pessoa no Carro) -->
+    <div id="cockpit-hud" class="hidden">
+      <div class="cockpit-readout">
+        <span class="cockpit-label">VELOCIDADE</span>
+        <strong id="cockpit-speed" class="neon-cyan">0 KM/H</strong>
+      </div>
+      <div class="cockpit-divider"></div>
+      <div class="cockpit-readout">
+        <span class="cockpit-label">MARCHA</span>
+        <strong id="cockpit-gear" class="neon-green">N</strong>
+      </div>
+      <div class="cockpit-divider"></div>
+      <div class="cockpit-readout">
+        <span class="cockpit-label">VISÃO</span>
+        <strong class="neon-cyan">COCKPIT [P]</strong>
       </div>
     </div>
 

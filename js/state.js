@@ -243,6 +243,10 @@ export const dom = {
   finalReward: document.getElementById('final-reward'),
   hpBar: document.getElementById('hp-bar'),
   statusWeapon: document.getElementById('status-weapon'),
+  statusCamera: document.getElementById('status-camera'),
+  cockpitHud: document.getElementById('cockpit-hud'),
+  cockpitSpeed: document.getElementById('cockpit-speed'),
+  cockpitGear: document.getElementById('cockpit-gear'),
   gameoverTitle: document.getElementById('gameover-title'),
   gameoverDesc: document.getElementById('gameover-desc'),
   weaponCooldownBar: document.getElementById('weapon-cooldown-bar'),
@@ -392,6 +396,7 @@ export const gameState = {
   hacksUsed: 0,
   isSprinting: false,
   isCrouching: false,
+  firstPerson: false,
   cameraYaw: 0,
   cameraPitch: 0.34,
   keys: {}
@@ -468,6 +473,10 @@ export function isWaterArea(x, z) {
   if (x >= -540 && x <= 80 && z >= -480 && z <= 780) return false;
   // Distrito Portuário & Industrial (Leste: X: 400..960, Z: -280..360)
   if (x >= 400 && x <= 960 && z >= -280 && z <= 360) return false;
+  // Pista da Ponte Golden Gate (X: 78..402, Z: 26.5..43.5)
+  if (x >= 78 && x <= 402 && z >= 26.5 && z <= 43.5) return false;
+  // Pista da Ponte Sul (X: 78..402, Z: 312..328)
+  if (x >= 78 && x <= 402 && z >= 312 && z <= 328) return false;
   // Píeres de embarque
   if ((z >= 57 && z <= 67 || z >= 215 && z <= 225) && x >= 64 && x <= 76) return false;
   if ((z >= 57 && z <= 67 || z >= -125 && z <= -115) && x >= 394 && x <= 404) return false;
@@ -485,6 +494,30 @@ export function checkCollision(x, z, radius = PLAYER_RADIUS, ignoreCar = null) {
     if (dx * dx + dz * dz < radius * radius) {
       return true;
     }
+  }
+  return false;
+}
+
+export function checkCarCollision(x, z, yaw, ignoreCar = null) {
+  const fwdX = Math.sin(yaw);
+  const fwdZ = Math.cos(yaw);
+  const rightX = Math.cos(yaw);
+  const rightZ = -Math.sin(yaw);
+  const halfL = 2.05;
+  const halfW = 0.92;
+
+  const samplePoints = [
+    [x + fwdX * halfL, z + fwdZ * halfL],
+    [x - fwdX * halfL, z - fwdZ * halfL],
+    [x + fwdX * halfL + rightX * halfW, z + fwdZ * halfL + rightZ * halfW],
+    [x + fwdX * halfL - rightX * halfW, z + fwdZ * halfL - rightZ * halfW],
+    [x - fwdX * halfL + rightX * halfW, z - fwdZ * halfL + rightZ * halfW],
+    [x - fwdX * halfL - rightX * halfW, z - fwdZ * halfL - rightZ * halfW]
+  ];
+
+  for (const [px, pz] of samplePoints) {
+    if (isWaterArea(px, pz)) return true;
+    if (checkCollision(px, pz, 0.42, ignoreCar)) return true;
   }
   return false;
 }

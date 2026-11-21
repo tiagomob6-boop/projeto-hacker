@@ -34,7 +34,8 @@ import {
   getSurfaceHeight,
   createHackableDevice,
   isWaterArea,
-  checkCollision
+  checkCollision,
+  checkCarCollision
 } from './state.js';
 import { AudioManager } from './audio.js';
 import {
@@ -323,6 +324,19 @@ export function buildPlayer() {
   refs.playerParts = {
     upperBody,
     headGroup,
+    torsoMeshes: [
+      torsoCore,
+      jacketBack,
+      jacketPanelL,
+      jacketPanelR,
+      collar,
+      lapelTrimL,
+      lapelTrimR,
+      collarTrim,
+      slingPack,
+      slingStrap,
+      backpackLed
+    ],
     hipL: legLeft.hip,
     kneeL: legLeft.knee,
     hipR: legRight.hip,
@@ -1004,11 +1018,16 @@ export function updateCars(dt) {
       if (car.speed > 0.15) {
         const nx = car.mesh.position.x + fwdX * car.speed * dt;
         const nz = car.mesh.position.z + fwdZ * car.speed * dt;
-        car.mesh.position.x = nx;
-        car.mesh.position.z = nz;
-        car.mesh.position.y = getSurfaceHeight(nx, nz);
-        car.mesh.updateMatrixWorld(true);
-        car.colliderObj.box.setFromObject(car.mesh);
+        if (!checkCarCollision(nx, nz, car.mesh.rotation.y, car)) {
+          car.mesh.position.x = nx;
+          car.mesh.position.z = nz;
+          car.mesh.position.y = getSurfaceHeight(nx, nz);
+          car.mesh.updateMatrixWorld(true);
+          car.colliderObj.box.setFromObject(car.mesh);
+        } else {
+          car.speed = 0;
+          car.currentTarget = (car.currentTarget + 1) % car.waypoints.length;
+        }
       }
       return;
     }
@@ -1026,7 +1045,7 @@ export function updateCars(dt) {
       nextX < WORLD_BOUNDS.maxX - 1 &&
       nextZ > WORLD_BOUNDS.minZ + 1 &&
       nextZ < WORLD_BOUNDS.maxZ - 1 &&
-      !checkCollision(nextX, nextZ, 1.5, car)
+      !checkCarCollision(nextX, nextZ, car.mesh.rotation.y, car)
     ) {
       car.mesh.position.x = nextX;
       car.mesh.position.z = nextZ;
@@ -1152,12 +1171,12 @@ export function updatePlayer(dt) {
     const stepZ = fz * car.speed * dt;
 
     const cPos = car.mesh.position;
-    if (!checkCollision(cPos.x + stepX, cPos.z, 1.55, car)) {
+    if (!checkCarCollision(cPos.x + stepX, cPos.z, car.mesh.rotation.y, car)) {
       cPos.x += stepX;
     } else {
       car.speed *= 0.2;
     }
-    if (!checkCollision(cPos.x, cPos.z + stepZ, 1.55, car)) {
+    if (!checkCarCollision(cPos.x, cPos.z + stepZ, car.mesh.rotation.y, car)) {
       cPos.z += stepZ;
     } else {
       car.speed *= 0.2;
@@ -1165,6 +1184,25 @@ export function updatePlayer(dt) {
 
     cPos.x = THREE.MathUtils.clamp(cPos.x, WORLD_BOUNDS.minX + 1, WORLD_BOUNDS.maxX - 1);
     cPos.z = THREE.MathUtils.clamp(cPos.z, WORLD_BOUNDS.minZ + 1, WORLD_BOUNDS.maxZ - 1);
+
+    // Se por acidente o carro cair na água, afunda/enguiça e ejeta o jogador para a margem
+    if (isWaterArea(cPos.x, cPos.z)) {
+      car.speed = 0;
+      car.destroyed = true;
+      car.hp = 0;
+      cPos.y = -1.0;
+      if (car.headlight) car.headlight.intensity = 0;
+      gameState.drivingCar = null;
+      AudioManager.stopEngineSound();
+      const shoreX = cPos.x < 240 ? 74 : 406;
+      const shoreZ = THREE.MathUtils.clamp(cPos.z, -80, 330);
+      refs.playerGroup.position.set(shoreX, getSurfaceHeight(shoreX, shoreZ), shoreZ);
+      refs.playerGroup.visible = true;
+      updateVehicleHpHUD();
+      if (dom.cockpitHud) dom.cockpitHud.classList.add('hidden');
+      return;
+    }
+
     cPos.y = getSurfaceHeight(cPos.x, cPos.z);
 
     car.mesh.updateMatrixWorld(true);
@@ -1227,12 +1265,12 @@ export function updatePlayer(dt) {
     const stepX = moveX * currentSpeed * dt;
     const stepZ = moveZ * currentSpeed * dt;
 
-    // Tentativa separada nos eixos X e Z para deslizar suavemente nas paredes
+    // Tentativa separada nos eixos X e Z para deslizar suavemente nas paredes e bloquear água
     const pos = refs.playerGroup.position;
-    if (!checkCollision(pos.x + stepX, pos.z)) {
+    if (!checkCollision(pos.x + stepX, pos.z) && !isWaterArea(pos.x + stepX, pos.z)) {
       pos.x += stepX;
     }
-    if (!checkCollision(pos.x, pos.z + stepZ)) {
+    if (!checkCollision(pos.x, pos.z + stepZ) && !isWaterArea(pos.x, pos.z + stepZ)) {
       pos.z += stepZ;
     }
 
@@ -1298,8 +1336,35 @@ export function updatePlayer(dt) {
   p.elbowR.rotation.x = THREE.MathUtils.lerp(walkElbowR, aimElbowR, p.aimBlend);
 }
 
+export function toggleFirstPerson() {
+  gameState.firstPerson = !gameState.firstPerson;
+  if (dom.statusCamera) {
+    dom.statusCamera.textContent = gameState.firstPerson ? '[P] 1ª PESSOA' : '[P] 3ª PESSOA';
+  }
+  if (!gameState.firstPerson && dom.cockpitHud) {
+    dom.cockpitHud.classList.add('hidden');
+  }
+  gameState.cameraPitch = gameState.firstPerson ? 0 : 0.34;
+}
+
+function setFirstPersonBodyVisibility(hideBody) {
+  const p = refs.playerParts;
+  if (!p) return;
+  if (p.headGroup) p.headGroup.visible = !hideBody;
+  if (p.hipL) p.hipL.visible = !hideBody;
+  if (p.hipR) p.hipR.visible = !hideBody;
+  if (p.shoulderL) p.shoulderL.visible = !hideBody;
+  if (p.torsoMeshes) {
+    p.torsoMeshes.forEach((m) => {
+      m.visible = !hideBody;
+    });
+  }
+}
+
 export function updateCamera() {
   if (gameState.activeCamIndex >= 0) {
+    setFirstPersonBodyVisibility(false);
+    if (dom.cockpitHud) dom.cockpitHud.classList.add('hidden');
     const camObj = securityCameras[gameState.activeCamIndex];
     refs.camera.position.copy(camObj.pos);
     const yaw = camObj.baseYaw + camObj.yawOffset;
@@ -1312,6 +1377,68 @@ export function updateCamera() {
     refs.camera.lookAt(lookTarget);
     return;
   }
+
+  // Modo 1ª Pessoa — Visão do Cockpit dirigindo
+  if (gameState.firstPerson && gameState.drivingCar) {
+    setFirstPersonBodyVisibility(false);
+    const car = gameState.drivingCar;
+    const cPos = car.mesh.position;
+    const cyaw = car.mesh.rotation.y;
+    const fwdX = Math.sin(cyaw);
+    const fwdZ = Math.cos(cyaw);
+    const rightX = Math.cos(cyaw);
+    const rightZ = -Math.sin(cyaw);
+    const seatH = car.maxHp >= 200 ? 1.42 : 1.12;
+
+    refs.camera.position.set(
+      cPos.x + rightX * 0.36 + fwdX * 0.12,
+      cPos.y + seatH,
+      cPos.z + rightZ * 0.36 + fwdZ * 0.12
+    );
+    const lookAtPos = new THREE.Vector3(
+      refs.camera.position.x + fwdX * 18,
+      refs.camera.position.y - 0.55,
+      refs.camera.position.z + fwdZ * 18
+    );
+    refs.camera.lookAt(lookAtPos);
+
+    if (dom.cockpitHud) {
+      dom.cockpitHud.classList.remove('hidden');
+      const kmh = Math.round(Math.abs(car.speed) * 3.6);
+      if (dom.cockpitSpeed) dom.cockpitSpeed.textContent = `${kmh} KM/H`;
+      if (dom.cockpitGear) {
+        dom.cockpitGear.textContent =
+          car.speed < -0.5 ? 'R' : car.speed < 0.5 ? 'N' : `D${Math.min(5, Math.max(1, Math.ceil(kmh / 28)))}`;
+      }
+    }
+    return;
+  }
+
+  if (dom.cockpitHud) dom.cockpitHud.classList.add('hidden');
+
+  // Modo 1ª Pessoa — A pé (altura dos olhos + arma visível no canto inferior direito)
+  if (gameState.firstPerson && !gameState.drivingBoat) {
+    setFirstPersonBodyVisibility(true);
+    const pPos = refs.playerGroup.position;
+    const eyeY = pPos.y + (gameState.isCrouching ? 1.12 : 1.72);
+    refs.camera.position.set(pPos.x, eyeY, pPos.z);
+
+    const yaw = gameState.cameraYaw;
+    const pitch = THREE.MathUtils.clamp(gameState.cameraPitch, -0.85, 0.85);
+    const lookX = -Math.sin(yaw) * Math.cos(pitch);
+    const lookY = -Math.sin(pitch);
+    const lookZ = -Math.cos(yaw) * Math.cos(pitch);
+    refs.camera.lookAt(pPos.x + lookX * 10, eyeY + lookY * 10, pPos.z + lookZ * 10);
+
+    refs.playerGroup.rotation.y = yaw + Math.PI;
+    if (refs.playerParts?.shoulderR && refs.playerParts?.elbowR) {
+      refs.playerParts.shoulderR.rotation.x = -1.32 - pitch * 0.65;
+      refs.playerParts.elbowR.rotation.x = -0.18;
+    }
+    return;
+  }
+
+  setFirstPersonBodyVisibility(false);
 
   const focusPos = gameState.drivingBoat
     ? gameState.drivingBoat.mesh.position

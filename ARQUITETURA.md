@@ -52,9 +52,11 @@ Todas as geometrias são primitivas do Three.js (`BoxGeometry`, `PlaneGeometry`,
 - **Horizonte de São Francisco (Skyline + Golden Gate):** Prédios distantes fora da área jogável com faixas de janelas emissivas sutis e uma estrutura estilizada da **Ponte Golden Gate** (`buildGoldenGateBridge`) ao fundo (`z = -52`), com duas torres, tabuleiro, cabos suspensos e iluminação laranja-neon (`fog: false`).
 - **Complexo Protegido:** Perímetro murado (`X: -16..16`, `Z: -26..6`) com abertura frontal fechada pelo `gateMesh` deslizante e painel eletrônico lateral (`gatePanelMesh`). Inclui pórtico luminoso e letreiros/faixas emissivas (`buildComplexNeonAccents`) na fachada e muros, contornos neon (`THREE.EdgesGeometry` + `THREE.LineSegments`) nos muros, caixas de cobertura e portão, 2 câmeras elevadas nos muros e o `serverMesh` no fundo (`z = -21.5`) com sistema de partículas flutuantes (`THREE.Points` em `buildServerParticles`).
 
-### 2.3 Sistema de Colisão e Câmera em 3ª Pessoa
-- **Colisão AABB x Círculo (`checkCollision`):** Cada obstáculo sólido registra uma `THREE.Box3` no array `colliders`. A movimentação do jogador testa os eixos `X` e `Z` separadamente para permitir deslizamento suave ao encostar em paredes. Quando o portão é destravado, o colisor marcado com `isGate: true` é removido.
-- **Câmera Orbital (`updateCamera`):** Orbitando o ponto focal do jogador (`player.y + 1.55`) via `cameraYaw` e `cameraPitch` atualizados pela **Pointer Lock API**. Um `THREE.Raycaster` verifica interseções contra `occluders` para aproximar a câmera caso um muro fique entre ela e o jogador.
+### 2.3 Sistema de Colisão, Água e Câmera (1ª / 3ª Pessoa)
+- **Colisão AABB x Círculo e Perímetro de Veículos (`checkCollision` / `checkCarCollision` / `isWaterArea`):** Cada obstáculo sólido (prédios, muros, quarteirões intermediários, barreiras e árvores instanciadas na área jogável) registra sua `THREE.Box3` no array `colliders`. Para veículos, `checkCarCollision()` testa 6 pontos rotacionados do perímetro (frente, traseira e laterais) contra `colliders` e contra `isWaterArea(x, z)`, impedindo carros e o jogador a pé de entrar na água (apenas barcos navegam na baía) ou atravessar paredes. Caso um carro caia na água por acidente, afunda/enguiça e ejeta o jogador na margem mais próxima.
+- **Câmera em 3ª e 1ª Pessoa (`updateCamera` / `toggleFirstPerson` — Tecla `P`):**
+  - **3ª Pessoa:** Orbita o ponto focal do jogador (`player.y + 1.55`) via `cameraYaw` e `cameraPitch` (Pointer Lock API), usando `Raycaster` contra `occluders` para não atravessar muros.
+  - **1ª Pessoa (`gameState.firstPerson`):** A pé, posiciona a câmera na altura dos olhos (`y = 1.72` em pé, `1.12` agachado), ocultando cabeça/tronco e mantendo a arma equipada visível no canto inferior direito. Dirigindo, posiciona a câmera no banco do motorista (visão de cockpit sobre o capô) e exibe o painel holográfico `#cockpit-hud` com velocímetro em `KM/H` e marcha.
 
 ---
 
