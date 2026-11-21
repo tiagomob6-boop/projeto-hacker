@@ -547,10 +547,13 @@ export function explodeCar(car) {
     }
   });
 
-  if (car === gameState.targetCar && gameState.mission === MISSION_STATE.STEAL_CAR) {
+  if (
+    car === gameState.targetCar &&
+    (gameState.mission === MISSION_STATE.STEAL_CAR || gameState.mission === MISSION_STATE.INFILTRATE)
+  ) {
     triggerGameOver(
-      'VEÍCULO VIP DESTRUÍDO',
-      'O veículo do contrato explodiu antes da entrega na Garagem DedSec.'
+      'VEÍCULO ALVO DESTRUÍDO',
+      'O veículo-alvo do contrato explodiu antes da entrega no destino.'
     );
   }
 }

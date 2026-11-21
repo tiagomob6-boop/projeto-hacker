@@ -4,6 +4,7 @@ import {
   GUARD_STATE,
   WEAPON_CONFIG,
   SKINS_CATALOG,
+  MAPS_CONFIG,
   WORLD_BOUNDS,
   PLAYER_RADIUS,
   PLAYER_SPEED,
@@ -1070,6 +1071,12 @@ export function handleInteractPress() {
   }
 }
 
+function isCarLockedByGate(car) {
+  if (!car || !car.requiresGateUnlock || !car.vipMissionKey) return false;
+  const missionGates = gates.filter((g) => g.missionKey === car.vipMissionKey);
+  return missionGates.length > 0 && missionGates.some((g) => !g.unlocked);
+}
+
 export function toggleDriveDedsecCar() {
   if (gameState.terminalOpen || gameState.missionModalOpen || gameState.activeCamIndex >= 0) return;
 
@@ -1193,6 +1200,7 @@ export function toggleDriveDedsecCar() {
   let nearestDist = 4.2;
   for (const car of cars) {
     if (!car.isDrivable || car.destroyed || Math.abs(car.speed) >= 6.0) continue;
+    if (isCarLockedByGate(car)) continue;
     const d = refs.playerGroup.position.distanceTo(car.mesh.position);
     if (d < nearestDist) {
       nearestDist = d;
@@ -1214,9 +1222,22 @@ export function toggleDriveDedsecCar() {
     if (nearestCar.headlight) nearestCar.headlight.intensity = 2.4;
     if (!gameState.netHackActive) dom.statusMode.textContent = 'VEÍCULO';
     updateVehicleHpHUD();
-    if (nearestCar === gameState.targetCar && gameState.mission === MISSION_STATE.STEAL_CAR) {
+    if (
+      nearestCar === gameState.targetCar &&
+      (gameState.mission === MISSION_STATE.STEAL_CAR || gameState.mission === MISSION_STATE.INFILTRATE)
+    ) {
+      const activeCfg = MAPS_CONFIG[gameState.activeMissionKey];
+      if (gameState.mission !== MISSION_STATE.STEAL_CAR) {
+        setMissionState(MISSION_STATE.STEAL_CAR);
+      }
+      if (refs.vehicleDeliveryGroup) refs.vehicleDeliveryGroup.visible = true;
       triggerBaseAlert();
-      addWantedLevel(2, 'PERSEGUIÇÃO');
+      if (activeCfg?.requiresInfiltration) {
+        const delta = Math.max(0, 3 - gameState.wantedLevel);
+        addWantedLevel(delta, 'PERSEGUIÇÃO');
+      } else {
+        addWantedLevel(2, 'PERSEGUIÇÃO');
+      }
     }
   }
 }
@@ -2916,14 +2937,15 @@ export function updateInteractionsAndMission(dt) {
       if (!promptText) {
         for (const car of cars) {
           if (car.isDrivable && !car.destroyed && Math.abs(car.speed) < 6.0 && pPos.distanceTo(car.mesh.position) < 4.2) {
-            promptText =
-              car === gameState.targetCar
-                ? '[F] ROUBAR VEÍCULO VIP'
-                : car.hasDriver
-                ? '[F] ROUBAR VEÍCULO (EJETAR MOTORISTA)'
-                : car.isDedsec
-                ? '[F] ENTRAR NO CARRO DEDSEC'
-                : '[F] ENTRAR NO VEÍCULO';
+            promptText = isCarLockedByGate(car)
+              ? '[BLOQUEADO] HACKEIE O PORTÃO DO COMPLEXO PRIMEIRO [E]'
+              : car === gameState.targetCar
+              ? '[F] ROUBAR VEÍCULO ALVO'
+              : car.hasDriver
+              ? '[F] ROUBAR VEÍCULO (EJETAR MOTORISTA)'
+              : car.isDedsec
+              ? '[F] ENTRAR NO CARRO DEDSEC'
+              : '[F] ENTRAR NO VEÍCULO';
             break;
           }
         }
@@ -3026,16 +3048,19 @@ export function updateInteractionsAndMission(dt) {
     }
   }
 
-  // Verificar entrega de veículo VIP na Garagem Clandestina DedSec (-120, 320)
+  // Verificar entrega de veículo VIP / Contrato no ponto de entrega correspondente
   if (
     gameState.mission === MISSION_STATE.STEAL_CAR &&
     gameState.targetCar &&
     !gameState.targetCar.destroyed &&
+    gameState.targetCar.hp > 0 &&
     gameState.drivingCar === gameState.targetCar
   ) {
+    const activeCfg = MAPS_CONFIG[gameState.activeMissionKey];
+    const dest = activeCfg?.extractPos || [-120, 0.06, 320];
     const distDelivery = Math.hypot(
-      gameState.targetCar.mesh.position.x - -120,
-      gameState.targetCar.mesh.position.z - 320
+      gameState.targetCar.mesh.position.x - dest[0],
+      gameState.targetCar.mesh.position.z - dest[2]
     );
     if (distDelivery < 6.5) {
       triggerVictory();

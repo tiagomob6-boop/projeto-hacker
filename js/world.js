@@ -504,6 +504,7 @@ export function buildMap() {
 
   // Setor 4: Distrito Residencial & Colinas Sul + Ponte Sul
   buildSouthDistrictAndBridge();
+  buildHeistCompounds();
   buildUrbanDetailsAndMidBlocks();
   buildTerrainAndMountains();
 
@@ -521,7 +522,7 @@ export function buildMap() {
   buildBoatPiersAndBoats();
 
   // Câmeras, Caixas Elétricas e Guardas das missões e contratos VIP + Câmeras de rua ctOS
-  ['COMPLEXO_CTOS', 'DOCAS_BAIA_SF', 'VIP_CAR_01', 'VIP_CAR_02'].forEach((mKey) => {
+  ['COMPLEXO_CTOS', 'DOCAS_BAIA_SF', 'VIP_CAR_01', 'VIP_CAR_02', 'HEIST_BLUME_03', 'HEIST_CTOS_04'].forEach((mKey) => {
     const mCfg = MAPS_CONFIG[mKey];
     buildSecurityCameras(mCfg, mKey);
     buildElectricBoxes(mCfg);
@@ -629,6 +630,145 @@ export function buildSouthDistrictAndBridge() {
     [560, 240, 24, 15, 22, 0xff0055]
   ].forEach(([bx, bz, bw, bh, bd, acc]) => {
     buildDetailedBuilding(bx, bz, bw, bh, bd, { accent: acc });
+  });
+}
+
+export function buildHeistCompounds() {
+  // =========================================================
+  // CONTRATO 03: DEPÓSITO BLINDADO BLUME (Distrito Sul, X: -195, Z: 220)
+  // =========================================================
+  const bx = -195;
+  const bz = 220;
+  const bw = 34; // X: -212 .. -178
+  const bd = 32; // Z: 204 .. 236
+  const bh = 4.6;
+  const bAccent = 0xd946ef;
+
+  // Piso reforçado do pátio
+  addStaticBox(bw, 0.14, bd, bx, 0.02, bz, 0x12192b, {
+    collide: false,
+    occlude: false,
+    edgesColor: bAccent,
+    edgesOpacity: 0.48
+  });
+
+  // Muros perimetrais com contorno neon (EdgesGeometry) e abertura norte de 8m para o portão deslizante
+  addStaticBox(0.8, bh, bd, bx - bw / 2, bh / 2, bz, 0x182236, { edgesColor: bAccent, edgesOpacity: 0.72 });
+  addStaticBox(0.8, bh, bd, bx + bw / 2, bh / 2, bz, 0x182236, { edgesColor: bAccent, edgesOpacity: 0.72 });
+  addStaticBox(bw, bh, 0.8, bx, bh / 2, bz + bd / 2, 0x182236, { edgesColor: bAccent, edgesOpacity: 0.72 });
+  // Parede norte com vão central de 8m (X: -199 .. -191)
+  const bSideW = (bw - 8) / 2; // 13m cada lado
+  addStaticBox(bSideW, bh, 0.8, bx - (4 + bSideW / 2), bh / 2, bz - bd / 2, 0x182236, { edgesColor: bAccent, edgesOpacity: 0.75 });
+  addStaticBox(bSideW, bh, 0.8, bx + (4 + bSideW / 2), bh / 2, bz - bd / 2, 0x182236, { edgesColor: bAccent, edgesOpacity: 0.75 });
+  // Pórtico superior + letreiro 3D acima do portão
+  addStaticBox(9.2, 0.7, 1.0, bx, bh + 0.35, bz - bd / 2, 0x141d2e, { collide: false, occlude: false, edgesColor: bAccent, edgesOpacity: 0.9 });
+  const blumeSign = new THREE.Mesh(
+    new THREE.PlaneGeometry(8.6, 1.8),
+    new THREE.MeshBasicMaterial({ map: TextureGenerator.getNeonSignTexture('DEPÓSITO BLUME', '#ff00aa'), side: THREE.DoubleSide })
+  );
+  blumeSign.position.set(bx, bh + 1.5, bz - bd / 2 - 0.15);
+  refs.worldGroup.add(blumeSign);
+
+  // Caixas táticas de cobertura nas laterais (mantendo a pista central X=-195 livre para fuga do carro)
+  [
+    [bx - 10, 1.0, bz - 6, 3.0, 2.0, 2.4],
+    [bx + 10, 1.0, bz - 6, 3.0, 2.0, 2.4],
+    [bx - 11, 1.1, bz + 8, 3.4, 2.2, 2.8],
+    [bx + 11, 1.1, bz + 8, 3.4, 2.2, 2.8]
+  ].forEach(([cx, cy, cz, cw, ch, cd]) => {
+    addStaticBox(cw, ch, cd, cx, cy, cz, 0x1e293b, { edgesColor: bAccent, edgesOpacity: 0.55 });
+  });
+
+  radarWalls.push(
+    { x1: bx - bw / 2, z1: bz - bd / 2, x2: bx - bw / 2, z2: bz + bd / 2 },
+    { x1: bx + bw / 2, z1: bz - bd / 2, x2: bx + bw / 2, z2: bz + bd / 2 },
+    { x1: bx - bw / 2, z1: bz + bd / 2, x2: bx + bw / 2, z2: bz + bd / 2 },
+    { x1: bx - bw / 2, z1: bz - bd / 2, x2: bx - 4, z2: bz - bd / 2 },
+    { x1: bx + 4, z1: bz - bd / 2, x2: bx + bw / 2, z2: bz - bd / 2 }
+  );
+  buildMapGates(MAPS_CONFIG.HEIST_BLUME_03, 'HEIST_BLUME_03');
+
+  // =========================================================
+  // CONTRATO 04: HANGAR SECRETO ctOS (Setor Portuário Leste, X: 495, Z: 165)
+  // =========================================================
+  const hx = 495;
+  const hz = 165;
+  const hw = 38; // X: 476 .. 514
+  const hd = 34; // Z: 148 .. 182
+  const hh = 6.2;
+  const hAccent = 0x00f0ff;
+
+  // Piso industrial do hangar
+  addStaticBox(hw, 0.14, hd, hx, 0.02, hz, 0x101828, {
+    collide: false,
+    occlude: false,
+    edgesColor: hAccent,
+    edgesOpacity: 0.55
+  });
+
+  // Paredes fortificadas do hangar com contorno neon ciano
+  addStaticBox(0.9, hh, hd, hx - hw / 2, hh / 2, hz, 0x162033, { edgesColor: hAccent, edgesOpacity: 0.75 });
+  addStaticBox(0.9, hh, hd, hx + hw / 2, hh / 2, hz, 0x162033, { edgesColor: hAccent, edgesOpacity: 0.75 });
+  addStaticBox(hw, hh, 0.9, hx, hh / 2, hz + hd / 2, 0x162033, { edgesColor: hAccent, edgesOpacity: 0.75 });
+  const hSideW = (hw - 8) / 2; // 15m cada lado
+  addStaticBox(hSideW, hh, 0.9, hx - (4 + hSideW / 2), hh / 2, hz - hd / 2, 0x162033, { edgesColor: hAccent, edgesOpacity: 0.78 });
+  addStaticBox(hSideW, hh, 0.9, hx + (4 + hSideW / 2), hh / 2, hz - hd / 2, 0x162033, { edgesColor: hAccent, edgesOpacity: 0.78 });
+  // Cobertura estrutural do hangar (vigas + teto elevado acima de 6.2m, colidível contra Drone)
+  addStaticBox(hw + 0.8, 0.45, hd + 0.8, hx, hh + 0.22, hz, 0x0e1524, { collide: true, occlude: false, edgesColor: hAccent, edgesOpacity: 0.65 });
+  const hangarSign = new THREE.Mesh(
+    new THREE.PlaneGeometry(10.5, 2.0),
+    new THREE.MeshBasicMaterial({ map: TextureGenerator.getNeonSignTexture('HANGAR SECRETO ctOS', '#00f0ff'), side: THREE.DoubleSide })
+  );
+  hangarSign.position.set(hx, hh - 0.5, hz - hd / 2 - 0.55);
+  refs.worldGroup.add(hangarSign);
+
+  // Coberturas táticas e racks laterais (pista central X=495 livre para o Interceptor Proto-X)
+  [
+    [hx - 12, 1.1, hz - 7, 3.2, 2.2, 2.6],
+    [hx + 12, 1.1, hz - 7, 3.2, 2.2, 2.6],
+    [hx - 12, 1.2, hz + 9, 3.6, 2.4, 3.0],
+    [hx + 12, 1.2, hz + 9, 3.6, 2.4, 3.0]
+  ].forEach(([cx, cy, cz, cw, ch, cd]) => {
+    addStaticBox(cw, ch, cd, cx, cy, cz, 0x1a263b, { edgesColor: hAccent, edgesOpacity: 0.6 });
+  });
+
+  radarWalls.push(
+    { x1: hx - hw / 2, z1: hz - hd / 2, x2: hx - hw / 2, z2: hz + hd / 2 },
+    { x1: hx + hw / 2, z1: hz - hd / 2, x2: hx + hw / 2, z2: hz + hd / 2 },
+    { x1: hx - hw / 2, z1: hz + hd / 2, x2: hx + hw / 2, z2: hz + hd / 2 },
+    { x1: hx - hw / 2, z1: hz - hd / 2, x2: hx - 4, z2: hz - hd / 2 },
+    { x1: hx + 4, z1: hz - hd / 2, x2: hx + hw / 2, z2: hz - hd / 2 }
+  );
+  buildMapGates(MAPS_CONFIG.HEIST_CTOS_04, 'HEIST_CTOS_04');
+
+  // =========================================================
+  // PONTOS DE ENTREGA DOS NOVOS CONTRATOS (SEM PointLights EXTRAS)
+  // =========================================================
+  const deliverySpots = [
+    { x: 435, z: -135, label: 'DOCA CLANDESTINA NORTE', color: 0x00ff88, hex: '#00ff88' },
+    { x: -210, z: -140, label: 'GARAGEM DEDSEC OESTE', color: 0x00f0ff, hex: '#00f0ff' }
+  ];
+  deliverySpots.forEach((ds) => {
+    addStaticBox(24, 0.4, 20, ds.x, 4.8, ds.z, 0x141d2e, {
+      collide: false,
+      occlude: false,
+      edgesColor: ds.color,
+      edgesOpacity: 0.8
+    });
+    [
+      [ds.x - 11, ds.z - 9],
+      [ds.x + 11, ds.z - 9],
+      [ds.x - 11, ds.z + 9],
+      [ds.x + 11, ds.z + 9]
+    ].forEach(([px, pz]) => {
+      addStaticBox(0.8, 4.8, 0.8, px, 2.4, pz, 0x24324c, { occlude: false });
+    });
+    const sign = new THREE.Mesh(
+      new THREE.PlaneGeometry(11, 2.1),
+      new THREE.MeshBasicMaterial({ map: TextureGenerator.getNeonSignTexture(ds.label, ds.hex), side: THREE.DoubleSide })
+    );
+    sign.position.set(ds.x, 4.1, ds.z + 10.2);
+    refs.worldGroup.add(sign);
   });
 }
 
@@ -1548,11 +1688,15 @@ export function buildTraversableGoldenGate() {
 }
 
 export function buildMissionMarkers() {
-  ['COMPLEXO_CTOS', 'DOCAS_BAIA_SF', 'VIP_CAR_01', 'VIP_CAR_02'].forEach((mKey) => {
+  ['COMPLEXO_CTOS', 'DOCAS_BAIA_SF', 'VIP_CAR_01', 'VIP_CAR_02', 'HEIST_BLUME_03', 'HEIST_CTOS_04'].forEach((mKey) => {
     const mCfg = MAPS_CONFIG[mKey];
     const [mx, my, mz] = mCfg.markerPos;
     const color = mKey.startsWith('VIP_CAR')
       ? 0xd946ef
+      : mKey === 'HEIST_BLUME_03'
+      ? 0xff00aa
+      : mKey === 'HEIST_CTOS_04'
+      ? 0x00ff88
       : mKey === 'COMPLEXO_CTOS'
       ? 0x00f0ff
       : 0xffaa00;
@@ -2963,6 +3107,8 @@ export function buildCars() {
     { x: -10, z: 42, yaw: Math.PI / 2, color: 0x111827, neon: 0x00f0ff, bodyType: 'SPORT', isDedsec: true, isDrivable: true, maxHp: 100, hasDriver: false },
     { x: -42, z: -24, yaw: Math.PI * 0.5, color: 0xcc22ff, neon: 0xd946ef, bodyType: 'SPORT', isDedsec: false, isDrivable: true, maxHp: 120, vipMissionKey: 'VIP_CAR_01', hasDriver: false },
     { x: DOCKS_OFFSET_X + 76, z: 14, yaw: -Math.PI * 0.5, color: 0x3b4252, neon: 0xd946ef, bodyType: 'SUV', isDedsec: false, isDrivable: true, maxHp: 220, vipMissionKey: 'VIP_CAR_02', hasDriver: false },
+    { x: -195, z: 222, yaw: Math.PI, color: 0x0b0e17, neon: 0xff00aa, bodyType: 'SPORT', isDedsec: false, isDrivable: true, maxHp: 240, maxSpeed: 21, accel: 20, vipMissionKey: 'HEIST_BLUME_03', requiresGateUnlock: true, hasDriver: false },
+    { x: 495, z: 168, yaw: Math.PI, color: 0x0f172a, neon: 0x00f0ff, bodyType: 'SPORT', isDedsec: false, isDrivable: true, maxHp: 300, maxSpeed: 24, accel: 22, hasNitro: true, vipMissionKey: 'HEIST_CTOS_04', requiresGateUnlock: true, hasDriver: false },
     { x: -40, z: 28, yaw: 0, color: 0x141720, neon: 0xff0044, bodyType: 'SUV', isDedsec: false, isDrivable: true, isPatrol: true, hasDriver: true },
     { x: 16, z: 16, yaw: -Math.PI / 2, color: 0x141720, neon: 0xff0044, bodyType: 'SUV', isDedsec: false, isDrivable: true, isPatrol: true, hasDriver: true },
     { x: -16, z: 16, yaw: Math.PI / 2, color: 0x26314a, neon: 0xffaa00, bodyType: 'HATCH', isDedsec: false, isDrivable: true, hasDriver: true },
@@ -3032,6 +3178,10 @@ export function buildCars() {
       isDedsec: !!carCfg.isDedsec,
       isDrivable,
       vipMissionKey: carCfg.vipMissionKey || null,
+      requiresGateUnlock: !!carCfg.requiresGateUnlock,
+      maxSpeed: carCfg.maxSpeed || 18,
+      accel: carCfg.accel || 18,
+      hasNitro: !!carCfg.hasNitro,
       maxHp,
       hp: maxHp,
       destroyed: false,
@@ -3655,6 +3805,7 @@ export function resetWorldState(keepPlayerPos = false) {
   for (let i = guards.length - 1; i >= 0; i--) {
     if (guards[i].isPolice) {
       refs.worldGroup.remove(guards[i].mesh);
+      disposeHierarchy(guards[i].mesh);
       guards.splice(i, 1);
     }
   }
@@ -3759,8 +3910,11 @@ export function startContract(missionKey) {
   const mCfg = MAPS_CONFIG[missionKey];
   if (mCfg?.isVehicleTheft) {
     gameState.targetCar = cars.find((c) => c.vipMissionKey === missionKey) || null;
-    if (refs.vehicleDeliveryGroup) refs.vehicleDeliveryGroup.visible = true;
-    setMissionState(MISSION_STATE.STEAL_CAR);
+    if (refs.vehicleDeliveryGroup && mCfg.extractPos) {
+      refs.vehicleDeliveryGroup.position.set(mCfg.extractPos[0], mCfg.extractPos[1], mCfg.extractPos[2]);
+      refs.vehicleDeliveryGroup.visible = !mCfg.requiresInfiltration;
+    }
+    setMissionState(mCfg.requiresInfiltration ? MISSION_STATE.INFILTRATE : MISSION_STATE.STEAL_CAR);
   } else {
     gameState.targetCar = null;
     if (refs.vehicleDeliveryGroup) refs.vehicleDeliveryGroup.visible = false;

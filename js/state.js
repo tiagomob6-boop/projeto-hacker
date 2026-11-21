@@ -125,6 +125,7 @@ export const MAPS_CONFIG = {
     label: 'CONTRATO VEICULAR 01 // PROTÓTIPO BLUME',
     desc: 'Roube o Protótipo Esportivo Blume no pátio vigiado em Downtown e entregue-o intacto na Garagem Clandestina DedSec (Distrito Sul).',
     reward: 1800,
+    deliveryLabel: 'GARAGEM DEDSEC SUL',
     bounds: WORLD_BOUNDS,
     radarScale: 0.95,
     playerStart: [-52, 0, -10],
@@ -145,6 +146,7 @@ export const MAPS_CONFIG = {
     label: 'CONTRATO VEICULAR 02 // SUV BLINDADO ctOS',
     desc: 'Roube o SUV Blindado ctOS (220 HP) no terminal portuário das Docas, escape pela ponte e entregue-o na Garagem Clandestina DedSec (Distrito Sul).',
     reward: 3000,
+    deliveryLabel: 'GARAGEM DEDSEC SUL',
     bounds: WORLD_BOUNDS,
     radarScale: 0.95,
     playerStart: [DOCKS_OFFSET_X + 58, 0, 14],
@@ -157,6 +159,69 @@ export const MAPS_CONFIG = {
     guards: [
       { waypoints: [[DOCKS_OFFSET_X + 68, 0, 6], [DOCKS_OFFSET_X + 84, 0, 6], [DOCKS_OFFSET_X + 84, 0, 22], [DOCKS_OFFSET_X + 68, 0, 22]], speed: 3.2, visionRange: 22 },
       { waypoints: [[DOCKS_OFFSET_X + 82, 0, 20], [DOCKS_OFFSET_X + 66, 0, 20], [DOCKS_OFFSET_X + 66, 0, 8], [DOCKS_OFFSET_X + 82, 0, 8]], speed: 3.4, visionRange: 22 }
+    ]
+  },
+  HEIST_BLUME_03: {
+    key: 'HEIST_BLUME_03',
+    isVehicleTheft: true,
+    requiresInfiltration: true,
+    label: 'CONTRATO 03 // DEPÓSITO BLINDADO BLUME',
+    desc: 'Infiltre-se no Depósito Blindado Blume (Distrito Sul), hackeie o portão eletrônico, roube o Blume Phantom GT (240 HP) e atravesse a baía até a Doca Clandestina Norte. Recompensa: $3.500.',
+    reward: 3500,
+    deliveryLabel: 'DOCA CLANDESTINA NORTE',
+    bounds: WORLD_BOUNDS,
+    radarScale: 0.95,
+    playerStart: [-195, 0, 194],
+    markerPos: [-195, 0.06, 196],
+    extractPos: [435, 0.06, -135],
+    carSpawn: { x: -195, z: 222, yaw: Math.PI, maxHp: 240, color: 0x0b0e17, neon: 0xff00aa, name: 'Blume Phantom GT' },
+    gates: [
+      { x: -195, y: 2.2, z: 204, w: 8, h: 4.4, d: 0.6, panelPos: [-189.5, 0.75, 203.0], openX: -203.4 }
+    ],
+    cameras: [
+      { name: 'CAM_BLUME_01 // PORTÃO NORTE', pos: [-210.5, 4.8, 206], baseYaw: 0.65, basePitch: -0.35 },
+      { name: 'CAM_BLUME_02 // PÁTIO SUL', pos: [-179.5, 4.8, 234], baseYaw: -2.45, basePitch: -0.35 }
+    ],
+    electricBoxes: [
+      { name: 'CAIXA_DEPOSITO_BLUME', pos: [-206, 0.85, 214] }
+    ],
+    guards: [
+      { waypoints: [[-207, 0, 209], [-183, 0, 209], [-183, 0, 217], [-207, 0, 217]], speed: 3.0, visionRange: 22 },
+      { waypoints: [[-183, 0, 231], [-207, 0, 231], [-207, 0, 223], [-183, 0, 223]], speed: 3.1, visionRange: 22 },
+      { waypoints: [[-208, 0, 212], [-208, 0, 232], [-201, 0, 232], [-201, 0, 212]], speed: 3.2, visionRange: 22 },
+      { waypoints: [[-182, 0, 232], [-182, 0, 212], [-189, 0, 212], [-189, 0, 232]], speed: 3.2, visionRange: 22 }
+    ]
+  },
+  HEIST_CTOS_04: {
+    key: 'HEIST_CTOS_04',
+    isVehicleTheft: true,
+    requiresInfiltration: true,
+    label: 'CONTRATO 04 // HANGAR SECRETO ctOS',
+    desc: 'Infiltre-se no Hangar Secreto ctOS (Setor Portuário Leste), hackeie o portão fortificado, roube o Interceptor ctOS Proto-X (300 HP + Nitro) e entregue-o na Garagem DedSec Oeste. Recompensa: $4.200.',
+    reward: 4200,
+    deliveryLabel: 'GARAGEM DEDSEC OESTE',
+    bounds: WORLD_BOUNDS,
+    radarScale: 0.95,
+    playerStart: [495, 0, 138],
+    markerPos: [495, 0.06, 140],
+    extractPos: [-210, 0.06, -140],
+    carSpawn: { x: 495, z: 168, yaw: Math.PI, maxHp: 300, color: 0x0f172a, neon: 0x00f0ff, hasNitro: true, name: 'Interceptor ctOS Proto-X' },
+    gates: [
+      { x: 495, y: 2.2, z: 148, w: 8, h: 4.4, d: 0.6, panelPos: [500.5, 0.75, 147.0], openX: 486.6 }
+    ],
+    cameras: [
+      { name: 'CAM_HANGAR_01 // PORTÃO NORTE', pos: [477.5, 4.9, 150], baseYaw: 0.72, basePitch: -0.35 },
+      { name: 'CAM_HANGAR_02 // ALA INTERNA', pos: [512.5, 4.9, 180], baseYaw: -2.4, basePitch: -0.35 }
+    ],
+    electricBoxes: [
+      { name: 'CAIXA_HANGAR_CTOS', pos: [482, 0.85, 160] }
+    ],
+    guards: [
+      { waypoints: [[481, 0, 154], [509, 0, 154], [509, 0, 162], [481, 0, 162]], speed: 3.3, visionRange: 24 },
+      { waypoints: [[509, 0, 177], [481, 0, 177], [481, 0, 169], [509, 0, 169]], speed: 3.4, visionRange: 24 },
+      { waypoints: [[480, 0, 156], [480, 0, 178], [487, 0, 178], [487, 0, 156]], speed: 3.4, visionRange: 24 },
+      { waypoints: [[510, 0, 178], [510, 0, 156], [503, 0, 156], [503, 0, 178]], speed: 3.5, visionRange: 24 },
+      { waypoints: [[488, 0, 174], [502, 0, 174], [502, 0, 160], [488, 0, 160]], speed: 3.5, visionRange: 24 }
     ]
   }
 };

@@ -303,16 +303,24 @@ export function completeTerminalHack() {
     if (occIdx !== -1) occluders.splice(occIdx, 1);
   }
 
-  gameState.gateUnlocked = gates.every((g) => g.unlocked);
+  const activeMissionKey = targetGate?.missionKey || gameState.activeMissionKey;
+  const missionGates = activeMissionKey ? gates.filter((g) => g.missionKey === activeMissionKey) : gates;
+  const allMissionGatesOpen = missionGates.length === 0 || missionGates.every((g) => g.unlocked);
+  gameState.gateUnlocked = allMissionGatesOpen;
   dom.hackFeedback.textContent = '> ACESSO CONCEDIDO // PORTÃO DESTRAVADO!';
   dom.hackFeedback.style.color = '#00ff88';
 
-  // Só avança o objetivo para o download de dados quando TODOS os portões da missão estiverem destravados
-  if (gameState.mission === MISSION_STATE.INFILTRATE && gameState.gateUnlocked) {
-    setMissionState(MISSION_STATE.STEAL_DATA);
+  const activeCfg = MAPS_CONFIG[gameState.activeMissionKey];
+  if (gameState.mission === MISSION_STATE.INFILTRATE && allMissionGatesOpen) {
+    if (activeCfg?.isVehicleTheft) {
+      dom.missionObjective.textContent = 'ROUBE O VEÍCULO-ALVO NO COMPLEXO';
+      dom.missionSub.textContent = 'Portão destravado! Entre no veículo-alvo [F] para iniciar a fuga';
+    } else {
+      setMissionState(MISSION_STATE.STEAL_DATA);
+    }
   }
 
-  if (gates.some((g) => !g.unlocked)) {
+  if (missionGates.some((g) => !g.unlocked)) {
     dom.missionSub.textContent = 'Hackeie a segunda barreira eletrônica para acessar o convés';
   }
 
@@ -407,18 +415,26 @@ export function updateVehicleHpHUD() {
 export function setMissionState(newState) {
   gameState.mission = newState;
 
+  const activeCfg = MAPS_CONFIG[gameState.activeMissionKey];
+
   if (newState === MISSION_STATE.FREE_ROAM) {
     dom.missionObjective.textContent = 'MUNDO ABERTO // SÃO FRANCISCO';
     dom.missionSub.textContent = 'Explore a cidade, atravesse a Golden Gate ou pise em um marcador de missão';
   } else if (newState === MISSION_STATE.INFILTRATE) {
-    dom.missionObjective.textContent = 'HACKEIE O PORTÃO DE ENTRADA';
-    dom.missionSub.textContent = 'Aproxime-se do painel na entrada e pressione [E]';
+    if (activeCfg?.isVehicleTheft) {
+      dom.missionObjective.textContent = 'INFILTRE-SE E HACKEIE O PORTÃO DO COMPLEXO';
+      dom.missionSub.textContent = 'Use Drone [Q], NetHack [V] ou furtividade para hackear o painel [E] e liberar o carro';
+    } else {
+      dom.missionObjective.textContent = 'HACKEIE O PORTÃO DE ENTRADA';
+      dom.missionSub.textContent = 'Aproxime-se do painel na entrada e pressione [E]';
+    }
   } else if (newState === MISSION_STATE.STEAL_DATA) {
     dom.missionObjective.textContent = 'BAIXE OS DADOS DO SERVIDOR CENTRAL';
     dom.missionSub.textContent = 'Use cobertura [V / C] contra os guardas e segure [E] no servidor';
   } else if (newState === MISSION_STATE.STEAL_CAR) {
-    dom.missionObjective.textContent = 'ROUBE O VEÍCULO VIP E ENTREGUE NA GARAGEM DEDSEC';
-    dom.missionSub.textContent = 'Entre no carro marcado [F] e dirija até a Garagem Clandestina no Distrito Sul';
+    const destLabel = activeCfg?.deliveryLabel || 'GARAGEM DEDSEC SUL';
+    dom.missionObjective.textContent = `ENTREGUE O VEÍCULO EM: ${destLabel}`;
+    dom.missionSub.textContent = `Fuja da perseguição policial e estacione o veículo intacto em ${destLabel}`;
     AudioManager.setMusicTempo(134);
   } else if (newState === MISSION_STATE.ESCAPE) {
     dom.missionObjective.textContent = 'FUJA PARA A ZONA DE EXTRAÇÃO';
@@ -686,7 +702,11 @@ export function toggleRain() {
 
 export function getActiveGpsTarget() {
   if (gameState.gpsWaypoint) return gameState.gpsWaypoint;
-  if (gameState.mission === MISSION_STATE.STEAL_CAR) return { x: -120, z: 320 };
+  const activeCfg = MAPS_CONFIG[gameState.activeMissionKey];
+  if (gameState.mission === MISSION_STATE.STEAL_CAR) {
+    const dest = activeCfg?.extractPos || [-120, 0.06, 320];
+    return { x: dest[0], z: dest[2] };
+  }
   if (gameState.mission === MISSION_STATE.ESCAPE && refs.extractionZoneGroup) {
     return { x: refs.extractionZoneGroup.position.x, z: refs.extractionZoneGroup.position.z };
   }
@@ -694,8 +714,13 @@ export function getActiveGpsTarget() {
     return { x: refs.serverMesh.position.x, z: refs.serverMesh.position.z };
   }
   if (gameState.mission === MISSION_STATE.INFILTRATE) {
-    const lockedGate = gates.find((g) => !g.unlocked);
+    const lockedGate =
+      gates.find((g) => g.missionKey === gameState.activeMissionKey && !g.unlocked) ||
+      gates.find((g) => !g.unlocked);
     if (lockedGate) return { x: lockedGate.panelMesh.position.x, z: lockedGate.panelMesh.position.z };
+    if (activeCfg?.isVehicleTheft && gameState.targetCar) {
+      return { x: gameState.targetCar.mesh.position.x, z: gameState.targetCar.mesh.position.z };
+    }
   }
   if (missionMarkers.length > 0 && refs.playerGroup) {
     let best = missionMarkers[0].pos;
@@ -811,10 +836,34 @@ export function renderTacticalMap() {
     ctx.fillText(st.name, sp.x - 24, sp.y + 16);
   });
 
+  // Complexos protegidos & Pontos de Entrega dos Contratos 03 e 04 no Mapa Tático
+  [
+    { x: -195, z: 220, label: 'DEPÓSITO BLUME [03]', color: '#ff00aa' },
+    { x: 495, z: 165, label: 'HANGAR ctOS [04]', color: '#00ff88' },
+    { x: 435, z: -135, label: 'DOCA NORTE', color: '#00ff88' },
+    { x: -210, z: -140, label: 'GARAGEM OESTE', color: '#00f0ff' }
+  ].forEach((poi) => {
+    const pp = toCanvas(poi.x, poi.z);
+    ctx.strokeStyle = poi.color;
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(pp.x - 6, pp.y - 5, 12, 10);
+    ctx.fillStyle = poi.color;
+    ctx.font = 'bold 9px monospace';
+    ctx.fillText(poi.label, pp.x + 8, pp.y + 3);
+  });
+
   // Contratos disponíveis
   missionMarkers.forEach((m) => {
     const mp = toCanvas(m.pos.x, m.pos.z);
-    ctx.strokeStyle = m.key.startsWith('VIP_CAR') ? '#d946ef' : m.key === 'COMPLEXO_CTOS' ? '#00f0ff' : '#ffaa00';
+    ctx.strokeStyle = m.key.startsWith('VIP_CAR')
+      ? '#d946ef'
+      : m.key === 'HEIST_BLUME_03'
+      ? '#ff00aa'
+      : m.key === 'HEIST_CTOS_04'
+      ? '#00ff88'
+      : m.key === 'COMPLEXO_CTOS'
+      ? '#00f0ff'
+      : '#ffaa00';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(mp.x, mp.y, 7, 0, Math.PI * 2);
@@ -1070,8 +1119,12 @@ export function updateRadar() {
     ctx.stroke();
   });
 
-  // Garagem DedSec no Distrito Sul
-  const garPos = toRadar(-120, 320);
+  // Pontos de entrega de veículos (Garagem Sul, Doca Norte, Garagem Oeste)
+  const activeDelivery =
+    gameState.mission === MISSION_STATE.STEAL_CAR && MAPS_CONFIG[gameState.activeMissionKey]?.extractPos
+      ? MAPS_CONFIG[gameState.activeMissionKey].extractPos
+      : [-120, 0.06, 320];
+  const garPos = toRadar(activeDelivery[0], activeDelivery[2]);
   ctx.fillStyle = gameState.mission === MISSION_STATE.STEAL_CAR ? 'rgba(0, 255, 136, 0.7)' : 'rgba(0, 255, 136, 0.35)';
   ctx.fillRect(garPos.x - 6, garPos.y - 5, 12, 10);
   ctx.strokeStyle = '#00ff88';
@@ -1122,6 +1175,10 @@ export function updateRadar() {
     const mp = toRadar(m.pos.x, m.pos.z);
     ctx.strokeStyle = m.key.startsWith('VIP_CAR')
       ? '#d946ef'
+      : m.key === 'HEIST_BLUME_03'
+      ? '#ff00aa'
+      : m.key === 'HEIST_CTOS_04'
+      ? '#00ff88'
       : m.key === 'COMPLEXO_CTOS'
       ? '#00f0ff'
       : '#ffaa00';
