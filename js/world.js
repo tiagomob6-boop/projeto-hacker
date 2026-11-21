@@ -377,6 +377,7 @@ export function buildMap() {
   // Setor 4: Distrito Residencial & Colinas Sul + Ponte Sul
   buildSouthDistrictAndBridge();
   buildUrbanDetailsAndMidBlocks();
+  buildTerrainAndMountains();
 
   // Elementos repetitivos otimizados via THREE.InstancedMesh (60 FPS)
   buildInstancedWorldElements();
@@ -501,16 +502,251 @@ export function buildSouthDistrictAndBridge() {
   ].forEach(([bx, bz, bw, bh, bd, acc]) => {
     buildDetailedBuilding(bx, bz, bw, bh, bd, { accent: acc });
   });
+}
 
-  // Colinas estilizadas ao sul do Distrito Residencial
-  [[-260, 660, 140, 28, 90], [-60, 690, 160, 36, 100], [10, 640, 110, 22, 80]].forEach(([hx, hz, hw, hh, hd]) => {
-    addStaticBox(hw, hh, hd, hx, hh / 2 - 2, hz, 0x142228, {
+export function buildTerrainAndMountains() {
+  const nethackTerrainMat = new THREE.MeshBasicMaterial({
+    color: 0x00a8cc,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.28
+  });
+
+  function createDeformedMountain(rx, height, rz, x, z, color, opts = {}) {
+    const isDodeca = opts.shape === 'dodeca';
+    const geo = isDodeca
+      ? new THREE.DodecahedronGeometry(1, 2)
+      : new THREE.ConeGeometry(1, 1, opts.segments ?? 10, 4);
+
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      let vx = pos.getX(i);
+      let vy = pos.getY(i);
+      let vz = pos.getZ(i);
+
+      if (isDodeca) {
+        if (vy < -0.15) vy = -0.15;
+        vy = (vy + 0.15) / 1.15;
+      } else {
+        vy = vy + 0.5;
+      }
+
+      const seed = Math.sin(vx * 7.3 + x * 0.05) * Math.cos(vz * 6.1 + z * 0.05) + Math.sin((vx + vz) * 4.7 + vy * 3.1) * 0.5;
+      const radialFactor = isDodeca ? (1 + seed * 0.16) : (1 + seed * 0.18 * (1 - vy * 0.65));
+      vx *= rx * radialFactor;
+      vz *= rz * radialFactor;
+      vy = vy * height * (1 + seed * 0.06);
+
+      pos.setXYZ(i, vx, vy, vz);
+    }
+    geo.computeVertexNormals();
+
+    const mat = new THREE.MeshStandardMaterial({
+      color,
+      roughness: opts.roughness ?? 0.92,
+      metalness: 0.08,
+      emissive: opts.emissive ?? 0x091922,
+      emissiveIntensity: opts.emissiveIntensity ?? 0.26,
+      flatShading: true
+    });
+
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(x, opts.baseY ?? -0.6, z);
+    mesh.rotation.y = opts.rotY ?? 0;
+    mesh.receiveShadow = true;
+    mesh.userData.normalMaterial = mat;
+    mesh.userData.nethackMaterial = nethackTerrainMat;
+    refs.worldGroup.add(mesh);
+    structureMeshes.push(mesh);
+
+    if (opts.occlude !== false) {
+      occluders.push(mesh);
+    }
+
+    if (opts.collide !== false) {
+      const colRadiusX = rx * (opts.collideScale ?? 0.72);
+      const colRadiusZ = rz * (opts.collideScale ?? 0.72);
+      const box = new THREE.Box3(
+        new THREE.Vector3(x - colRadiusX, -2, z - colRadiusZ),
+        new THREE.Vector3(x + colRadiusX, (opts.baseY ?? -0.6) + height, z + colRadiusZ)
+      );
+      colliders.push({ box, mesh });
+    }
+    return mesh;
+  }
+
+  // 1. Cadeia de Montanhas ao Norte da Ponte Golden Gate (Marin Headlands) e Margens da Baía
+  const mountainRanges = [
+    // Marin Headlands (Norte da Golden Gate, Z: -490..-255)
+    { x: -160, z: -290, rx: 95, rz: 75, h: 72, color: 0x182b24, emissive: 0x0c2420, rotY: 0.4 },
+    { x: -40, z: -340, rx: 115, rz: 85, h: 98, color: 0x1d2330, emissive: 0x102234, rotY: 1.1 },
+    { x: 95, z: -305, rx: 105, rz: 72, h: 84, color: 0x182b24, emissive: 0x0b2522, rotY: 0.2 },
+    { x: 225, z: -335, rx: 120, rz: 88, h: 112, color: 0x1d2330, emissive: 0x12263b, rotY: 2.1 },
+    { x: 350, z: -315, rx: 100, rz: 76, h: 88, color: 0x182b24, emissive: 0x0d2824, rotY: 0.7 },
+    { x: 495, z: -355, rx: 115, rz: 82, h: 94, color: 0x1d2330, emissive: 0x112438, rotY: 1.7 },
+    { x: 645, z: -325, rx: 110, rz: 80, h: 78, color: 0x182b24, emissive: 0x0c2420, rotY: 2.6 },
+    // Encostas Leste atrás das Docas (X: 760..930)
+    { x: 790, z: -150, rx: 90, rz: 105, h: 76, color: 0x1d2330, emissive: 0x102030, rotY: 0.9 },
+    { x: 825, z: 30, rx: 95, rz: 115, h: 92, color: 0x182b24, emissive: 0x0b2320, rotY: 1.5 },
+    { x: 785, z: 220, rx: 95, rz: 110, h: 82, color: 0x1d2330, emissive: 0x122234, rotY: 2.3 },
+    // Margem Sudeste da Baía (X: 500..780, Z: 430..610)
+    { x: 540, z: 455, rx: 85, rz: 70, h: 58, color: 0x182b24, emissive: 0x0c2420, rotY: 0.5 },
+    { x: 675, z: 490, rx: 110, rz: 85, h: 86, color: 0x1d2330, emissive: 0x102436, rotY: 1.9 },
+    // Horizonte Oeste (X: -430..-285)
+    { x: -340, z: -120, rx: 85, rz: 110, h: 68, color: 0x1d2330, emissive: 0x102232, rotY: 0.3 },
+    { x: -355, z: 100, rx: 90, rz: 115, h: 74, color: 0x182b24, emissive: 0x0c2420, rotY: 1.4 },
+    { x: -345, z: 330, rx: 88, rz: 110, h: 70, color: 0x1d2330, emissive: 0x102030, rotY: 2.4 },
+    // Cadeia Twin Peaks ao fundo do Distrito Sul (Z: 560..710)
+    { x: -290, z: 600, rx: 110, rz: 85, h: 76, color: 0x182b24, emissive: 0x0d2622, rotY: 0.8 },
+    { x: -135, z: 635, rx: 120, rz: 95, h: 96, color: 0x1d2330, emissive: 0x12283d, rotY: 1.6 },
+    { x: 15, z: 605, rx: 95, rz: 82, h: 72, color: 0x182b24, emissive: 0x0e2a24, rotY: 2.2 },
+    { x: -55, z: 685, rx: 130, rz: 95, h: 108, color: 0x1d2330, emissive: 0x142b42, rotY: 0.4, shape: 'dodeca' }
+  ];
+
+  mountainRanges.forEach((m) => {
+    createDeformedMountain(m.rx, m.h, m.rz, m.x, m.z, m.color, {
+      emissive: m.emissive,
+      emissiveIntensity: 0.3,
+      rotY: m.rotY,
+      shape: m.shape || 'cone',
+      segments: 11
+    });
+  });
+
+  // 2. Colinas verdes escalonadas com árvores nos parques e bordas do Distrito Sul
+  const hillTrees = [];
+  const steppedHills = [
+    // Bordas do Distrito Sul
+    { x: -245, z: 505, rx: 46, rz: 36, h: 14, color: 0x182b24 },
+    { x: -150, z: 515, rx: 42, rz: 32, h: 12, color: 0x1b332a },
+    { x: -35, z: 510, rx: 44, rz: 34, h: 13, color: 0x182b24 },
+    // Parques e bordas internas
+    { x: -140, z: 86, rx: 14, rz: 12, h: 4.2, color: 0x1b362c, collide: false },
+    { x: 24, z: 124, rx: 12, rz: 10, h: 3.6, color: 0x1b362c, collide: false },
+    { x: -156, z: 252, rx: 15, rz: 13, h: 4.5, color: 0x182b24, collide: false }
+  ];
+
+  steppedHills.forEach((hDef) => {
+    createDeformedMountain(hDef.rx, hDef.h, hDef.rz, hDef.x, hDef.z, hDef.color, {
+      shape: 'dodeca',
+      emissive: 0x0a261d,
+      emissiveIntensity: 0.28,
+      collide: hDef.collide !== false,
+      occlude: hDef.collide !== false,
+      collideScale: 0.68
+    });
+    const treeCount = hDef.rx > 25 ? 7 : 3;
+    for (let t = 0; t < treeCount; t++) {
+      const ang = (t / treeCount) * Math.PI * 2 + hDef.x * 0.1;
+      const distRatio = hDef.rx > 25 ? 0.45 : 0.4;
+      const tx = hDef.x + Math.cos(ang) * hDef.rx * distRatio;
+      const tz = hDef.z + Math.sin(ang) * hDef.rz * distRatio;
+      const ty = hDef.h * 0.48;
+      hillTrees.push({ x: tx, y: ty, z: tz, scale: 0.85 + (t % 3) * 0.22 });
+    }
+  });
+
+  if (hillTrees.length > 0) {
+    const dummy = new THREE.Object3D();
+    const trunkMesh = new THREE.InstancedMesh(
+      new THREE.CylinderGeometry(0.24, 0.34, 2.4, 6),
+      new THREE.MeshStandardMaterial({ color: 0x3b281e, roughness: 0.9 }),
+      hillTrees.length
+    );
+    const crownMesh = new THREE.InstancedMesh(
+      new THREE.OctahedronGeometry(1.75, 0),
+      new THREE.MeshStandardMaterial({ color: 0x11634c, emissive: 0x042b20, emissiveIntensity: 0.35, roughness: 0.72 }),
+      hillTrees.length
+    );
+    hillTrees.forEach((tr, idx) => {
+      dummy.position.set(tr.x, tr.y + 1.1 * tr.scale, tr.z);
+      dummy.scale.set(tr.scale, tr.scale, tr.scale);
+      dummy.updateMatrix();
+      trunkMesh.setMatrixAt(idx, dummy.matrix);
+
+      dummy.position.set(tr.x, tr.y + 3.0 * tr.scale, tr.z);
+      dummy.rotation.set(0, idx * 0.7, 0);
+      dummy.updateMatrix();
+      crownMesh.setMatrixAt(idx, dummy.matrix);
+    });
+    refs.worldGroup.add(trunkMesh, crownMesh);
+  }
+
+  // 3. Colina-Mirante Acessível no Distrito Sul (X: 28..48, Z: 355..425, topo y = 11.5m)
+  // Encostas rochosas e verdes cercando o mirante sem invadir a pista
+  createDeformedMountain(22, 11.2, 22, 38, 415, 0x182b24, {
+    shape: 'dodeca',
+    emissive: 0x0b2820,
+    emissiveIntensity: 0.28,
+    collide: false,
+    occlude: false
+  });
+  createDeformedMountain(15, 8.5, 24, 16, 398, 0x1d2330, {
+    shape: 'dodeca',
+    collideScale: 0.65
+  });
+  createDeformedMountain(15, 8.5, 24, 60, 398, 0x1d2330, {
+    shape: 'dodeca',
+    collideScale: 0.65
+  });
+  createDeformedMountain(20, 10.5, 16, 38, 440, 0x1d2330, {
+    shape: 'dodeca',
+    collideScale: 0.7
+  });
+
+  // Rampa asfaltada suave (Z: 355..405, elevação 0 -> 11.5m) e platô do Mirante (Z: 405..425)
+  const miranteMat = new THREE.MeshStandardMaterial({ color: 0x1b263b, roughness: 0.85, metalness: 0.15 });
+  const rampLenM = Math.hypot(50, 11.5);
+  const rampAngM = Math.atan2(11.5, 50);
+  const miranteRamp = new THREE.Mesh(new THREE.BoxGeometry(20, 0.7, rampLenM), miranteMat);
+  miranteRamp.position.set(38, 5.4, 380);
+  miranteRamp.rotation.x = -rampAngM;
+  miranteRamp.receiveShadow = true;
+  miranteRamp.userData.normalMaterial = miranteMat;
+  miranteRamp.userData.nethackMaterial = nethackTerrainMat;
+
+  const miranteDeck = new THREE.Mesh(new THREE.BoxGeometry(20, 0.8, 20), miranteMat);
+  miranteDeck.position.set(38, 11.1, 415);
+  miranteDeck.receiveShadow = true;
+  miranteDeck.userData.normalMaterial = miranteMat;
+  miranteDeck.userData.nethackMaterial = nethackTerrainMat;
+  refs.worldGroup.add(miranteRamp, miranteDeck);
+
+  // Guarda-corpo luminoso no topo do Mirante (Oeste, Leste e Sul, deixando entrada Norte aberta)
+  addStaticBox(0.45, 1.15, 20.4, 28.1, 12.05, 415, 0x22324d, {
+    occlude: false,
+    edgesColor: 0x00ff88,
+    edgesOpacity: 0.9
+  });
+  addStaticBox(0.45, 1.15, 20.4, 47.9, 12.05, 415, 0x22324d, {
+    occlude: false,
+    edgesColor: 0x00ff88,
+    edgesOpacity: 0.9
+  });
+  addStaticBox(20.2, 1.15, 0.45, 38, 12.05, 424.9, 0x22324d, {
+    occlude: false,
+    edgesColor: 0x00f0ff,
+    edgesOpacity: 0.95
+  });
+
+  // Guarda-corpo lateral na rampa do Mirante
+  [28.1, 47.9].forEach((rx) => {
+    const rRail = addStaticBox(0.4, 1.0, rampLenM, rx, 6.25, 380, 0x22324d, {
       collide: false,
       occlude: false,
       edgesColor: 0x00ff88,
-      edgesOpacity: 0.22
+      edgesOpacity: 0.65
     });
+    rRail.rotation.x = -rampAngM;
   });
+
+  // Letreiro 3D no Mirante DedSec
+  const miranteSign = new THREE.Mesh(
+    new THREE.PlaneGeometry(11, 2.2),
+    new THREE.MeshBasicMaterial({ map: TextureGenerator.getNeonSignTexture('MIRANTE TWIN PEAKS', '#00ff88'), side: THREE.DoubleSide })
+  );
+  miranteSign.position.set(38, 13.4, 424.5);
+  refs.worldGroup.add(miranteSign);
 }
 
 export function buildUrbanDetailsAndMidBlocks() {

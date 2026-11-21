@@ -477,6 +477,11 @@ export function getSurfaceHeight(x, z) {
     if (x >= 400) return ((404 - x) / 4) * -0.35;
     return -0.35;
   }
+  // Colina-Mirante acessível no Distrito Sul (rampa em Z: 355..405, platô em Z: 405..425, X: 28..48)
+  if (x >= 28 && x <= 48 && z >= 355 && z <= 425) {
+    if (z <= 405) return ((z - 355) / 50) * 11.5;
+    return 11.5;
+  }
   // Pisos internos das 3 lojas em Downtown (DedSec Style, SF Motors, HackShop Armory)
   if (z >= 61.5 && z <= 74.5 && ((x >= -38.5 && x <= -25.5) || (x >= -8.5 && x <= 8.5) || (x >= 25.5 && x <= 38.5))) {
     return 0.19;
@@ -526,6 +531,10 @@ export function isWaterForBoats(x, z) {
   // Plataformas terrestres (barcos navegam livremente por baixo da Golden Gate e Ponte Sul)
   if (x >= -540 && x <= 80 && z >= -480 && z <= 780) return false;
   if (x >= 400 && x <= 960 && z >= -280 && z <= 360) return false;
+  // Encostas rochosas e cadeias montanhosas ao redor da baía (Marin Headlands / Leste / Sul)
+  if (z <= -215) return false;
+  if (x >= 450 && z >= 360) return false;
+  if (z >= 520) return false;
   if ((z >= 57 && z <= 67 || z >= 215 && z <= 225) && x >= 64 && x <= 76) return false;
   if ((z >= 57 && z <= 67 || z >= -125 && z <= -115) && x >= 394 && x <= 404) return false;
   return true;

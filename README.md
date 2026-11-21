@@ -20,7 +20,7 @@ Explore livremente o mapa contínuo (`-30000..30000`) com `$500` iniciais e ativ
 - **Distrito Downtown & Financial (Oeste/Norte):** Quarteirões detalhados, 4 **prédios abertos com interiores mobiliados** (Café Cyber, Escritório ctOS, Oficina DedSec e Esconderijo DedSec com caixas de suprimentos `+$100`/`+25 HP`), 3 **lojas interativas** (**DedSec Style**, **SF Motors** e **HackShop Armory**), parques, estacionamento e o **Complexo ctOS (Missão 01)**.
 - **Baía de São Francisco & Ponte Golden Gate:** Canal navegável com 4 píeres, 4 lanchas DedSec (`F`, navegando livremente por baixo das pontes) e a Ponte Golden Gate atravessável a pé ou de carro.
 - **Distrito Portuário & Industrial (Leste):** **Docas da Baía SF (Missão 02)**, galpões, pátio de contêineres e o cargueiro da Blume.
-- **Distrito Residencial & Colinas (Sul):** Ruas largas, garagem clandestina da DedSec e Ponte Sul ligando ao setor portuário.
+- **Distrito Residencial & Colinas (Sul):** Ruas largas, garagem clandestina da DedSec, Ponte Sul ligando ao setor portuário, **Mirante Twin Peaks** acessível de carro ou a pé e cadeia de montanhas ao redor da baía.
 - **Preparação Multiplayer Co-op:** Botão `[MODO: SOLO // CO-OP READY]` no HUD conectado ao módulo `js/network.js` (`NetworkManager`).
 
 ---
