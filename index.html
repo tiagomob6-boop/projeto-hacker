@@ -37,7 +37,7 @@
   <div id="hud">
     <div class="hud-top">
       <div class="hud-panel mission-panel">
-        <div class="panel-label">ctOS // OBJETIVO ATUAL</div>
+        <div class="panel-label">ctOS // OBJETIVO ATUAL <span id="gps-distance" class="neon-green"></span></div>
         <div id="mission-objective" class="mission-text">MUNDO ABERTO // SÃO FRANCISCO</div>
         <div id="mission-sub" class="mission-sub">Explore a cidade, atravesse a Golden Gate ou pise em um marcador de missão</div>
       </div>
@@ -295,6 +295,13 @@
       <div class="brand-tag">ctOS // MAPA TÁTICO DE SÃO FRANCISCO</div>
       <h2 class="status-title neon-cyan">NAVEGAÇÃO GPS DEDSEC</h2>
       <canvas id="tactical-map-canvas" width="560" height="380"></canvas>
+      <div class="tactical-map-legend">
+        <span><span class="legend-dot" style="background:#00f0ff"></span> Downtown / SF Motors</span>
+        <span><span class="legend-dot" style="background:#00ff88"></span> Distrito Sul / Garagem / Mirante</span>
+        <span><span class="legend-dot" style="background:#ffaa00"></span> Docas / HackShop</span>
+        <span><span class="legend-dot" style="background:#d946ef"></span> DedSec Style / Contratos VIP</span>
+        <span><span class="legend-dot" style="background:#ff5a1f"></span> Golden Gate</span>
+      </div>
       <p class="intro-desc">Clique em qualquer ponto do mapa para definir um destino GPS personalizado. Pressione <kbd>TAB</kbd> ou <kbd>ESC</kbd> para fechar.</p>
       <div class="diff-buttons">
         <button id="btn-clear-gps" type="button" class="cyber-btn">LIMPAR GPS</button>

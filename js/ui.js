@@ -154,6 +154,10 @@ export function updateNetHackLabels() {
       return;
     }
     const pos = item.getPos();
+    if (refs.camera && pos.distanceTo(refs.camera.position) > 110) {
+      item.el.style.display = 'none';
+      return;
+    }
     const distLimit = gameState.droneActive && item.maxDist < Infinity ? item.maxDist * 1.65 : item.maxDist;
     if (distLimit < Infinity && viewOrigin && pos.distanceTo(viewOrigin) > distLimit) {
       item.el.style.display = 'none';
@@ -756,6 +760,34 @@ export function renderTacticalMap() {
   ctx.font = '10px monospace';
   ctx.fillText('GARAGEM DEDSEC', gar.x + 10, gar.y + 4);
 
+  // Mirante Twin Peaks
+  const mir = toCanvas(38, 415);
+  ctx.fillStyle = '#00ff88';
+  ctx.beginPath();
+  ctx.moveTo(mir.x, mir.y - 7);
+  ctx.lineTo(mir.x + 6, mir.y + 5);
+  ctx.lineTo(mir.x - 6, mir.y + 5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = '#00ff88';
+  ctx.font = 'bold 10px monospace';
+  ctx.fillText('▲ MIRANTE TWIN PEAKS', mir.x + 9, mir.y + 3);
+
+  // Lanchas na baía
+  boats.forEach((b) => {
+    const bp = toCanvas(b.mesh.position.x, b.mesh.position.z);
+    ctx.fillStyle = '#00ff88';
+    ctx.beginPath();
+    ctx.arc(bp.x, bp.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(0, 255, 136, 0.85)';
+    ctx.font = '9px monospace';
+    ctx.fillText('LANCHA', bp.x + 6, bp.y + 3);
+  });
+
   // Lojas (Style, Motors, Armory)
   stores.forEach((st) => {
     const sp = toCanvas(st.pos.x, st.pos.z);
@@ -1121,11 +1153,30 @@ export function updateRadar() {
   });
 
   // Píeres de embarque e Lanchas DedSec no radar
-  [72, 398].forEach((px) => {
-    const pp = toRadar(px, 62);
+  [[66, 62], [66, 220], [404, 62], [404, -120]].forEach(([px, pz]) => {
+    const pp = toRadar(px, pz);
     ctx.fillStyle = 'rgba(28, 38, 59, 0.9)';
+    ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
+    ctx.lineWidth = 1;
     ctx.fillRect(pp.x - 4 * scale, pp.y - 5 * scale, 8 * scale, 10 * scale);
+    ctx.strokeRect(pp.x - 4 * scale, pp.y - 5 * scale, 8 * scale, 10 * scale);
   });
+
+  // Mirante Twin Peaks no radar
+  const mirPos = toRadar(38, 415);
+  ctx.fillStyle = '#00ff88';
+  ctx.beginPath();
+  ctx.moveTo(mirPos.x, mirPos.y - 7);
+  ctx.lineTo(mirPos.x + 6, mirPos.y + 4);
+  ctx.lineTo(mirPos.x - 6, mirPos.y + 4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = '#00ff88';
+  ctx.font = 'bold 9px monospace';
+  ctx.fillText('MIRANTE', mirPos.x - 18, mirPos.y + 14);
 
   boats.forEach((boat) => {
     const bp = toRadar(boat.mesh.position.x, boat.mesh.position.z);
@@ -1133,7 +1184,17 @@ export function updateRadar() {
     ctx.translate(bp.x, bp.y);
     ctx.rotate(-boat.mesh.rotation.y);
     ctx.fillStyle = '#00ff88';
-    ctx.fillRect(-1.15 * scale, -2.3 * scale, 2.3 * scale, 4.6 * scale);
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, 3.2 * scale);
+    ctx.lineTo(1.4 * scale, 1.2 * scale);
+    ctx.lineTo(1.4 * scale, -2.4 * scale);
+    ctx.lineTo(-1.4 * scale, -2.4 * scale);
+    ctx.lineTo(-1.4 * scale, 1.2 * scale);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
     ctx.restore();
   });
 
@@ -1190,8 +1251,17 @@ export function updateRadar() {
     ctx.fill();
   });
 
-  // Linha guia GPS tracejada no Radar DedSec até o objetivo/waypoint ativo
+  // Linha guia GPS tracejada no Radar DedSec até o objetivo/waypoint ativo & distância no HUD
   const gpsTarget = getActiveGpsTarget();
+  if (dom.gpsDistance) {
+    if (gpsTarget) {
+      const pPos = isDrone ? refs.droneGroup.position : refs.playerGroup.position;
+      const distM = Math.round(Math.hypot(gpsTarget.x - pPos.x, gpsTarget.z - pPos.z));
+      dom.gpsDistance.textContent = `// GPS: ${distM}m`;
+    } else {
+      dom.gpsDistance.textContent = '';
+    }
+  }
   if (gpsTarget) {
     const gp = toRadar(gpsTarget.x, gpsTarget.z);
     ctx.save();

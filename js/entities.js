@@ -1295,6 +1295,50 @@ function knockDownLightPole(pole, dirX, dirZ) {
   AudioManager.playMetalCrash();
 }
 
+export function updateCarPitch(car, dt) {
+  if (!car || !car.mesh) return;
+  car.mesh.rotation.order = 'YXZ';
+  const yaw = car.mesh.rotation.y;
+  const fx = Math.sin(yaw);
+  const fz = Math.cos(yaw);
+  const halfLen = 1.6;
+  const frontX = car.mesh.position.x + fx * halfLen;
+  const frontZ = car.mesh.position.z + fz * halfLen;
+  const backX = car.mesh.position.x - fx * halfLen;
+  const backZ = car.mesh.position.z - fz * halfLen;
+  const hFront = getSurfaceHeight(frontX, frontZ);
+  const hBack = getSurfaceHeight(backX, backZ);
+  const targetPitch = -Math.atan2(hFront - hBack, halfLen * 2);
+  car.mesh.rotation.x = THREE.MathUtils.lerp(car.mesh.rotation.x, targetPitch, Math.min(1, dt * 8));
+}
+
+export function disembarkPoliceCar(car) {
+  if (!car || car.disembarked) return;
+  car.disembarked = true;
+  car.speed = 0;
+  const pPos = refs.playerGroup.position;
+  const cx = car.mesh.position.x;
+  const cz = car.mesh.position.z;
+  const yaw = car.mesh.rotation.y;
+  const rx = Math.cos(yaw) * 2.4;
+  const rz = -Math.sin(yaw) * 2.4;
+  const beforeCount = guards.length;
+  buildGuards(
+    {
+      guards: [
+        { waypoints: [[cx + rx, getSurfaceHeight(cx + rx, cz + rz), cz + rz], [pPos.x, 0, pPos.z]], speed: 3.8, visionRange: 28 },
+        { waypoints: [[cx - rx, getSurfaceHeight(cx - rx, cz - rz), cz - rz], [pPos.x, 0, pPos.z]], speed: 4.0, visionRange: 28 }
+      ]
+    },
+    'POLICE'
+  );
+  for (let i = beforeCount; i < guards.length; i++) {
+    guards[i].isPolice = true;
+    guards[i].state = GUARD_STATE.COMBAT;
+    guards[i].lastKnownPos = pPos.clone();
+  }
+}
+
 // ==========================================
 // MOVIMENTAÇÃO, COLISÃO, CARROS E CÂMERA
 // ==========================================
@@ -1444,9 +1488,56 @@ export function updateCars(dt) {
           car.mesh.position.y = getSurfaceHeight(nx, nz);
           car.mesh.updateMatrixWorld(true);
           car.colliderObj.box.setFromObject(car.mesh);
+          updateCarPitch(car, dt);
         } else {
           // Frear e aguardar atrás do bloqueio em vez de pular waypoint e sair da faixa
           car.speed = 0;
+        }
+      }
+      return;
+    }
+
+    // Perseguição ativa das viaturas policiais (policeCars)
+    if (car.isPoliceCar && car !== gameState.drivingCar && !car.destroyed && car.hackedTimer <= 0) {
+      if (!car.disembarked) {
+        const pPos = refs.playerGroup.position;
+        const toPlayerX = pPos.x - car.mesh.position.x;
+        const toPlayerZ = pPos.z - car.mesh.position.z;
+        const distPlayer = Math.hypot(toPlayerX, toPlayerZ);
+
+        car.sirenCd = Math.max(0, (car.sirenCd || 0) - dt);
+        if (car.sirenCd <= 0 && distPlayer < 85) {
+          AudioManager.playBaseAlertSiren();
+          car.sirenCd = 3.6;
+        }
+
+        if (distPlayer < 17 || car.hp < car.maxHp * 0.45) {
+          disembarkPoliceCar(car);
+        } else {
+          const desiredYaw = Math.atan2(toPlayerX, toPlayerZ);
+          let diff = desiredYaw - car.mesh.rotation.y;
+          while (diff > Math.PI) diff -= Math.PI * 2;
+          while (diff < -Math.PI) diff += Math.PI * 2;
+          car.mesh.rotation.y += diff * Math.min(1, dt * 3.6);
+
+          const fwdX = Math.sin(car.mesh.rotation.y);
+          const fwdZ = Math.cos(car.mesh.rotation.y);
+          car.speed = THREE.MathUtils.lerp(car.speed, 14.0, Math.min(1, dt * 3.2));
+
+          const nx = car.mesh.position.x + fwdX * car.speed * dt;
+          const nz = car.mesh.position.z + fwdZ * car.speed * dt;
+          if (!checkCarCollision(nx, nz, car.mesh.rotation.y, car)) {
+            car.mesh.position.x = nx;
+            car.mesh.position.z = nz;
+            car.mesh.position.y = getSurfaceHeight(nx, nz);
+            car.mesh.updateMatrixWorld(true);
+            car.colliderObj.box.setFromObject(car.mesh);
+            updateCarPitch(car, dt);
+          } else {
+            // Se encontrar bloqueio físico ou colidir, para e desembarca a tropa imediatamente
+            car.speed = 0;
+            disembarkPoliceCar(car);
+          }
         }
       }
       return;
@@ -1472,6 +1563,7 @@ export function updateCars(dt) {
       car.mesh.position.y = getSurfaceHeight(nextX, nextZ);
       car.mesh.updateMatrixWorld(true);
       car.colliderObj.box.setFromObject(car.mesh);
+      updateCarPitch(car, dt);
     } else {
       car.hackedTimer = 0;
       car.speed = 0;
@@ -1615,6 +1707,16 @@ export function updatePlayer(dt) {
       boat.mesh.position.z = nextZ;
     } else {
       boat.speed *= -0.2;
+      // Empuxo suave de retorno para a água ao tocar a margem
+      const toBayX = 240 - boat.mesh.position.x;
+      const toBayZ = 62 - boat.mesh.position.z;
+      const bayDist = Math.hypot(toBayX, toBayZ) || 1;
+      const pushX = (toBayX / bayDist) * 3.8 * dt - fx * 2.2 * dt;
+      const pushZ = (toBayZ / bayDist) * 3.8 * dt - fz * 2.2 * dt;
+      if (isWaterForBoats(boat.mesh.position.x + pushX, boat.mesh.position.z + pushZ)) {
+        boat.mesh.position.x += pushX;
+        boat.mesh.position.z += pushZ;
+      }
     }
 
     boat.mesh.position.y = -0.32 + Math.sin(gameState.elapsedTime * 3.0 + boat.id) * 0.05;
@@ -1775,6 +1877,7 @@ export function updatePlayer(dt) {
     }
 
     cPos.y = getSurfaceHeight(cPos.x, cPos.z);
+    updateCarPitch(car, dt);
 
     car.mesh.updateMatrixWorld(true);
     car.colliderObj.box.setFromObject(car.mesh);

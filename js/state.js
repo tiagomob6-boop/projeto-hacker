@@ -225,6 +225,7 @@ export const dom = {
   baseAlertBanner: document.getElementById('base-alert-banner'),
   missionObjective: document.getElementById('mission-objective'),
   missionSub: document.getElementById('mission-sub'),
+  gpsDistance: document.getElementById('gps-distance'),
   statusMode: document.getElementById('status-mode'),
   statusTimer: document.getElementById('status-timer'),
   statusMoney: document.getElementById('status-money'),

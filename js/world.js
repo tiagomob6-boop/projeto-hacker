@@ -3764,27 +3764,12 @@ export function spawnPoliceReinforcement() {
     speed: 0,
     hackedTimer: 0,
     hackedUsed: false,
-    headlight
+    headlight,
+    disembarked: false,
+    sirenCd: 0
   };
   cars.push(carObj);
   policeCars.push(carObj);
-
-  // Spawnar esquadrão de 2 policiais armados ctOS que perseguem e cercam o jogador
-  const beforeCount = guards.length;
-  buildGuards(
-    {
-      guards: [
-        { waypoints: [[sx - 2.6, 0, sz], [pPos.x, 0, pPos.z]], speed: 3.7, visionRange: 26 },
-        { waypoints: [[sx + 2.6, 0, sz], [pPos.x, 0, pPos.z]], speed: 3.9, visionRange: 26 }
-      ]
-    },
-    'POLICE'
-  );
-  for (let i = beforeCount; i < guards.length; i++) {
-    guards[i].isPolice = true;
-    guards[i].state = GUARD_STATE.COMBAT;
-    guards[i].lastKnownPos = pPos.clone();
-  }
 }
 
 export function updateVisualEffects(dt, nowSec) {
