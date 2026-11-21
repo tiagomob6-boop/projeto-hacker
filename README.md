@@ -45,6 +45,7 @@ Explore livremente o mapa contínuo (`-30000..30000`) com `$500` iniciais e ativ
 | `F` | Roubar/entrar em qualquer carro (ejetando o motorista) ou pilotar / desembarcar da **Lancha DedSec** (`WASD`) |
 | `1` a `5` | Selecionar arma: `[1]` Taser, `[2]` 9mm Silenciada, `[3]` Rifle Automático, `[4]` Pulso EMP, `[5]` Escopeta Tática (HackShop) |
 | `Clique Esquerdo` | Disparar arma equipada (segurar para rajada automática no Rifle `[3]`) |
+| `H` | Abrir / fechar o **Guia Rápido & Ajustes** (resumo de controles, sombras e sensibilidade) |
 | `M` | Ligar / silenciar (Mudo) o áudio procedural e a trilha sonora |
 | `ESC` | Cancelar terminal de hack / liberar cursor do mouse |
 
