@@ -834,7 +834,11 @@ export function toggleQuickGuide(forceState) {
     }
   } else {
     dom.quickGuideModal.classList.add('hidden');
-    if (gameState.mission !== MISSION_STATE.INTRO && gameState.mission !== MISSION_STATE.GAME_OVER) {
+    if (
+      gameState.mission !== MISSION_STATE.INTRO &&
+      gameState.mission !== MISSION_STATE.GAMEOVER &&
+      gameState.mission !== MISSION_STATE.VICTORY
+    ) {
       dom.canvas.requestPointerLock();
     }
   }
@@ -882,6 +886,9 @@ export function triggerGameOver(
   desc = 'Os guardas do complexo neutralizaram sua infiltração.'
 ) {
   gameState.mission = MISSION_STATE.GAMEOVER;
+  gameState.droneActive = false;
+  if (refs.droneGroup) refs.droneGroup.visible = false;
+  if (refs.playerGroup) refs.playerGroup.visible = true;
   AudioManager.stopMusic();
   AudioManager.stopEngineSound();
   AudioManager.playGameOverSiren();
@@ -894,6 +901,10 @@ export function triggerGameOver(
   dom.alertVignette.classList.add('hidden');
   if (dom.damageFlash) dom.damageFlash.classList.add('hidden');
   if (dom.baseAlertBanner) dom.baseAlertBanner.classList.add('hidden');
+  if (dom.ctosRevealBanner) dom.ctosRevealBanner.classList.add('hidden');
+  if (dom.droneHud) dom.droneHud.classList.add('hidden');
+  if (dom.cameraOverlay) dom.cameraOverlay.classList.add('hidden');
+  if (dom.cockpitHud) dom.cockpitHud.classList.add('hidden');
   dom.gameoverScreen.classList.remove('hidden');
 }
 
@@ -908,6 +919,13 @@ export function calculateMissionRank() {
 
 export function triggerVictory() {
   gameState.mission = MISSION_STATE.VICTORY;
+  gameState.droneActive = false;
+  if (refs.droneGroup) refs.droneGroup.visible = false;
+  if (refs.playerGroup) refs.playerGroup.visible = true;
+  if (dom.droneHud) dom.droneHud.classList.add('hidden');
+  if (dom.cameraOverlay) dom.cameraOverlay.classList.add('hidden');
+  if (dom.cockpitHud) dom.cockpitHud.classList.add('hidden');
+  if (dom.ctosRevealBanner) dom.ctosRevealBanner.classList.add('hidden');
   AudioManager.stopMusic();
   AudioManager.stopEngineSound();
   AudioManager.playVictoryChime();

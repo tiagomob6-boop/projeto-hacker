@@ -561,10 +561,12 @@ export function isWaterArea(x, z) {
   return isWaterForLand(x, z);
 }
 
-export function checkCollision(x, z, radius = PLAYER_RADIUS, ignoreCar = null) {
+export function checkCollision(x, z, radius = PLAYER_RADIUS, ignoreCar = null, y = null, height = 1.8) {
+  const entityY = y !== null ? y : getSurfaceHeight(x, z);
   for (const col of colliders) {
     if (ignoreCar && col === ignoreCar.colliderObj) continue;
     const b = col.box;
+    if (b.max.y <= entityY + 0.05 || b.min.y >= entityY + height) continue;
     const closestX = THREE.MathUtils.clamp(x, b.min.x, b.max.x);
     const closestZ = THREE.MathUtils.clamp(z, b.min.z, b.max.z);
     const dx = x - closestX;

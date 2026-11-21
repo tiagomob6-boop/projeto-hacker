@@ -911,41 +911,43 @@ export function handleInteractPress() {
     }
   }
 
-  // 1b. Checar lojas interativas (DedSec Style / HackShop Armory / SF Motors)
-  for (const st of stores) {
-    if (pPos.distanceTo(st.pos) < 3.6) {
-      openShopModal(st.type);
+  // 1b. Checar lojas interativas (DedSec Style / HackShop Armory / SF Motors) - apenas a pé
+  if (!gameState.droneActive) {
+    for (const st of stores) {
+      if (pPos.distanceTo(st.pos) < 3.6) {
+        openShopModal(st.type);
+        return;
+      }
+    }
+
+    // 1c. Checar caixas de suprimentos nos prédios abertos (+$100 ou +25 HP)
+    for (const sb of supplyBoxes) {
+      if (!sb.used && pPos.distanceTo(sb.pos) < 3.0) {
+        sb.used = true;
+        if (sb.mesh?.userData?.normalMaterial?.emissive) {
+          sb.mesh.userData.normalMaterial.emissiveIntensity = 0.08;
+        }
+        if (sb.rewardType === 'MONEY') {
+          gameState.money += 100;
+          updateMoneyHUD();
+        } else {
+          gameState.hp = Math.min(gameState.maxHp || 100, gameState.hp + 25);
+          updateHpHUD();
+        }
+        AudioManager.playTerminalSuccess();
+        return;
+      }
+    }
+
+    // 2. Checar firewall do servidor central antes do download
+    if (
+      gameState.mission === MISSION_STATE.STEAL_DATA &&
+      !gameState.serverFirewallDisabled &&
+      pPos.distanceTo(refs.serverMesh.position) < 3.8
+    ) {
+      openTerminal('FIREWALL');
       return;
     }
-  }
-
-  // 1c. Checar caixas de suprimentos nos prédios abertos (+$100 ou +25 HP)
-  for (const sb of supplyBoxes) {
-    if (!sb.used && pPos.distanceTo(sb.pos) < 3.0) {
-      sb.used = true;
-      if (sb.mesh?.userData?.normalMaterial?.emissive) {
-        sb.mesh.userData.normalMaterial.emissiveIntensity = 0.08;
-      }
-      if (sb.rewardType === 'MONEY') {
-        gameState.money += 100;
-        updateMoneyHUD();
-      } else {
-        gameState.hp = Math.min(gameState.maxHp || 100, gameState.hp + 25);
-        updateHpHUD();
-      }
-      AudioManager.playTerminalSuccess();
-      return;
-    }
-  }
-
-  // 2. Checar firewall do servidor central antes do download
-  if (
-    gameState.mission === MISSION_STATE.STEAL_DATA &&
-    !gameState.serverFirewallDisabled &&
-    pPos.distanceTo(refs.serverMesh.position) < 3.8
-  ) {
-    openTerminal('FIREWALL');
-    return;
   }
 
   // 3. Checar caixas elétricas de distração (perto ou olhando na Visão NetHack)
@@ -1039,31 +1041,57 @@ export function handleInteractPress() {
 export function toggleDriveDedsecCar() {
   if (gameState.terminalOpen || gameState.missionModalOpen || gameState.activeCamIndex >= 0) return;
 
-  // Desembarcar do barco em terra firme ou píer próximo
+  // Desembarcar do barco em terra firme ou píer mais próximo (Oeste Centro, Oeste Sul, Leste Centro, Leste Norte)
   if (gameState.drivingBoat) {
     const boat = gameState.drivingBoat;
     const bPos = boat.mesh.position;
-    let landX = null;
-    let landZ = null;
+    const pierSpots = [
+      [66, 62],
+      [66, 220],
+      [404, 62],
+      [404, -120]
+    ];
+    let nearestPier = pierSpots[0];
+    let bestPierDist = Infinity;
+    for (const ps of pierSpots) {
+      const d = Math.hypot(bPos.x - ps[0], bPos.z - ps[1]);
+      if (d < bestPierDist) {
+        bestPierDist = d;
+        nearestPier = ps;
+      }
+    }
 
-    if (bPos.x < 120 && Math.hypot(bPos.x - 72, bPos.z - 62) < 14) {
-      landX = 68;
-      landZ = 62;
-    } else if (bPos.x > 340 && Math.hypot(bPos.x - 398, bPos.z - 62) < 14) {
-      landX = 402;
-      landZ = 62;
-    } else if (bPos.x < 95) {
-      landX = 64;
-      landZ = THREE.MathUtils.clamp(bPos.z, -80, 85);
-    } else if (bPos.x > 375) {
-      landX = 406;
-      landZ = THREE.MathUtils.clamp(bPos.z, -20, 80);
-    } else {
-      // No meio da baía: move o desembarque para o píer mais próximo
-      const toWest = Math.hypot(bPos.x - 72, bPos.z - 62);
-      const toEast = Math.hypot(bPos.x - 398, bPos.z - 62);
-      landX = toWest <= toEast ? 68 : 402;
-      landZ = 62;
+    let baseX = nearestPier[0];
+    let baseZ = nearestPier[1];
+    if (bestPierDist > 26 && bPos.x < 95) {
+      baseX = 64;
+      baseZ = THREE.MathUtils.clamp(bPos.z, -80, 240);
+    } else if (bestPierDist > 26 && bPos.x > 375) {
+      baseX = 406;
+      baseZ = THREE.MathUtils.clamp(bPos.z, -140, 100);
+    }
+
+    let landX = baseX;
+    let landZ = baseZ;
+    const landOffsets = [
+      [0, 0],
+      [-4, 0],
+      [4, 0],
+      [0, -4],
+      [0, 4],
+      [-6, -4],
+      [6, 4],
+      [-8, 0],
+      [8, 0]
+    ];
+    for (const [ox, oz] of landOffsets) {
+      const tx = baseX + ox;
+      const tz = baseZ + oz;
+      if (!isWaterArea(tx, tz) && !checkCollision(tx, tz, PLAYER_RADIUS)) {
+        landX = tx;
+        landZ = tz;
+        break;
+      }
     }
 
     gameState.drivingBoat = null;
@@ -1079,7 +1107,8 @@ export function toggleDriveDedsecCar() {
     const car = gameState.drivingCar;
     gameState.drivingCar = null;
     car.speed = 0;
-    if (car.headlight) car.headlight.intensity = 0;
+    if (refs.activeHeadlight) refs.activeHeadlight.intensity = 0;
+    if (dom.cockpitHud) dom.cockpitHud.classList.add('hidden');
     AudioManager.stopEngineSound();
 
     car.mesh.updateMatrixWorld(true);
@@ -1714,17 +1743,30 @@ export function updatePlayer(dt) {
     cPos.x = THREE.MathUtils.clamp(cPos.x, WORLD_BOUNDS.minX + 1, WORLD_BOUNDS.maxX - 1);
     cPos.z = THREE.MathUtils.clamp(cPos.z, WORLD_BOUNDS.minZ + 1, WORLD_BOUNDS.maxZ - 1);
 
-    // Se por acidente o carro cair na água, afunda/enguiça e ejeta o jogador para a margem
+    // Se por acidente o carro cair na água, afunda/enguiça, remove collider e ejeta o jogador para margem segura
     if (isWaterArea(cPos.x, cPos.z)) {
       car.speed = 0;
       car.destroyed = true;
       car.hp = 0;
       cPos.y = -1.0;
-      if (car.headlight) car.headlight.intensity = 0;
+      const colIdx = colliders.indexOf(car.colliderObj);
+      if (colIdx !== -1) colliders.splice(colIdx, 1);
+      if (refs.activeHeadlight) refs.activeHeadlight.intensity = 0;
       gameState.drivingCar = null;
       AudioManager.stopEngineSound();
-      const shoreX = cPos.x < 240 ? 74 : 406;
-      const shoreZ = THREE.MathUtils.clamp(cPos.z, -80, 330);
+      const baseShoreX = cPos.x < 240 ? 74 : 406;
+      const baseShoreZ = THREE.MathUtils.clamp(cPos.z, -80, 330);
+      let shoreX = baseShoreX;
+      let shoreZ = baseShoreZ;
+      for (const [ox, oz] of [[0, 0], [-4, 0], [4, 0], [0, -5], [0, 5], [-8, 0], [8, 0]]) {
+        const tx = baseShoreX + ox;
+        const tz = baseShoreZ + oz;
+        if (!isWaterArea(tx, tz) && !checkCollision(tx, tz, PLAYER_RADIUS)) {
+          shoreX = tx;
+          shoreZ = tz;
+          break;
+        }
+      }
       refs.playerGroup.position.set(shoreX, getSurfaceHeight(shoreX, shoreZ), shoreZ);
       refs.playerGroup.visible = true;
       updateVehicleHpHUD();
@@ -2275,7 +2317,7 @@ export function updateGuards(dt) {
   const playerPos = refs.playerGroup.position;
   const playerCenter = new THREE.Vector3(
     playerPos.x,
-    gameState.isCrouching ? 0.58 : 1.05,
+    playerPos.y + (gameState.isCrouching ? 0.58 : 1.05),
     playerPos.z
   );
 
@@ -2308,7 +2350,7 @@ export function updateGuards(dt) {
 
       if (g.stunTimer === 0) {
         g.mesh.rotation.x = 0;
-        g.mesh.position.y = 0;
+        g.mesh.position.y = getSurfaceHeight(g.mesh.position.x, g.mesh.position.z);
         if (g.sparkPoints) g.sparkPoints.visible = false;
         g.state = gameState.baseAlert ? GUARD_STATE.COMBAT : GUARD_STATE.INVESTIGATE;
         g.lastKnownPos = g.mesh.position.clone();
@@ -2337,7 +2379,7 @@ export function updateGuards(dt) {
       const dirFlat = toPlayer.clone().normalize();
       const angle = Math.acos(THREE.MathUtils.clamp(guardForward.dot(dirFlat), -1, 1));
       if (angle <= g.visionHalfAngle) {
-        const eyePos = new THREE.Vector3(g.mesh.position.x, 1.65, g.mesh.position.z);
+        const eyePos = new THREE.Vector3(g.mesh.position.x, g.mesh.position.y + 1.65, g.mesh.position.z);
         const rayDir = playerCenter.clone().sub(eyePos).normalize();
         raycaster.set(eyePos, rayDir);
         raycaster.far = Math.max(0.1, eyePos.distanceTo(playerCenter) - 0.25);

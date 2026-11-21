@@ -203,7 +203,15 @@ function setupInputs() {
       gameState.mission === MISSION_STATE.STEAL_DATA ||
       gameState.mission === MISSION_STATE.STEAL_CAR ||
       gameState.mission === MISSION_STATE.ESCAPE;
-    if (playing && !gameState.terminalOpen && !gameState.missionModalOpen && document.pointerLockElement !== dom.canvas) {
+    if (
+      playing &&
+      !gameState.terminalOpen &&
+      !gameState.missionModalOpen &&
+      !gameState.shopOpen &&
+      !gameState.tacticalMapOpen &&
+      !gameState.quickGuideOpen &&
+      document.pointerLockElement !== dom.canvas
+    ) {
       AudioManager.init();
       dom.canvas.requestPointerLock();
     }
@@ -213,7 +221,17 @@ function setupInputs() {
     if (e.button !== 0) return;
     gameState.mouseDown = true;
     if (document.pointerLockElement !== dom.canvas) return;
-    if (gameState.terminalOpen || gameState.missionModalOpen || gameState.activeCamIndex >= 0 || gameState.drivingCar) return;
+    if (
+      gameState.terminalOpen ||
+      gameState.missionModalOpen ||
+      gameState.shopOpen ||
+      gameState.tacticalMapOpen ||
+      gameState.quickGuideOpen ||
+      gameState.activeCamIndex >= 0 ||
+      gameState.drivingCar
+    ) {
+      return;
+    }
     const playing =
       gameState.mission === MISSION_STATE.FREE_ROAM ||
       gameState.mission === MISSION_STATE.INFILTRATE ||

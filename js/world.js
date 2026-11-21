@@ -292,6 +292,20 @@ export function initThree() {
 }
 
 export function buildMap() {
+  refs.worldGroup.traverse((obj) => {
+    if (obj.geometry) obj.geometry.dispose();
+    const disposeMat = (m) => {
+      if (m && typeof m.dispose === 'function') m.dispose();
+    };
+    if (Array.isArray(obj.material)) {
+      obj.material.forEach(disposeMat);
+    } else {
+      disposeMat(obj.material);
+    }
+    disposeMat(obj.userData?.normalMaterial);
+    disposeMat(obj.userData?.nethackMaterial);
+    disposeMat(obj.userData?.edgesMaterial);
+  });
   while (refs.worldGroup.children.length > 0) {
     refs.worldGroup.remove(refs.worldGroup.children[0]);
   }
@@ -3691,17 +3705,24 @@ export function spawnPoliceReinforcement() {
   gameState.policeSpawnCooldown = 14.0;
 
   const pPos = refs.playerGroup.position;
-  let sx = pPos.x + 28;
-  let sz = pPos.z + 18;
-  const angles = [0.4, 1.8, 3.1, 4.5, 5.6];
-  for (const ang of angles) {
-    const cx = pPos.x + Math.cos(ang) * 32;
-    const cz = pPos.z + Math.sin(ang) * 32;
-    if (!isWaterArea(cx, cz) && !checkCollision(cx, cz, 2.2)) {
-      sx = cx;
-      sz = cz;
-      break;
+  let sx = null;
+  let sz = null;
+  const angles = [0.4, 1.8, 3.1, 4.5, 5.6, 0.9, 2.4, 3.9];
+  for (const dist of [32, 22, 42]) {
+    for (const ang of angles) {
+      const cx = pPos.x + Math.cos(ang) * dist;
+      const cz = pPos.z + Math.sin(ang) * dist;
+      if (!isWaterArea(cx, cz) && !checkCollision(cx, cz, 2.2)) {
+        sx = cx;
+        sz = cz;
+        break;
+      }
     }
+    if (sx !== null) break;
+  }
+  if (sx === null) {
+    sx = !isWaterArea(pPos.x, pPos.z) && !checkCollision(pPos.x, pPos.z, 2.2) ? pPos.x : 0;
+    sz = !isWaterArea(pPos.x, pPos.z) && !checkCollision(pPos.x, pPos.z, 2.2) ? pPos.z : 34;
   }
   const sy = getSurfaceHeight(sx, sz);
   const yaw = Math.atan2(pPos.x - sx, pPos.z - sz);
