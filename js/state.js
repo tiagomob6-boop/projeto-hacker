@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+﻿import * as THREE from 'three';
 
 // ==========================================
 // CONSTANTES E ESTADO GLOBAL
@@ -464,8 +464,8 @@ export const raycaster = new THREE.Raycaster();
 // TEXTURAS PROCEDURAIS (HTML5 CANVAS -> CanvasTexture)
 
 export function getSurfaceHeight(x, z) {
-  // Ponte Golden Gate atravessável (X: 80..400, Z: 26.5..43.5)
-  if (z >= 26.5 && z <= 43.5 && x >= 78 && x <= 402) {
+  // Ponte Golden Gate atravessável (X: 80..400, Z: 26..44, idêntico a isWaterForLand)
+  if (z >= 26 && z <= 44 && x >= 78 && x <= 402) {
     if (x <= 80) return 0;
     if (x < 120) return ((x - 80) / 40) * 10;
     if (x <= 360) return 10;
@@ -484,12 +484,16 @@ export function getSurfaceHeight(x, z) {
   if ((z >= 56 && z <= 68 || z >= 214 && z <= 226) && x >= 70 && x <= 83) {
     if (x <= 72) return 0;
     if (x < 77) return ((72 - x) / 5) * 0.25;
+    // Ponta do píer (X: 80..83) sobe suavemente até o nível da água (Y = 0)
+    if (x > 80) return -0.25 + ((x - 80) / 3) * 0.25;
     return -0.25;
   }
   // Píeres de embarque Leste (X: 395..408, Z: 56..68 e Z: -126..-114)
   if ((z >= 56 && z <= 68 || z >= -126 && z <= -114) && x >= 395 && x <= 408) {
     if (x >= 406) return 0;
     if (x > 401) return ((x - 406) / 5) * 0.25;
+    // Ponta do píer (X: 395..398) sobe suavemente até o nível da água (Y = 0)
+    if (x < 398) return -0.25 + ((398 - x) / 3) * 0.25;
     return -0.25;
   }
   // Colina-Mirante acessível no Distrito Sul (rampa em Z: 355..405, platô em Z: 405..425, X: 28..48)

@@ -1620,7 +1620,7 @@ export function buildStores() {
     addStaticBox(segW, h, 0.55, st.x - (doorW / 2 + segW / 2), h / 2, frontZ, 0x182136, { edgesColor: st.color, edgesOpacity: 0.65 });
     addStaticBox(segW, h, 0.55, st.x + (doorW / 2 + segW / 2), h / 2, frontZ, 0x182136, { edgesColor: st.color, edgesOpacity: 0.65 });
     // Teto e marquise frontal com letreiro 3D legível (CanvasTexture)
-    addStaticBox(w + 0.6, 0.45, d + 0.6, st.x, h + 0.22, st.z, 0x101726, { collide: false, occlude: false, edgesColor: st.color, edgesOpacity: 0.7 });
+    addStaticBox(w + 0.6, 0.45, d + 0.6, st.x, h + 0.22, st.z, 0x101726, { collide: true, occlude: false, edgesColor: st.color, edgesOpacity: 0.7 });
     const hexStr = `#${st.color.toString(16).padStart(6, '0')}`;
     const signLabel = st.type === 'ARMORY' ? 'HACKSHOP' : st.name;
     const signPlane = new THREE.Mesh(
@@ -1993,6 +1993,9 @@ export function buildEnterableBuilding(x, z, w, h, d, opts = {}) {
   upperMesh.userData.nethackMaterial = new THREE.MeshBasicMaterial({ color: 0x0b3a5c, wireframe: true, transparent: true, opacity: 0.45 });
   structureMeshes.push(upperMesh);
   refs.worldGroup.add(upperMesh);
+  // Colisão da torre superior (acima de y = floorH): bloqueia o Drone sem afetar quem anda no térreo
+  upperMesh.updateMatrixWorld(true);
+  colliders.push({ box: new THREE.Box3().setFromObject(upperMesh), mesh: upperMesh });
 
   // Tela holográfica na parede dos fundos
   const backX = doorSide === 'EAST' ? x - w / 2 + 0.45 : x + w / 2 - 0.45;

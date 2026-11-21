@@ -1929,9 +1929,12 @@ export function updatePlayer(dt) {
   }
 
   const pos = refs.playerGroup.position;
-  const onElevatedBridge =
-    (pos.z >= 26.5 && pos.z <= 43.5 && pos.x >= 78 && pos.x <= 402) ||
+  const overBridgeFootprint =
+    (pos.z >= 26 && pos.z <= 44 && pos.x >= 78 && pos.x <= 402) ||
     (pos.z >= 312 && pos.z <= 328 && pos.x >= 78 && pos.x <= 402);
+  // Só está "na ponte" se a altura real do jogador estiver próxima do tabuleiro (evita sugar quem nada por baixo)
+  const bridgeHeight = overBridgeFootprint ? getSurfaceHeight(pos.x, pos.z) : 0;
+  const onElevatedBridge = overBridgeFootprint && pos.y >= bridgeHeight - 2.5;
   const inWater = isWaterForBoats(pos.x, pos.z) && !isPierArea(pos.x, pos.z) && !onElevatedBridge;
   gameState.isSwimming = inWater;
 
