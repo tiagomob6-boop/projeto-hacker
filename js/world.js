@@ -854,7 +854,7 @@ export function buildInstancedWorldElements() {
 
   refs.worldGroup.add(benchMesh, trashMesh, holoMesh, palletMesh);
 
-  // 4. Prédios Distantes de Horizonte (1 única InstancedMesh com CanvasTexture)
+  // 4. Prédios Distantes de Horizonte (InstancedMesh com textura de fachada + detalhes de telhado)
   const skyBuildings = [];
   for (let x = -720; x <= 980; x += 72) {
     skyBuildings.push([x, -420, 28 + (Math.abs(x) % 5) * 10]);
@@ -864,26 +864,67 @@ export function buildInstancedWorldElements() {
     skyBuildings.push([-580, z, 30 + (Math.abs(z) % 5) * 8]);
     skyBuildings.push([980, z, 26 + (Math.abs(z) % 4) * 8]);
   }
-  const skyTex = TextureGenerator.getBuildingFacadeTexture(2, 4);
+  const skyTex = TextureGenerator.getBuildingFacadeTexture(3, 6);
   const horizonMesh = new THREE.InstancedMesh(
     new THREE.BoxGeometry(26, 1, 26),
     new THREE.MeshStandardMaterial({
-      color: 0xd0dcf5,
+      color: 0xd8e4fa,
       map: skyTex,
-      emissive: 0x162238,
+      emissive: 0xffffff,
       emissiveMap: skyTex,
-      emissiveIntensity: 0.65,
-      roughness: 0.65
+      emissiveIntensity: 0.78,
+      roughness: 0.6
     }),
     skyBuildings.length
   );
+
+  // Segundo conjunto de InstancedMesh para telhados (parapeitos, AC/geradores, antenas e sinalizadores)
+  const roofParapetMesh = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(26.8, 0.95, 26.8),
+    new THREE.MeshStandardMaterial({ color: 0x182338, emissive: 0x0a2e4a, emissiveIntensity: 0.6, roughness: 0.55 }),
+    skyBuildings.length
+  );
+  const roofAcMesh = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(7.2, 2.2, 6.2),
+    new THREE.MeshStandardMaterial({ color: 0x2a3750, roughness: 0.65, metalness: 0.35 }),
+    skyBuildings.length
+  );
+  const roofAntennaMesh = new THREE.InstancedMesh(
+    new THREE.CylinderGeometry(0.18, 0.35, 8.5, 6),
+    new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.4, metalness: 0.7 }),
+    skyBuildings.length
+  );
+  const roofBeaconMesh = new THREE.InstancedMesh(
+    new THREE.SphereGeometry(0.55, 8, 8),
+    new THREE.MeshBasicMaterial({ color: 0xff0044 }),
+    skyBuildings.length
+  );
+
   skyBuildings.forEach(([hx, hz, hh], i) => {
+    dummy.rotation.set(0, 0, 0);
     dummy.position.set(hx, hh / 2, hz);
     dummy.scale.set(1, hh, 1);
     dummy.updateMatrix();
     horizonMesh.setMatrixAt(i, dummy.matrix);
+
+    dummy.scale.set(1, 1, 1);
+    dummy.position.set(hx, hh + 0.45, hz);
+    dummy.updateMatrix();
+    roofParapetMesh.setMatrixAt(i, dummy.matrix);
+
+    dummy.position.set(hx - 4.5, hh + 1.1, hz + 3.5);
+    dummy.updateMatrix();
+    roofAcMesh.setMatrixAt(i, dummy.matrix);
+
+    dummy.position.set(hx + 5.0, hh + 4.25, hz - 4.0);
+    dummy.updateMatrix();
+    roofAntennaMesh.setMatrixAt(i, dummy.matrix);
+
+    dummy.position.set(hx + 5.0, hh + 8.6, hz - 4.0);
+    dummy.updateMatrix();
+    roofBeaconMesh.setMatrixAt(i, dummy.matrix);
   });
-  refs.worldGroup.add(horizonMesh);
+  refs.worldGroup.add(horizonMesh, roofParapetMesh, roofAcMesh, roofAntennaMesh, roofBeaconMesh);
 }
 
 export function buildTraversableGoldenGate() {
