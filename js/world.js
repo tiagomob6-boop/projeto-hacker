@@ -2743,6 +2743,7 @@ export function resetWorldState(keepPlayerPos = false) {
   gameState.blackoutCooldown = 0;
   gameState.droneActive = false;
   if (refs.droneGroup) refs.droneGroup.visible = false;
+  if (dom.droneHud) dom.droneHud.classList.add('hidden');
   if (dom.ctosRevealBanner) dom.ctosRevealBanner.classList.add('hidden');
   updateWantedHUD();
   gameState.mouseDown = false;

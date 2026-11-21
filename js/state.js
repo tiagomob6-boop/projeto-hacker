@@ -250,6 +250,8 @@ export const dom = {
   cockpitHud: document.getElementById('cockpit-hud'),
   cockpitSpeed: document.getElementById('cockpit-speed'),
   cockpitGear: document.getElementById('cockpit-gear'),
+  droneHud: document.getElementById('drone-hud'),
+  droneSignal: document.getElementById('drone-signal'),
   gameoverTitle: document.getElementById('gameover-title'),
   gameoverDesc: document.getElementById('gameover-desc'),
   weaponCooldownBar: document.getElementById('weapon-cooldown-bar'),
@@ -320,6 +322,7 @@ export const refs = {
   activeHeadlight: null,
   showroomTurntable: null,
   droneGroup: null,
+  droneParts: null,
   droneRotors: [],
   rainPoints: null,
   vehicleDeliveryGroup: null,
@@ -576,6 +579,27 @@ export function checkCarCollision(x, z, yaw, ignoreCar = null) {
   for (const [px, pz] of samplePoints) {
     if (isWaterArea(px, pz)) return true;
     if (checkCollision(px, pz, 0.42, ignoreCar)) return true;
+  }
+  return false;
+}
+
+export function checkDroneCollision(x, y, z, radius = 0.45) {
+  // Impede afundar no solo, pontes ou água
+  const minY = Math.max(getSurfaceHeight(x, z), -0.25) + 0.35;
+  if (y < minY) return true;
+
+  // Colisão 3D (esfera x AABB) contra todo o array colliders (permite sobrevoar muros baixos/carros)
+  for (const col of colliders) {
+    const b = col.box;
+    const cx = THREE.MathUtils.clamp(x, b.min.x, b.max.x);
+    const cy = THREE.MathUtils.clamp(y, b.min.y, b.max.y);
+    const cz = THREE.MathUtils.clamp(z, b.min.z, b.max.z);
+    const dx = x - cx;
+    const dy = y - cy;
+    const dz = z - cz;
+    if (dx * dx + dy * dy + dz * dz < radius * radius) {
+      return true;
+    }
   }
   return false;
 }

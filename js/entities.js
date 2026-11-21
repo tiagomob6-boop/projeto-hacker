@@ -44,7 +44,8 @@ import {
   isWaterArea,
   isWaterForBoats,
   checkCollision,
-  checkCarCollision
+  checkCarCollision,
+  checkDroneCollision
 } from './state.js';
 import { AudioManager } from './audio.js';
 import {
@@ -423,31 +424,84 @@ export function buildPlayer() {
   applyPlayerSkin(gameState.equippedSkin || 'classic');
 
   // Drone Quadricóptero DedSec (Tecla Q)
-  const droneGroup = new THREE.Group();
-  const droneBodyMat = new THREE.MeshStandardMaterial({ color: 0x101828, roughness: 0.35, metalness: 0.7 });
-  const droneCyanMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
-  const core = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.14, 0.52), droneBodyMat);
-  const lens = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.08, 0.06), droneCyanMat);
-  lens.position.set(0, -0.02, -0.27);
-  droneGroup.add(core, lens);
+  buildDroneMesh();
+}
 
-  refs.droneRotors = [];
+export function buildDroneMesh() {
+  const droneGroup = new THREE.Group();
+  const tiltGroup = new THREE.Group();
+  droneGroup.add(tiltGroup);
+
+  const chassisMat = new THREE.MeshStandardMaterial({ color: 0x141b2d, roughness: 0.3, metalness: 0.78 });
+  const guardMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4, metalness: 0.65 });
+  const cyanMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
+  const ledMat = new THREE.MeshBasicMaterial({ color: 0x00ff88 });
+  const lensGlassMat = new THREE.MeshStandardMaterial({ color: 0x050b14, roughness: 0.1, metalness: 0.9 });
+
+  // Chassi central aerodinâmico com contornos neon ciano + bateria brilhante
+  const chassis = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.14, 0.56), chassisMat);
+  chassis.castShadow = true;
+  chassis.add(
+    new THREE.LineSegments(
+      new THREE.EdgesGeometry(chassis.geometry),
+      new THREE.LineBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.85 })
+    )
+  );
+  const topShell = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.065, 0.42), chassisMat);
+  topShell.position.y = 0.095;
+  const batteryCore = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.04, 0.24), cyanMat);
+  batteryCore.position.y = 0.135;
+  tiltGroup.add(chassis, topShell, batteryCore);
+
+  // Gimbal frontal com lente circular (CylinderGeometry) e LED indicador ciano/verde
+  const gimbalMount = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.10, 0.10), guardMat);
+  gimbalMount.position.set(0, -0.05, -0.29);
+  const cameraLens = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.10, 14), lensGlassMat);
+  cameraLens.rotation.x = Math.PI / 2;
+  cameraLens.position.set(0, -0.05, -0.34);
+  const lensRing = new THREE.Mesh(new THREE.TorusGeometry(0.056, 0.01, 8, 16), cyanMat);
+  lensRing.position.set(0, -0.05, -0.39);
+  const statusLed = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 8), ledMat);
+  statusLed.position.set(0.12, 0.02, -0.29);
+  tiltGroup.add(gimbalMount, cameraLens, lensRing, statusLed);
+
+  // 4 braços diagonais em "X", proteções circulares (TorusGeometry) e 4 hélices giratórias
+  const rotors = [];
   [
-    [-0.36, 0.06, -0.34],
-    [0.36, 0.06, -0.34],
-    [-0.36, 0.06, 0.34],
-    [0.36, 0.06, 0.34]
+    [-0.40, 0.03, -0.40],
+    [0.40, 0.03, -0.40],
+    [-0.40, 0.03, 0.40],
+    [0.40, 0.03, 0.40]
   ].forEach(([rx, ry, rz]) => {
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.04, 0.05), droneBodyMat);
-    arm.position.set(rx * 0.5, 0.02, rz * 0.5);
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.042, 0.56), chassisMat);
+    arm.position.set(rx * 0.5, 0.01, rz * 0.5);
     arm.rotation.y = Math.atan2(rx, rz);
-    const rotor = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.018, 0.045), droneCyanMat);
-    rotor.position.set(rx, ry, rz);
-    droneGroup.add(arm, rotor);
-    refs.droneRotors.push(rotor);
+
+    const guardRing = new THREE.Mesh(new THREE.TorusGeometry(0.20, 0.018, 8, 20), guardMat);
+    guardRing.rotation.x = Math.PI / 2;
+    guardRing.position.set(rx, ry + 0.02, rz);
+
+    const guardGlow = new THREE.Mesh(new THREE.TorusGeometry(0.205, 0.008, 6, 20), cyanMat);
+    guardGlow.rotation.x = Math.PI / 2;
+    guardGlow.position.set(rx, ry + 0.02, rz);
+
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, 0.08, 10), guardMat);
+    hub.position.set(rx, ry + 0.01, rz);
+
+    const rotorGroup = new THREE.Group();
+    rotorGroup.position.set(rx, ry + 0.05, rz);
+    const bladeA = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.014, 0.038), cyanMat);
+    const bladeB = new THREE.Mesh(new THREE.BoxGeometry(0.038, 0.014, 0.34), cyanMat);
+    rotorGroup.add(bladeA, bladeB);
+
+    tiltGroup.add(arm, guardRing, guardGlow, hub, rotorGroup);
+    rotors.push(rotorGroup);
   });
+
   droneGroup.visible = false;
   refs.droneGroup = droneGroup;
+  refs.droneRotors = rotors;
+  refs.droneParts = { tiltGroup, rotors, ledMat };
   refs.scene.add(droneGroup);
 }
 
@@ -458,14 +512,25 @@ export function toggleDrone() {
   gameState.droneActive = !gameState.droneActive;
   if (gameState.droneActive) {
     const pPos = refs.playerGroup.position;
-    refs.droneGroup.position.set(pPos.x, pPos.y + 1.85, pPos.z);
+    const spawnY = Math.max(getSurfaceHeight(pPos.x, pPos.z), -0.25) + 1.85;
+    refs.droneGroup.position.set(pPos.x, spawnY, pPos.z);
+    if (refs.droneParts?.tiltGroup) {
+      refs.droneParts.tiltGroup.rotation.set(0, 0, 0);
+    }
     gameState.droneYaw = gameState.cameraYaw;
-    gameState.dronePitch = 0.12;
+    gameState.dronePitch = 0.14;
     refs.droneGroup.visible = true;
+    if (dom.droneHud) dom.droneHud.classList.remove('hidden');
+    if (dom.droneSignal) dom.droneSignal.textContent = 'DISTÂNCIA SINAL: 0m / 90m';
     if (!gameState.netHackActive) dom.statusMode.textContent = 'DRONE';
     AudioManager.playNetHackPulse(true);
   } else {
     refs.droneGroup.visible = false;
+    refs.droneGroup.position.copy(refs.playerGroup.position);
+    if (refs.droneParts?.tiltGroup) {
+      refs.droneParts.tiltGroup.rotation.set(0, 0, 0);
+    }
+    if (dom.droneHud) dom.droneHud.classList.add('hidden');
     if (!gameState.netHackActive) dom.statusMode.textContent = 'FURTIVO';
     AudioManager.playNetHackPulse(false);
   }
@@ -1402,10 +1467,10 @@ export function updatePlayer(dt) {
     );
   }
 
-  // Modo Drone Quadricóptero DedSec (Tecla Q)
+  // Modo Drone Quadricóptero DedSec (Tecla Q) com colisão 3D real nos eixos X, Y e Z
   if (gameState.droneActive && refs.droneGroup) {
     refs.droneRotors.forEach((r) => {
-      r.rotation.y += dt * 28;
+      r.rotation.y += dt * 36;
     });
 
     let inZ = 0;
@@ -1426,20 +1491,55 @@ export function updatePlayer(dt) {
 
     const dPos = refs.droneGroup.position;
     const dSpeed = 14.0;
-    dPos.x += (fwdX * inZ + rightX * inX) * dSpeed * dt;
-    dPos.z += (fwdZ * inZ + rightZ * inX) * dSpeed * dt;
-    dPos.y = THREE.MathUtils.clamp(dPos.y + inY * 9.0 * dt, 1.0, 48.0);
+    const moveX = (fwdX * inZ + rightX * inX) * dSpeed * dt;
+    const moveZ = (fwdZ * inZ + rightZ * inX) * dSpeed * dt;
+    const moveY = inY * 9.0 * dt;
 
-    // Manter drone dentro do raio de sinal de 95m do agente
+    // Colisão 3D separada nos eixos X, Z e Y para deslizar em paredes e nunca afundar no chão/água
+    if (!checkDroneCollision(dPos.x + moveX, dPos.y, dPos.z, 0.45)) {
+      dPos.x += moveX;
+    }
+    if (!checkDroneCollision(dPos.x, dPos.y, dPos.z + moveZ, 0.45)) {
+      dPos.z += moveZ;
+    }
+    const targetY = THREE.MathUtils.clamp(dPos.y + moveY, Math.max(getSurfaceHeight(dPos.x, dPos.z), -0.25) + 0.35, 48.0);
+    if (!checkDroneCollision(dPos.x, targetY, dPos.z, 0.45)) {
+      dPos.y = targetY;
+    }
+
+    // Manter drone dentro do raio de sinal de 90m do agente
     const pPos = refs.playerGroup.position;
     const dx = dPos.x - pPos.x;
     const dz = dPos.z - pPos.z;
     const dist = Math.hypot(dx, dz);
-    if (dist > 95) {
-      dPos.x = pPos.x + (dx / dist) * 95;
-      dPos.z = pPos.z + (dz / dist) * 95;
+    if (dist > 90) {
+      dPos.x = pPos.x + (dx / dist) * 90;
+      dPos.z = pPos.z + (dz / dist) * 90;
     }
     refs.droneGroup.rotation.y = dyaw;
+
+    // Inclinação dinâmica (pitch e roll suaves) na direção da aceleração
+    if (refs.droneParts?.tiltGroup) {
+      const targetPitch = -inZ * 0.24;
+      const targetRoll = -inX * 0.24;
+      refs.droneParts.tiltGroup.rotation.x = THREE.MathUtils.lerp(
+        refs.droneParts.tiltGroup.rotation.x,
+        targetPitch,
+        Math.min(1, dt * 10)
+      );
+      refs.droneParts.tiltGroup.rotation.z = THREE.MathUtils.lerp(
+        refs.droneParts.tiltGroup.rotation.z,
+        targetRoll,
+        Math.min(1, dt * 10)
+      );
+    }
+
+    // Atualizar distância do sinal no HUD
+    if (dom.droneSignal) {
+      const shownDist = Math.min(90, Math.round(dist));
+      dom.droneSignal.textContent = `DISTÂNCIA SINAL: ${shownDist}m / 90m`;
+      dom.droneSignal.className = shownDist > 75 ? 'neon-magenta' : 'neon-cyan';
+    }
 
     // Na Visão NetHack com Drone, marcar guardas através das paredes
     if (gameState.netHackActive) {
@@ -1803,22 +1903,42 @@ function setFirstPersonBodyVisibility(hideBody) {
 }
 
 export function updateCamera() {
-  // Modo Câmera do Drone Quadricóptero DedSec (Q)
+  // Modo Câmera do Drone Quadricóptero DedSec (Q): 3ª pessoa próxima exibindo o drone ou lente frontal (P)
   if (gameState.droneActive && refs.droneGroup) {
     setFirstPersonBodyVisibility(false);
     if (dom.cockpitHud) dom.cockpitHud.classList.add('hidden');
     const dPos = refs.droneGroup.position;
     const yaw = gameState.droneYaw;
-    const pitch = THREE.MathUtils.clamp(gameState.dronePitch, -0.85, 0.85);
-    refs.camera.position.set(
-      dPos.x + Math.sin(yaw) * 1.15,
-      dPos.y + 0.35,
-      dPos.z + Math.cos(yaw) * 1.15
-    );
+    const pitch = THREE.MathUtils.clamp(gameState.dronePitch, -0.75, 0.75);
     const lookX = -Math.sin(yaw) * Math.cos(pitch);
     const lookY = -Math.sin(pitch);
     const lookZ = -Math.cos(yaw) * Math.cos(pitch);
-    refs.camera.lookAt(dPos.x + lookX * 14, dPos.y + lookY * 14, dPos.z + lookZ * 14);
+
+    if (gameState.firstPerson) {
+      // Visão da lente frontal do gimbal (Tecla P)
+      refs.camera.position.set(dPos.x + lookX * 0.42, dPos.y - 0.05, dPos.z + lookZ * 0.42);
+      refs.camera.lookAt(dPos.x + lookX * 14, dPos.y + lookY * 14, dPos.z + lookZ * 14);
+    } else {
+      // Visão em 3ª pessoa próxima atrás/acima do drone (dist = 2.1m, heightOffset = 0.65m)
+      const dist = 2.1;
+      const heightOffset = 0.65;
+      const idealPos = new THREE.Vector3(
+        dPos.x + Math.sin(yaw) * Math.cos(pitch) * dist,
+        dPos.y + heightOffset + Math.sin(pitch) * dist * 0.5,
+        dPos.z + Math.cos(yaw) * Math.cos(pitch) * dist
+      );
+      const camDir = idealPos.clone().sub(dPos).normalize();
+      raycaster.set(dPos, camDir);
+      raycaster.far = idealPos.distanceTo(dPos);
+      const hits = raycaster.intersectObjects(occluders, false);
+      if (hits.length > 0) {
+        const safeD = Math.max(0.65, hits[0].distance - 0.25);
+        refs.camera.position.copy(dPos).addScaledVector(camDir, safeD);
+      } else {
+        refs.camera.position.copy(idealPos);
+      }
+      refs.camera.lookAt(dPos.x + lookX * 6.5, dPos.y + lookY * 4.5, dPos.z + lookZ * 6.5);
+    }
     return;
   }
 
