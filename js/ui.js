@@ -308,6 +308,34 @@ export function updateHpHUD() {
   }
 }
 
+export function updateWantedHUD() {
+  const lvl = THREE.MathUtils.clamp(Math.floor(gameState.wantedLevel || 0), 0, 5);
+  if (dom.wantedStars) {
+    dom.wantedStars.textContent = '★'.repeat(lvl) + '☆'.repeat(5 - lvl);
+    dom.wantedStars.className = lvl > 0 ? 'wanted-stars active' : 'wanted-stars';
+  }
+  if (dom.wantedStatus) {
+    const status = gameState.wantedStatus || (lvl > 0 ? 'PROCURADO' : 'OCULTO');
+    dom.wantedStatus.textContent = status;
+    dom.wantedStatus.className =
+      status === 'OCULTO' ? 'neon-green' : status === 'DENÚNCIA EM ANDAMENTO' ? 'neon-cyan' : 'neon-magenta';
+  }
+}
+
+export function addWantedLevel(delta = 1, statusText = 'PERSEGUIÇÃO') {
+  const prev = gameState.wantedLevel;
+  gameState.wantedLevel = THREE.MathUtils.clamp(gameState.wantedLevel + delta, 0, 5);
+  gameState.wantedCooldown = 15.0;
+  gameState.wantedStatus = gameState.wantedLevel > 0 ? statusText : 'OCULTO';
+  updateWantedHUD();
+  if (gameState.wantedLevel > prev) {
+    AudioManager.playBaseAlertSiren();
+  }
+  if (gameState.wantedLevel >= 1) {
+    refs.onSpawnPolice?.();
+  }
+}
+
 export function updateVehicleHpHUD() {
   if (!dom.vehicleHpContainer) return;
   const car = gameState.drivingCar;

@@ -51,12 +51,15 @@ import {
   triggerVictory,
   updateMoneyHUD,
   updateHpHUD,
-  updateVehicleHpHUD
+  updateVehicleHpHUD,
+  updateWantedHUD,
+  addWantedLevel
 } from './ui.js';
 import {
   stunGuard,
   triggerBaseAlert,
-  fireGuardBullet
+  fireGuardBullet,
+  reportCrimeToCivilians
 } from './combat.js';
 
 export function buildPlayer() {
@@ -404,6 +407,20 @@ export function buildSecurityCameras(cfg, missionKey = 'COMPLEXO_CTOS') {
     mesh.rotation.y = camCfg.baseYaw;
     mesh.userData.normalMaterial = normalMat;
     mesh.userData.nethackMaterial = nethackMat;
+
+    // Feixe laser vermelho semitransparente de varredura
+    const laserMat = new THREE.MeshBasicMaterial({
+      color: 0xff0033,
+      transparent: true,
+      opacity: 0.22,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+    const laserMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 2.8, 14, 12, 1, true), laserMat);
+    laserMesh.position.set(0, -2.6, 6.2);
+    laserMesh.rotation.x = Math.PI / 2 + 0.36;
+    mesh.add(laserMesh);
+
     refs.worldGroup.add(mesh);
 
     hackableMeshes.push(mesh);
@@ -412,6 +429,7 @@ export function buildSecurityCameras(cfg, missionKey = 'COMPLEXO_CTOS') {
       missionKey,
       name: camCfg.name,
       mesh,
+      laserMesh,
       pos: pos.clone(),
       baseYaw: camCfg.baseYaw,
       basePitch: camCfg.basePitch,
@@ -420,6 +438,7 @@ export function buildSecurityCameras(cfg, missionKey = 'COMPLEXO_CTOS') {
       visionRange: 16,
       visionHalfAngle: Math.PI / 5,
       disabledTimer: 0,
+      alertCooldown: 0,
       sweepPhase: idx * 1.5,
       currentYaw: camCfg.baseYaw
     });
@@ -760,14 +779,22 @@ export function handleInteractPress() {
     }
   }
 
-  // 4. Checar se o jogador está olhando/próximo a uma câmera de segurança
+  // 4. Checar se o jogador está olhando/próximo a uma câmera de segurança (V + E desativa laser)
   for (let i = 0; i < securityCameras.length; i++) {
     const camObj = securityCameras[i];
     if (camObj.disabledTimer > 0) continue;
-    if (pPos.distanceTo(camObj.pos) < 12) {
+    if (pPos.distanceTo(camObj.pos) < (gameState.netHackActive ? 26 : 12)) {
       const toSecurityCam = camObj.pos.clone().sub(refs.camera.position).normalize();
-      if (camDir.dot(toSecurityCam) > 0.92) {
-        cycleSecurityCamera(i);
+      if (camDir.dot(toSecurityCam) > 0.90) {
+        if (gameState.netHackActive) {
+          camObj.disabledTimer = CAMERA_OVERLOAD_DURATION;
+          camObj.mesh.userData.normalMaterial.emissive.setHex(0x334155);
+          if (camObj.laserMesh) camObj.laserMesh.visible = false;
+          gameState.hacksUsed += 1;
+          AudioManager.playElectricZap();
+        } else {
+          cycleSecurityCamera(i);
+        }
         return;
       }
     }
@@ -884,6 +911,7 @@ export function toggleDriveDedsecCar() {
       nearestCar.hasDriver = false;
       if (nearestCar.driverMesh) nearestCar.driverMesh.visible = false;
       spawnFleeingDriver(nearestCar);
+      reportCrimeToCivilians(nearestCar.mesh.position, 22, 1);
     }
     gameState.drivingCar = nearestCar;
     gameState.isCrouching = false;
@@ -894,6 +922,7 @@ export function toggleDriveDedsecCar() {
     updateVehicleHpHUD();
     if (nearestCar === gameState.targetCar && gameState.mission === MISSION_STATE.STEAL_CAR) {
       triggerBaseAlert();
+      addWantedLevel(2, 'PERSEGUIÇÃO');
     }
   }
 }
@@ -1631,13 +1660,17 @@ export function updateSecurityCameras(dt, playerPos, playerCenter) {
   let camSpotted = false;
 
   securityCameras.forEach((camObj, idx) => {
+    camObj.alertCooldown = Math.max(0, (camObj.alertCooldown || 0) - dt);
     if (camObj.disabledTimer > 0) {
       camObj.disabledTimer = Math.max(0, camObj.disabledTimer - dt);
+      if (camObj.laserMesh) camObj.laserMesh.visible = false;
       if (camObj.disabledTimer === 0) {
         camObj.mesh.userData.normalMaterial.emissive.setHex(0x00ff88);
+        if (camObj.laserMesh) camObj.laserMesh.visible = true;
       }
       return;
     }
+    if (camObj.laserMesh) camObj.laserMesh.visible = true;
 
     let yaw;
     if (gameState.activeCamIndex === idx) {
@@ -1650,7 +1683,7 @@ export function updateSecurityCameras(dt, playerPos, playerCenter) {
     camObj.currentYaw = yaw;
     camObj.mesh.rotation.y = yaw;
 
-    // Verificar linha de visão real da câmera
+    // Verificar se o jogador entrou no feixe laser vermelho da câmera
     const camForward = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
     const toPlayer = playerPos.clone().sub(camObj.pos);
     toPlayer.y = 0;
@@ -1665,6 +1698,12 @@ export function updateSecurityCameras(dt, playerPos, playerCenter) {
         const blocked = raycaster.intersectObjects(occluders, false);
         if (blocked.length === 0) {
           camSpotted = true;
+          if (camObj.alertCooldown <= 0) {
+            camObj.alertCooldown = 8.0;
+            gameState.ctosRevealTimer = 4.0;
+            if (dom.ctosRevealBanner) dom.ctosRevealBanner.classList.remove('hidden');
+            addWantedLevel(1, 'PERSEGUIÇÃO');
+          }
         }
       }
     }
@@ -1674,8 +1713,51 @@ export function updateSecurityCameras(dt, playerPos, playerCenter) {
 }
 
 export function updatePedestrians(dt) {
+  const pPos = refs.playerGroup.position;
   pedestrians.forEach((ped) => {
     const pos = ped.mesh.position;
+
+    if (ped.stunnedTimer > 0) {
+      ped.stunnedTimer = Math.max(0, ped.stunnedTimer - dt);
+      if (ped.stunnedTimer === 0) {
+        ped.mesh.rotation.x = 0;
+        pos.y = getSurfaceHeight(pos.x, pos.z);
+      }
+      return;
+    }
+
+    // Testemunha ligando para a polícia (4.5s para intimidar chegando perto ou com Taser)
+    if (ped.callingPolice) {
+      ped.callTimer -= dt;
+      if (ped.phoneIcon) {
+        ped.phoneIcon.visible = Math.floor(ped.callTimer * 6) % 2 === 0;
+      }
+      ped.armR.rotation.x = -1.65;
+      ped.armL.rotation.x = 0;
+      ped.legL.rotation.x = 0;
+      ped.legR.rotation.x = 0;
+
+      // Intimidar chegando perto (< 2.8m)
+      if (pos.distanceTo(pPos) < 2.8) {
+        ped.callingPolice = false;
+        if (ped.phoneIcon) ped.phoneIcon.visible = false;
+        ped.panickedTimer = 6.5;
+        if (gameState.wantedLevel === 0) {
+          gameState.wantedStatus = 'OCULTO';
+          updateWantedHUD();
+        }
+        return;
+      }
+
+      if (ped.callTimer <= 0) {
+        ped.callingPolice = false;
+        if (ped.phoneIcon) ped.phoneIcon.visible = false;
+        ped.panickedTimer = 6.0;
+        addWantedLevel(ped.crimeSeverity || 1, 'PERSEGUIÇÃO');
+      }
+      return;
+    }
+
     let moveX = 0;
     let moveZ = 0;
     let speed = ped.walkSpeed;
@@ -1729,6 +1811,16 @@ export function updatePedestrians(dt) {
 }
 
 export function updateGuards(dt) {
+  if (gameState.policeSpawnCooldown > 0) {
+    gameState.policeSpawnCooldown = Math.max(0, gameState.policeSpawnCooldown - dt);
+  }
+  if (gameState.ctosRevealTimer > 0) {
+    gameState.ctosRevealTimer = Math.max(0, gameState.ctosRevealTimer - dt);
+    if (gameState.ctosRevealTimer === 0 && dom.ctosRevealBanner) {
+      dom.ctosRevealBanner.classList.add('hidden');
+    }
+  }
+
   const playerPos = refs.playerGroup.position;
   const playerCenter = new THREE.Vector3(
     playerPos.x,
@@ -1929,6 +2021,32 @@ export function updateGuards(dt) {
   }
   gameState.maxDetection = Math.max(gameState.maxDetection, gameState.detectionLevel);
 
+  // Resfriamento do Nível de Procurado (15s fora da linha de visão da polícia zera wantedLevel)
+  if (gameState.wantedLevel > 0) {
+    if (spottedThisFrame) {
+      gameState.wantedCooldown = 15.0;
+      if (gameState.wantedStatus !== 'PERSEGUIÇÃO') {
+        gameState.wantedStatus = 'PERSEGUIÇÃO';
+        updateWantedHUD();
+      }
+    } else {
+      gameState.wantedCooldown = Math.max(0, gameState.wantedCooldown - dt);
+      if (gameState.wantedCooldown <= 0) {
+        gameState.wantedLevel = 0;
+        gameState.wantedStatus = 'OCULTO';
+        updateWantedHUD();
+        guards.forEach((g) => {
+          if (g.isPolice && g.state === GUARD_STATE.COMBAT) {
+            g.state = GUARD_STATE.PATROL;
+          }
+        });
+      } else if (gameState.wantedStatus !== 'PROCURADO') {
+        gameState.wantedStatus = 'PROCURADO';
+        updateWantedHUD();
+      }
+    }
+  }
+
   AudioManager.updateAlertTick(dt, gameState.detectionLevel);
 
   if (gameState.detectionLevel > 0) {
@@ -2126,6 +2244,7 @@ export function updateInteractionsAndMission(dt) {
           dom.downloadContainer.classList.add('hidden');
           refs.serverMesh.userData.normalMaterial.emissive.setHex(0x00ff88);
           triggerBaseAlert();
+          addWantedLevel(2, 'PERSEGUIÇÃO');
           setMissionState(MISSION_STATE.ESCAPE);
         }
       }

@@ -53,6 +53,7 @@ import {
   returnToFreeRoam,
   startMission,
   spawnPurchasedVehicle,
+  spawnPoliceReinforcement,
   updateVisualEffects
 } from './js/world.js';
 
@@ -62,6 +63,7 @@ refs.onAcceptMission = startContract;
 refs.onApplySkin = applyPlayerSkin;
 refs.onSelectWeapon = selectWeapon;
 refs.onSpawnVehicle = spawnPurchasedVehicle;
+refs.onSpawnPolice = spawnPoliceReinforcement;
 
 function setupInputs() {
   window.addEventListener('keydown', (e) => {

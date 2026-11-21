@@ -36,10 +36,13 @@ import {
   stores,
   lightPoles,
   supplyBoxes,
+  policeCars,
   missionServers,
   missionExtractions,
   serverParticleData,
   getSurfaceHeight,
+  isWaterArea,
+  checkCollision,
   createHackableDevice
 } from './state.js';
 import { AudioManager } from './audio.js';
@@ -48,7 +51,8 @@ import {
   toggleNetHack,
   setMissionState,
   updateHpHUD,
-  updateVehicleHpHUD
+  updateVehicleHpHUD,
+  updateWantedHUD
 } from './ui.js';
 import { selectWeapon } from './combat.js';
 import {
@@ -294,6 +298,7 @@ export function buildMap() {
   stores.length = 0;
   lightPoles.length = 0;
   supplyBoxes.length = 0;
+  policeCars.length = 0;
   refs.waterMesh = null;
   refs.dedsecCar = null;
   refs.showroomTurntable = null;
@@ -341,13 +346,24 @@ export function buildMap() {
   buildPedestrians();
   buildBoatPiersAndBoats();
 
-  // Câmeras, Caixas Elétricas e Guardas das missões e contratos VIP
+  // Câmeras, Caixas Elétricas e Guardas das missões e contratos VIP + Câmeras de rua ctOS
   ['COMPLEXO_CTOS', 'DOCAS_BAIA_SF', 'VIP_CAR_01', 'VIP_CAR_02'].forEach((mKey) => {
     const mCfg = MAPS_CONFIG[mKey];
     buildSecurityCameras(mCfg, mKey);
     buildElectricBoxes(mCfg);
     buildGuards(mCfg, mKey);
   });
+  buildSecurityCameras(
+    {
+      cameras: [
+        { name: 'STREET_CAM_01 // ESQUINA OESTE', pos: [-28, 5.2, 32], baseYaw: 0.75, basePitch: -0.35 },
+        { name: 'STREET_CAM_02 // ESQUINA LESTE', pos: [28, 5.2, 32], baseYaw: -0.75, basePitch: -0.35 },
+        { name: 'STREET_CAM_03 // AVENIDA SUL OESTE', pos: [-26, 5.2, 58], baseYaw: 2.35, basePitch: -0.35 },
+        { name: 'STREET_CAM_04 // AVENIDA SUL LESTE', pos: [26, 5.2, 58], baseYaw: -2.35, basePitch: -0.35 }
+      ]
+    },
+    'STREET'
+  );
 
   buildNetworkLines();
   buildNetHackLabels();
@@ -2464,7 +2480,15 @@ export function buildPedestrians() {
     );
     hair.position.y = 1.57;
 
-    pedGroup.add(legL, legR, torso, armL, armR, head, hair);
+    // Ícone de telefone vermelho piscando acima da cabeça ao denunciar crime
+    const phoneIcon = new THREE.Mesh(
+      new THREE.BoxGeometry(0.22, 0.34, 0.08),
+      new THREE.MeshBasicMaterial({ color: 0xff0033 })
+    );
+    phoneIcon.position.set(0, 2.15, 0);
+    phoneIcon.visible = false;
+
+    pedGroup.add(legL, legR, torso, armL, armR, head, hair, phoneIcon);
 
     const [zx, zz, rad] = zones[i % zones.length];
     const ang = (i / profiles.length) * Math.PI * 2;
@@ -2486,6 +2510,7 @@ export function buildPedestrians() {
       legR,
       armL,
       armR,
+      phoneIcon,
       waypoints: wps,
       currentTarget: 1,
       walkSpeed: 1.8 + (i % 4) * 0.25,
@@ -2493,6 +2518,10 @@ export function buildPedestrians() {
       panickedTimer: 0,
       panicDirX: 1,
       panicDirZ: 0,
+      callingPolice: false,
+      callTimer: 0,
+      crimeSeverity: 1,
+      stunnedTimer: 0,
       profile: { name, job, hacked: false }
     });
   });
@@ -2637,6 +2666,13 @@ export function resetWorldState(keepPlayerPos = false) {
   gameState.hp = gameState.maxHp || 100;
   gameState.damageFlashTimer = 0;
   gameState.baseAlert = false;
+  gameState.wantedLevel = 0;
+  gameState.wantedCooldown = 0;
+  gameState.wantedStatus = 'OCULTO';
+  gameState.ctosRevealTimer = 0;
+  gameState.policeSpawnCooldown = 0;
+  if (dom.ctosRevealBanner) dom.ctosRevealBanner.classList.add('hidden');
+  updateWantedHUD();
   gameState.mouseDown = false;
   gameState.gateUnlocked = false;
   gameState.gateOpenProgress = 0;
@@ -2932,6 +2968,89 @@ export function spawnPurchasedVehicle(vehCfg) {
     headlight
   });
   buildNetHackLabels();
+}
+
+export function spawnPoliceReinforcement() {
+  if (!refs.worldGroup || !refs.playerGroup) return;
+  if (gameState.policeSpawnCooldown > 0 || policeCars.length >= 3) return;
+  gameState.policeSpawnCooldown = 14.0;
+
+  const pPos = refs.playerGroup.position;
+  let sx = pPos.x + 28;
+  let sz = pPos.z + 18;
+  const angles = [0.4, 1.8, 3.1, 4.5, 5.6];
+  for (const ang of angles) {
+    const cx = pPos.x + Math.cos(ang) * 32;
+    const cz = pPos.z + Math.sin(ang) * 32;
+    if (!isWaterArea(cx, cz) && !checkCollision(cx, cz, 2.2)) {
+      sx = cx;
+      sz = cz;
+      break;
+    }
+  }
+  const sy = getSurfaceHeight(sx, sz);
+  const yaw = Math.atan2(pPos.x - sx, pPos.z - sz);
+
+  const { carGroup, bodyMesh, driverMesh } = buildCarMesh(0x141720, 0xff0044, true, 'SUV', false);
+  carGroup.position.set(sx, sy, sz);
+  carGroup.rotation.y = yaw;
+  refs.worldGroup.add(carGroup);
+
+  const headlight = new THREE.PointLight(0x0088ff, 1.6, 16);
+  headlight.position.set(0, 1.0, 2.8);
+  carGroup.add(headlight);
+
+  carGroup.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(carGroup);
+  const colliderObj = { box, mesh: bodyMesh, carIndex: cars.length };
+  colliders.push(colliderObj);
+  occluders.push(bodyMesh);
+
+  const carObj = {
+    id: 800 + policeCars.length,
+    mesh: carGroup,
+    bodyMesh,
+    driverMesh,
+    initialHasDriver: false,
+    hasDriver: false,
+    isTraffic: false,
+    isPoliceCar: true,
+    colliderObj,
+    initialPos: new THREE.Vector3(sx, sy, sz),
+    initialYaw: yaw,
+    initialColor: 0x141720,
+    isDedsec: false,
+    isDrivable: true,
+    vipMissionKey: null,
+    maxHp: 180,
+    hp: 180,
+    destroyed: false,
+    smokePoints: null,
+    smokeData: [],
+    speed: 0,
+    hackedTimer: 0,
+    hackedUsed: false,
+    headlight
+  };
+  cars.push(carObj);
+  policeCars.push(carObj);
+
+  // Spawnar esquadrão de 2 policiais armados ctOS que perseguem e cercam o jogador
+  const beforeCount = guards.length;
+  buildGuards(
+    {
+      guards: [
+        { waypoints: [[sx - 2.6, 0, sz], [pPos.x, 0, pPos.z]], speed: 3.7, visionRange: 26 },
+        { waypoints: [[sx + 2.6, 0, sz], [pPos.x, 0, pPos.z]], speed: 3.9, visionRange: 26 }
+      ]
+    },
+    'POLICE'
+  );
+  for (let i = beforeCount; i < guards.length; i++) {
+    guards[i].isPolice = true;
+    guards[i].state = GUARD_STATE.COMBAT;
+    guards[i].lastKnownPos = pPos.clone();
+  }
 }
 
 export function updateVisualEffects(dt, nowSec) {

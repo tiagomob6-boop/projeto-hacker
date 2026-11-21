@@ -92,6 +92,11 @@ Os cones circulares no chão foram removidos para dar lugar a um sistema realist
   - **`COMBAT`:** Ao avistar o jogador (campo frontal de `110°`, distância de `22m` e `Raycaster` da cabeça até o jogador sem oclusão), sofrer dano ou durante o **Alerta Geral da Base** (`triggerBaseAlert()` ao hackear o firewall ou concluir o download), o guarda mira e dispara rajadas de projéteis (`guardProjectiles`, `12` de dano por acerto) com sua `gunMesh`.
   - **`DEAD`:** Neutralizado ao atingir `0 HP`.
 - **Minimapa / Radar DedSec (`updateRadar` / `#radar-canvas`):** Canvas 2D circular que renderiza a planta baixa, quarteirões, carros, portões, servidor, zona de extração, posição do jogador e marcadores de estado dos guardas (sem cones artificiais).
+- **Sistema Policial, Testemunhas e Câmeras Laser ctOS (`wantedLevel` / `reportCrimeToCivilians` / `spawnPoliceReinforcement`):**
+  - **Nível de Procurado (`0..5` Estrelas/Escudos no HUD):** Exibe `#wanted-stars` e `#wanted-status` (`OCULTO`, `DENÚNCIA EM ANDAMENTO`, `PROCURADO`, `PERSEGUIÇÃO`). Ficar fora da linha de visão da polícia/câmeras por `15s` esfria e zera o nível de procurado.
+  - **Testemunhas Chamando Reforço:** Tiros em público, ataques a civis ou roubo de carros (`F`) perto de pedestres (`< 22m`) fazem 1 testemunha sacar o celular com ícone vermelho piscando por `4.5s`. Intimidar chegando perto (`< 2.8m`) ou atordoar com Taser cancela a ligação; caso contrário, sobe `+1` ou `+2` no `wantedLevel`.
+  - **Câmeras com Laser Vermelho de Varredura:** Câmeras ctOS nas esquinas e áreas de missão projetam feixes laser vermelhos semitransparentes. Entrar no feixe sem desativar a câmera (`V + E` ou `C + R`) dispara `#ctos-reveal-banner` (`LOCALIZAÇÃO REVELADA PELO ctOS`), aumenta o `wantedLevel` e chama reforços.
+  - **Reforços Policiais (`spawnPoliceReinforcement`):** Viaturas SUV ctOS com sirene azul/vermelha e esquadrões de policiais armados surgem nas ruas próximas perseguindo o jogador (inclusive entrando em prédios abertos).
 
 ---
 

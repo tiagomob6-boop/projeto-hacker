@@ -10,6 +10,7 @@ Protótipo funcional de um jogo 3D em terceira pessoa de infiltração e hacking
 2. **Furtividade e Coleta de Dados:** Utilize caixas de cobertura (agachando com `Ctrl`), a **Visão NetHack** (`V`), **caixas elétricas de distração** (`E`) e o **hack/sobrecarga de câmeras** (`C` / `R`) para evitar os guardas e câmeras. Chegue ao **Servidor Central ctOS**, desative o firewall (`E`) e segure `E` até concluir o download (`100%`).
 3. **Extração:** Com os dados em mãos, fuja do complexo (use `Shift` para correr) e pise na **Zona de Extração** (anel verde na rua) para concluir a missão e receber sua avaliação (**Rank S - Fantasma** a **Rank C**).
 4. **Contratos de Roubo de Veículo VIP (Marcadores Roxo/Magenta):** Roube o **Protótipo Esportivo Blume** em Downtown (`\$1.800`) ou o **SUV Blindado ctOS** (`220 HP`) nas Docas (`\$3.000`), proteja-se dentro da blindagem do veículo (acompanhando a **Integridade do Veículo** no HUD antes que solte fumaça ou exploda) e entregue-o intacto na **Garagem Clandestina DedSec** no Distrito Sul.
+5. **Sistema Policial & Testemunhas ctOS:** Evite cometer crimes perto de civis (ou intimide/atordoe a testemunha antes dos `4.5s` da ligação) e desative câmeras com **laser vermelho** (`V + E` ou `C + R`) para evitar o alerta **LOCALIZAÇÃO REVELADA PELO ctOS** e a perseguição das viaturas e esquadrões policiais (escape ficando `15s` fora de vista).
 
 ---
 

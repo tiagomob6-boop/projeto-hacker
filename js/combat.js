@@ -20,7 +20,7 @@ import {
   impactFlashes
 } from './state.js';
 import { AudioManager } from './audio.js';
-import { updateWeaponHUD, updateHpHUD, updateVehicleHpHUD, triggerGameOver } from './ui.js';
+import { updateWeaponHUD, updateHpHUD, updateVehicleHpHUD, updateWantedHUD, triggerGameOver } from './ui.js';
 
 export function selectWeapon(weaponType) {
   if (weaponType === WEAPON_TYPE.SHOTGUN && !gameState.hasShotgun) return;
@@ -49,9 +49,12 @@ export function damagePlayer(amount) {
 
 export function panicPedestrians(originPos, radius = 26) {
   pedestrians.forEach((ped) => {
+    if (ped.stunnedTimer > 0) return;
     const dist = ped.mesh.position.distanceTo(originPos);
     if (dist <= radius) {
-      ped.panickedTimer = 6.5;
+      if (!ped.callingPolice) {
+        ped.panickedTimer = 6.5;
+      }
       const dx = ped.mesh.position.x - originPos.x;
       const dz = ped.mesh.position.z - originPos.z;
       const len = Math.hypot(dx, dz) || 1;
@@ -59,6 +62,35 @@ export function panicPedestrians(originPos, radius = 26) {
       ped.panicDirZ = dz / len;
     }
   });
+}
+
+export function reportCrimeToCivilians(originPos, radius = 22, severity = 1) {
+  panicPedestrians(originPos, radius + 6);
+  const alreadyCalling = pedestrians.some((p) => p.callingPolice && p.stunnedTimer <= 0);
+  if (alreadyCalling) return;
+
+  let witness = null;
+  let bestDist = radius;
+  for (const ped of pedestrians) {
+    if (ped.stunnedTimer > 0) continue;
+    const d = ped.mesh.position.distanceTo(originPos);
+    if (d < bestDist) {
+      bestDist = d;
+      witness = ped;
+    }
+  }
+
+  if (witness) {
+    witness.callingPolice = true;
+    witness.callTimer = 4.5;
+    witness.crimeSeverity = severity;
+    witness.panickedTimer = 0;
+    if (witness.phoneIcon) witness.phoneIcon.visible = true;
+    if (gameState.wantedLevel === 0) {
+      gameState.wantedStatus = 'DENÚNCIA EM ANDAMENTO';
+      updateWantedHUD();
+    }
+  }
 }
 
 export function alertGuardsByNoise(originPos, radius) {
@@ -196,7 +228,7 @@ export function fireEquippedWeapon() {
 
   alertGuardsByNoise(refs.playerGroup.position, cfg.noiseRadius);
   if (cfg.noiseRadius > 0) {
-    panicPedestrians(refs.playerGroup.position, Math.max(24, cfg.noiseRadius));
+    reportCrimeToCivilians(refs.playerGroup.position, 22, 1);
   }
 }
 
@@ -292,6 +324,36 @@ export function updateProjectiles(dt) {
         AudioManager.playElectricZap();
       } else {
         damageGuard(hitGuard, p.damage);
+      }
+      refs.scene.remove(p.mesh);
+      refs.scene.remove(p.line);
+      projectiles.splice(i, 1);
+      continue;
+    }
+
+    // Acerto em pedestres (Taser atordoa testemunha e cancela ligação; tiro letal dispara denúncia +2)
+    let hitPed = null;
+    for (const ped of pedestrians) {
+      if (ped.stunnedTimer > 0) continue;
+      const dPed = Math.hypot(p.pos.x - ped.mesh.position.x, p.pos.z - ped.mesh.position.z);
+      if (dPed < 0.85 && p.pos.y >= 0 && p.pos.y <= 2.0) {
+        hitPed = ped;
+        break;
+      }
+    }
+    if (hitPed) {
+      spawnTaserFlash(p.pos, p.color);
+      hitPed.stunnedTimer = 12.0;
+      hitPed.callingPolice = false;
+      if (hitPed.phoneIcon) hitPed.phoneIcon.visible = false;
+      hitPed.mesh.rotation.x = -Math.PI / 2;
+      hitPed.mesh.position.y = 0.2;
+      if (gameState.wantedLevel === 0) {
+        gameState.wantedStatus = 'OCULTO';
+        updateWantedHUD();
+      }
+      if (!p.isTaser) {
+        reportCrimeToCivilians(hitPed.mesh.position, 22, 2);
       }
       refs.scene.remove(p.mesh);
       refs.scene.remove(p.line);

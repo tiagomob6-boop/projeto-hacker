@@ -244,6 +244,9 @@ export const dom = {
   hpBar: document.getElementById('hp-bar'),
   statusWeapon: document.getElementById('status-weapon'),
   statusCamera: document.getElementById('status-camera'),
+  wantedStars: document.getElementById('wanted-stars'),
+  wantedStatus: document.getElementById('wanted-status'),
+  ctosRevealBanner: document.getElementById('ctos-reveal-banner'),
   cockpitHud: document.getElementById('cockpit-hud'),
   cockpitSpeed: document.getElementById('cockpit-speed'),
   cockpitGear: document.getElementById('cockpit-gear'),
@@ -315,7 +318,8 @@ export const refs = {
   onAcceptMission: null,
   onApplySkin: null,
   onSelectWeapon: null,
-  onSpawnVehicle: null
+  onSpawnVehicle: null,
+  onSpawnPolice: null
 };
 
 export const serverParticleData = [];
@@ -348,6 +352,7 @@ export const missionMarkers = [];  // { key, ring, beam }
 export const stores = [];          // { type: 'STYLE'|'ARMORY'|'MOTORS', name, pos, ring, color }
 export const lightPoles = [];      // Postes de iluminação urbana com colisão e queda física
 export const supplyBoxes = [];     // Caixas de suprimentos (+$100 ou +25 HP) nos interiores acessíveis
+export const policeCars = [];      // Viaturas de reforço policial ctOS spawnadas dinamicamente
 export const missionServers = {};  // { COMPLEXO_CTOS: { mesh, core, particles, particleData }, DOCAS_BAIA_SF: ... }
 export const missionExtractions = {}; // { COMPLEXO_CTOS: { group, ring, beam }, DOCAS_BAIA_SF: ... }
 
@@ -374,6 +379,11 @@ export const gameState = {
   shopCooldown: 0,
   damageFlashTimer: 0,
   baseAlert: false,
+  wantedLevel: 0,
+  wantedCooldown: 0,
+  wantedStatus: 'OCULTO',
+  ctosRevealTimer: 0,
+  policeSpawnCooldown: 0,
   mouseDown: false,
   netHackActive: false,
   activeCamIndex: -1, // -1 = câmera 3ª pessoa do jogador
