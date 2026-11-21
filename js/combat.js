@@ -28,6 +28,7 @@ export function selectWeapon(weaponType) {
   if (refs.playerParts.rifleMesh) refs.playerParts.rifleMesh.visible = weaponType === WEAPON_TYPE.RIFLE;
   if (refs.playerParts.empMesh) refs.playerParts.empMesh.visible = weaponType === WEAPON_TYPE.EMP;
   updateWeaponHUD();
+  if (refs.playerParts) refs.playerParts.aimTimer = 0.45;
 }
 
 export function damagePlayer(amount) {
@@ -123,6 +124,7 @@ export function fireEquippedWeapon() {
   const cfg = WEAPON_CONFIG[gameState.equippedWeapon];
   gameState.weaponCooldown = cfg.cooldown;
   updateWeaponHUD();
+  if (refs.playerParts) refs.playerParts.aimTimer = 0.45;
 
   if (gameState.equippedWeapon === WEAPON_TYPE.TASER) AudioManager.playTaserShot();
   else if (gameState.equippedWeapon === WEAPON_TYPE.PISTOL) AudioManager.playSilencedShot();
@@ -172,6 +174,7 @@ export function fireEmpPulse() {
   gameState.empCooldown = WEAPON_CONFIG.EMP.cooldown;
   AudioManager.playEmpPulse();
   updateWeaponHUD();
+  if (refs.playerParts) refs.playerParts.aimTimer = 0.45;
 
   const pPos = refs.playerGroup.position.clone();
   const ringMat = new THREE.MeshBasicMaterial({
@@ -224,6 +227,7 @@ export function updateProjectiles(dt) {
   }
 
   updateWeaponHUD();
+  if (refs.playerParts) refs.playerParts.aimTimer = 0.45;
 
   for (let i = projectiles.length - 1; i >= 0; i--) {
     const p = projectiles[i];

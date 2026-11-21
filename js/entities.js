@@ -50,130 +50,276 @@ export function buildPlayer() {
   refs.playerGroup = new THREE.Group();
   refs.playerGroup.position.set(0, 0, 52);
 
-  const coatMat = new THREE.MeshStandardMaterial({ color: 0x171c2b, roughness: 0.7 });
-  const hoodMat = new THREE.MeshStandardMaterial({ color: 0x101420, roughness: 0.8 });
-  const visorMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
-  const packMat = new THREE.MeshStandardMaterial({ color: 0x0e1320, roughness: 0.5, metalness: 0.4 });
+  const jacketMat = new THREE.MeshStandardMaterial({ color: 0x161c2e, roughness: 0.62, metalness: 0.18 });
+  const innerMat = new THREE.MeshStandardMaterial({ color: 0x0c111d, roughness: 0.78 });
+  const pantsMat = new THREE.MeshStandardMaterial({ color: 0x121826, roughness: 0.75 });
+  const skinMat = new THREE.MeshStandardMaterial({ color: 0xc89678, roughness: 0.65 });
+  const maskMat = new THREE.MeshStandardMaterial({ color: 0x0a0e17, roughness: 0.85 });
+  const capMat = new THREE.MeshStandardMaterial({ color: 0x151c2d, roughness: 0.6 });
+  const shoeMat = new THREE.MeshStandardMaterial({ color: 0x1e263b, roughness: 0.55 });
+  const packMat = new THREE.MeshStandardMaterial({ color: 0x0d1322, roughness: 0.5, metalness: 0.4 });
+  const cyanMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
+  const magentaMat = new THREE.MeshBasicMaterial({ color: 0xff0055 });
   const ledMat = new THREE.MeshBasicMaterial({ color: 0x00ff88 });
 
-  // Pernas
-  const legGeo = new THREE.BoxGeometry(0.24, 0.75, 0.24);
-  const legL = new THREE.Mesh(legGeo, coatMat);
-  legL.position.set(-0.16, 0.38, 0);
-  legL.castShadow = true;
-  const legR = new THREE.Mesh(legGeo, coatMat);
-  legR.position.set(0.16, 0.38, 0);
-  legR.castShadow = true;
+  // ==========================================
+  // PERNAS ARTICULADAS (Quadril -> Coxa -> Joelho/Canela -> Tênis)
+  // ==========================================
+  const buildLeg = (xOffset) => {
+    const hip = new THREE.Group();
+    hip.position.set(xOffset, 0.88, 0);
 
-  // Tronco (Jaqueta Hacker com contorno neon)
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.82, 0.38), coatMat);
-  torso.position.y = 1.15;
-  torso.castShadow = true;
-  torso.add(
-    new THREE.LineSegments(
-      new THREE.EdgesGeometry(torso.geometry),
-      new THREE.LineBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.55 })
-    )
+    const thigh = new THREE.Mesh(new THREE.CapsuleGeometry(0.088, 0.24, 6, 12), pantsMat);
+    thigh.position.y = -0.20;
+    thigh.castShadow = true;
+    hip.add(thigh);
+
+    const knee = new THREE.Group();
+    knee.position.set(0, -0.42, 0);
+
+    const kneePad = new THREE.Mesh(new THREE.SphereGeometry(0.076, 10, 10), innerMat);
+    kneePad.position.set(0, 0, 0.022);
+    knee.add(kneePad);
+
+    const shin = new THREE.Mesh(new THREE.CapsuleGeometry(0.072, 0.24, 6, 12), pantsMat);
+    shin.position.y = -0.20;
+    shin.castShadow = true;
+    knee.add(shin);
+
+    // Tênis esportivo estilizado com sola neon
+    const sneaker = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.10, 0.27), shoeMat);
+    sneaker.position.set(0, -0.39, 0.045);
+    sneaker.castShadow = true;
+    const sole = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.028, 0.29), cyanMat);
+    sole.position.set(0, -0.44, 0.045);
+    knee.add(sneaker, sole);
+
+    hip.add(knee);
+    return { hip, knee };
+  };
+
+  const legLeft = buildLeg(-0.125);
+  const legRight = buildLeg(0.125);
+
+  // ==========================================
+  // TRONCO & JAQUETA DEDSEC + MOCHILA TIRACOLO
+  // ==========================================
+  const upperBody = new THREE.Group();
+  upperBody.position.set(0, 0.88, 0);
+
+  // Núcleo atlético (camisa interna)
+  const torsoCore = new THREE.Mesh(new THREE.CapsuleGeometry(0.185, 0.34, 8, 14), innerMat);
+  torsoCore.scale.set(1.18, 1.0, 0.72);
+  torsoCore.position.y = 0.34;
+  torsoCore.castShadow = true;
+  upperBody.add(torsoCore);
+
+  // Jaqueta aberta DedSec (painéis esquerdo/direito + costas + gola alta)
+  const jacketBack = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.56, 0.14), jacketMat);
+  jacketBack.position.set(0, 0.34, -0.07);
+  jacketBack.castShadow = true;
+  const jacketPanelL = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.54, 0.24), jacketMat);
+  jacketPanelL.position.set(-0.14, 0.33, 0.04);
+  jacketPanelL.castShadow = true;
+  const jacketPanelR = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.54, 0.24), jacketMat);
+  jacketPanelR.position.set(0.14, 0.33, 0.04);
+  jacketPanelR.castShadow = true;
+
+  // Gola alta estilizada
+  const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.18, 0.13, 14, 1, true), jacketMat);
+  collar.position.set(0, 0.63, -0.01);
+
+  // Detalhes neon ciano/magenta na jaqueta
+  const lapelTrimL = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.52, 0.025), cyanMat);
+  lapelTrimL.position.set(-0.07, 0.34, 0.165);
+  const lapelTrimR = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.52, 0.025), magentaMat);
+  lapelTrimR.position.set(0.07, 0.34, 0.165);
+  const collarTrim = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.025, 0.025), cyanMat);
+  collarTrim.position.set(0, 0.68, -0.14);
+  upperBody.add(jacketBack, jacketPanelL, jacketPanelR, collar, lapelTrimL, lapelTrimR, collarTrim);
+
+  // Mochila tiracolo cruzada com alça diagonal e LED de status
+  const slingPack = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.42, 0.15), packMat);
+  slingPack.position.set(0.03, 0.33, -0.20);
+  slingPack.rotation.z = -0.22;
+  slingPack.castShadow = true;
+  const slingStrap = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.66, 0.30), innerMat);
+  slingStrap.position.set(0, 0.35, 0.01);
+  slingStrap.rotation.z = 0.54;
+  const backpackLed = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.11, 0.04), ledMat);
+  backpackLed.position.set(0.03, 0.39, -0.285);
+  backpackLed.rotation.z = -0.22;
+  upperBody.add(slingPack, slingStrap, backpackLed);
+
+  // ==========================================
+  // CABEÇA, BANDANA, VISOR NEON E BONÉ
+  // ==========================================
+  const headGroup = new THREE.Group();
+  headGroup.position.set(0, 0.73, 0);
+
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.072, 0.082, 0.14, 12), skinMat);
+  neck.position.y = 0.02;
+
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(0.168, 16, 14), skinMat);
+  skull.position.y = 0.16;
+  skull.castShadow = true;
+
+  // Máscara / Bandana facial escura na parte inferior do rosto
+  const bandana = new THREE.Mesh(
+    new THREE.SphereGeometry(0.176, 16, 10, 0, Math.PI * 2, Math.PI * 0.48, Math.PI * 0.45),
+    maskMat
   );
+  bandana.position.y = 0.155;
+  const maskStripe = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.022, 0.025), magentaMat);
+  maskStripe.position.set(0, 0.095, 0.168);
 
-  // Braços articulados
-  const armGeo = new THREE.BoxGeometry(0.18, 0.68, 0.18);
-  const armL = new THREE.Mesh(armGeo, coatMat);
-  armL.position.set(-0.44, 1.12, 0);
-  armL.castShadow = true;
-  const armR = new THREE.Mesh(armGeo, coatMat);
-  armR.position.set(0.44, 1.12, 0);
-  armR.castShadow = true;
+  // Óculos / Visor hacker neon ciano estilizado
+  const visorFrame = new THREE.Mesh(new THREE.BoxGeometry(0.27, 0.062, 0.07), maskMat);
+  visorFrame.position.set(0, 0.19, 0.145);
+  const visorGlow = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.038, 0.02), cyanMat);
+  visorGlow.position.set(0, 0.19, 0.182);
 
-  // Tiras neon nos ombros
-  const trimGeo = new THREE.BoxGeometry(0.2, 0.06, 0.2);
-  const trimL = new THREE.Mesh(trimGeo, visorMat);
-  trimL.position.set(-0.44, 1.44, 0);
-  const trimR = new THREE.Mesh(trimGeo, visorMat);
-  trimR.position.set(0.44, 1.44, 0);
+  // Boné estilizado com aba voltada para frente (+Z)
+  const capDome = new THREE.Mesh(
+    new THREE.SphereGeometry(0.178, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.52),
+    capMat
+  );
+  capDome.position.y = 0.18;
+  capDome.castShadow = true;
+  const capBrim = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.026, 0.18), capMat);
+  capBrim.position.set(0, 0.23, 0.175);
+  capBrim.rotation.x = 0.14;
+  const capTrim = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.018, 0.02), cyanMat);
+  capTrim.position.set(0, 0.245, 0.18);
 
-  // Mochila Hacker com LED pulsante
-  const backpack = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.56, 0.22), packMat);
-  backpack.position.set(0, 1.16, -0.29);
-  backpack.castShadow = true;
-  const backpackLed = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.05), ledMat);
-  backpackLed.position.set(0, 1.22, -0.41);
+  headGroup.add(neck, skull, bandana, maskStripe, visorFrame, visorGlow, capDome, capBrim, capTrim);
+  upperBody.add(headGroup);
 
-  // Cabeça + Capuz
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.44, 0.44), hoodMat);
-  head.position.y = 1.8;
-  head.castShadow = true;
+  // ==========================================
+  // BRAÇOS ARTICULADOS (Ombro -> Antebraço -> Mão)
+  // ==========================================
+  const buildArm = (xOffset, trimMat) => {
+    const shoulder = new THREE.Group();
+    shoulder.position.set(xOffset, 0.55, 0);
 
-  // Visor Neon (voltado para +Z local)
-  const visor = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.12, 0.08), visorMat);
-  visor.position.set(0, 1.82, 0.22);
+    const shoulderPad = new THREE.Mesh(new THREE.SphereGeometry(0.082, 10, 10), jacketMat);
+    const shoulderTrim = new THREE.Mesh(new THREE.CylinderGeometry(0.084, 0.084, 0.03, 12), trimMat);
+    shoulderTrim.position.y = -0.02;
 
-  // [1] Pistola Taser DedSec na mão direita
+    const upperArm = new THREE.Mesh(new THREE.CapsuleGeometry(0.062, 0.17, 6, 10), jacketMat);
+    upperArm.position.y = -0.14;
+    upperArm.castShadow = true;
+
+    const elbow = new THREE.Group();
+    elbow.position.set(0, -0.26, 0);
+
+    const forearm = new THREE.Mesh(new THREE.CapsuleGeometry(0.052, 0.17, 6, 10), innerMat);
+    forearm.position.y = -0.12;
+    forearm.castShadow = true;
+
+    const hand = new THREE.Group();
+    hand.position.set(0, -0.24, 0);
+    const handMesh = new THREE.Mesh(new THREE.SphereGeometry(0.052, 10, 10), skinMat);
+    hand.add(handMesh);
+
+    elbow.add(forearm, hand);
+    shoulder.add(shoulderPad, shoulderTrim, upperArm, elbow);
+    return { shoulder, elbow, hand };
+  };
+
+  const armLeft = buildArm(-0.27, cyanMat);
+  const armRight = buildArm(0.27, magentaMat);
+  upperBody.add(armLeft.shoulder, armRight.shoulder);
+
+  // ==========================================
+  // ARMAS NA MÃO DIREITA (apontam ao longo de -Y local para alinhar com a mira ao erguer o braço)
+  // ==========================================
+  const weaponMount = new THREE.Group();
+  weaponMount.rotation.x = Math.PI / 2;
+  armRight.hand.add(weaponMount);
+
+  // [1] Pistola Taser DedSec
   const taserMesh = new THREE.Group();
   const taserBody = new THREE.Mesh(
-    new THREE.BoxGeometry(0.1, 0.12, 0.34),
+    new THREE.BoxGeometry(0.08, 0.11, 0.30),
     new THREE.MeshStandardMaterial({ color: 0x162032, roughness: 0.4, metalness: 0.6 })
   );
-  taserBody.position.set(0, -0.3, 0.18);
-  const taserBarrel = new THREE.Mesh(
-    new THREE.BoxGeometry(0.06, 0.05, 0.18),
-    new THREE.MeshBasicMaterial({ color: 0x00f0ff })
-  );
-  taserBarrel.position.set(0, -0.29, 0.34);
+  taserBody.position.set(0, 0.04, 0.10);
+  const taserBarrel = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.045, 0.16), cyanMat);
+  taserBarrel.position.set(0, 0.05, 0.25);
   taserMesh.add(taserBody, taserBarrel);
-  armR.add(taserMesh);
+  weaponMount.add(taserMesh);
 
   // [2] Pistola Silenciada 9mm
   const pistolMesh = new THREE.Group();
   const pistolSlide = new THREE.Mesh(
-    new THREE.BoxGeometry(0.08, 0.11, 0.28),
+    new THREE.BoxGeometry(0.07, 0.10, 0.25),
     new THREE.MeshStandardMaterial({ color: 0x1c2434, roughness: 0.35, metalness: 0.7 })
   );
-  pistolSlide.position.set(0, -0.3, 0.15);
+  pistolSlide.position.set(0, 0.04, 0.09);
   const silencer = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.032, 0.032, 0.26, 10),
+    new THREE.CylinderGeometry(0.028, 0.028, 0.24, 10),
     new THREE.MeshStandardMaterial({ color: 0x0b0f18, roughness: 0.4, metalness: 0.8 })
   );
   silencer.rotation.x = Math.PI / 2;
-  silencer.position.set(0, -0.28, 0.41);
+  silencer.position.set(0, 0.06, 0.32);
   pistolMesh.add(pistolSlide, silencer);
   pistolMesh.visible = false;
-  armR.add(pistolMesh);
+  weaponMount.add(pistolMesh);
 
   // [3] Rifle de Assalto DedSec
   const rifleMesh = new THREE.Group();
   const rifleBody = new THREE.Mesh(
-    new THREE.BoxGeometry(0.1, 0.15, 0.66),
+    new THREE.BoxGeometry(0.085, 0.13, 0.58),
     new THREE.MeshStandardMaterial({ color: 0x141a26, roughness: 0.45, metalness: 0.65 })
   );
-  rifleBody.position.set(0, -0.3, 0.3);
+  rifleBody.position.set(0, 0.04, 0.20);
   const rifleMag = new THREE.Mesh(
-    new THREE.BoxGeometry(0.06, 0.18, 0.09),
+    new THREE.BoxGeometry(0.055, 0.16, 0.08),
     new THREE.MeshStandardMaterial({ color: 0x2a344a, roughness: 0.5 })
   );
-  rifleMag.position.set(0, -0.43, 0.34);
+  rifleMag.position.set(0, -0.08, 0.24);
   const rifleAccent = new THREE.Mesh(
-    new THREE.BoxGeometry(0.11, 0.04, 0.36),
+    new THREE.BoxGeometry(0.095, 0.035, 0.32),
     new THREE.MeshBasicMaterial({ color: 0xffaa00 })
   );
-  rifleAccent.position.set(0, -0.27, 0.36);
+  rifleAccent.position.set(0, 0.07, 0.26);
   rifleMesh.add(rifleBody, rifleMag, rifleAccent);
   rifleMesh.visible = false;
-  armR.add(rifleMesh);
+  weaponMount.add(rifleMesh);
 
   // [4] Emissor de Pulso EMP
   const empMesh = new THREE.Group();
-  const empCore = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.08, 0.08, 0.14, 12),
-    new THREE.MeshBasicMaterial({ color: 0x00f0ff })
-  );
-  empCore.position.set(0, -0.31, 0.1);
+  const empCore = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.13, 12), cyanMat);
+  empCore.position.set(0, 0.02, 0.06);
   empMesh.add(empCore);
   empMesh.visible = false;
-  armR.add(empMesh);
+  weaponMount.add(empMesh);
 
-  refs.playerParts = { legL, legR, armL, armR, backpackLed, taserMesh, pistolMesh, rifleMesh, empMesh };
-  refs.playerGroup.add(legL, legR, torso, armL, armR, trimL, trimR, backpack, backpackLed, head, visor);
+  refs.playerParts = {
+    upperBody,
+    headGroup,
+    hipL: legLeft.hip,
+    kneeL: legLeft.knee,
+    hipR: legRight.hip,
+    kneeR: legRight.knee,
+    shoulderL: armLeft.shoulder,
+    elbowL: armLeft.elbow,
+    shoulderR: armRight.shoulder,
+    elbowR: armRight.elbow,
+    backpackLed,
+    taserMesh,
+    pistolMesh,
+    rifleMesh,
+    empMesh,
+    walkPhase: 0,
+    crouchBlend: 0,
+    moveBlend: 0,
+    aimBlend: 0,
+    aimTimer: 0
+  };
+
+  refs.playerGroup.add(legLeft.hip, legRight.hip, upperBody);
   refs.scene.add(refs.playerGroup);
 }
 
@@ -843,9 +989,6 @@ export function updatePlayer(dt) {
   gameState.isCrouching = !!(gameState.keys['ControlLeft'] || gameState.keys['ControlRight']);
   gameState.isSprinting = !!(gameState.keys['ShiftLeft'] || gameState.keys['ShiftRight']) && !gameState.isCrouching && isMoving;
 
-  const targetScaleY = gameState.isCrouching ? 0.62 : 1.0;
-  refs.playerGroup.scale.y = THREE.MathUtils.lerp(refs.playerGroup.scale.y, targetScaleY, Math.min(1, dt * 14));
-
   if (!gameState.netHackActive && gameState.activeCamIndex < 0) {
     dom.statusMode.textContent = gameState.isCrouching
       ? 'AGACHADO'
@@ -890,31 +1033,61 @@ export function updatePlayer(dt) {
     pos.z = THREE.MathUtils.clamp(pos.z, WORLD_BOUNDS.minZ, WORLD_BOUNDS.maxZ);
     pos.y = getSurfaceHeight(pos.x, pos.z);
 
-    // Rotação suave na direção do movimento
-    const targetRot = Math.atan2(moveX, moveZ);
+    // Rotação suave na direção do movimento (ou para frente da mira se atirando)
+    const targetRot =
+      refs.playerParts.aimTimer > 0 ? gameState.cameraYaw + Math.PI : Math.atan2(moveX, moveZ);
     let diff = targetRot - refs.playerGroup.rotation.y;
     while (diff > Math.PI) diff -= Math.PI * 2;
     while (diff < -Math.PI) diff += Math.PI * 2;
     refs.playerGroup.rotation.y += diff * Math.min(1, dt * 12);
-
-    // Animação de caminhada/corrida nas pernas e braços articulados
-    const swingFreq = gameState.isSprinting ? 18 : 12;
-    const swingAmp = gameState.isSprinting ? 0.5 : 0.35;
-    const swing = Math.sin(gameState.elapsedTime * swingFreq) * swingAmp;
-    refs.playerParts.legL.rotation.x = swing;
-    refs.playerParts.legR.rotation.x = -swing;
-    if (refs.playerParts.armL && refs.playerParts.armR) {
-      refs.playerParts.armL.rotation.x = -swing * 0.85;
-      refs.playerParts.armR.rotation.x = swing * 0.85;
-    }
-  } else {
-    refs.playerParts.legL.rotation.x = 0;
-    refs.playerParts.legR.rotation.x = 0;
-    if (refs.playerParts.armL && refs.playerParts.armR) {
-      refs.playerParts.armL.rotation.x = 0;
-      refs.playerParts.armR.rotation.x = 0;
-    }
+  } else if (refs.playerParts.aimTimer > 0) {
+    const targetRot = gameState.cameraYaw + Math.PI;
+    let diff = targetRot - refs.playerGroup.rotation.y;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    refs.playerGroup.rotation.y += diff * Math.min(1, dt * 16);
   }
+
+  // Animações esqueléticas fluidas (caminhada, corrida, agachamento real nos joelhos/tronco e mira)
+  const p = refs.playerParts;
+  p.aimTimer = Math.max(0, p.aimTimer - dt);
+  p.crouchBlend = THREE.MathUtils.lerp(p.crouchBlend, gameState.isCrouching ? 1 : 0, Math.min(1, dt * 12));
+  p.moveBlend = THREE.MathUtils.lerp(p.moveBlend, isMoving ? 1 : 0, Math.min(1, dt * 12));
+  p.aimBlend = THREE.MathUtils.lerp(p.aimBlend, p.aimTimer > 0 ? 1 : 0, Math.min(1, dt * 16));
+
+  const strideFreq = gameState.isSprinting ? 14.5 : gameState.isCrouching ? 7.5 : 9.8;
+  if (isMoving) {
+    p.walkPhase += dt * strideFreq;
+  }
+  const strideAmp = (gameState.isSprinting ? 0.62 : gameState.isCrouching ? 0.34 : 0.44) * p.moveBlend;
+  const sinW = Math.sin(p.walkPhase);
+
+  // Agachamento real: abaixa o quadril/tronco e dobra os joelhos
+  const hipY = 0.88 - 0.27 * p.crouchBlend;
+  p.hipL.position.y = hipY;
+  p.hipR.position.y = hipY;
+  p.upperBody.position.y = hipY;
+  p.upperBody.rotation.x = 0.36 * p.crouchBlend + (gameState.isSprinting ? 0.16 * p.moveBlend : 0);
+  p.headGroup.rotation.x = -0.24 * p.crouchBlend;
+
+  const legSwingL = sinW * strideAmp;
+  const legSwingR = -sinW * strideAmp;
+  p.hipL.rotation.x = legSwingL - 0.68 * p.crouchBlend;
+  p.hipR.rotation.x = legSwingR - 0.68 * p.crouchBlend;
+  p.kneeL.rotation.x = 1.28 * p.crouchBlend + Math.max(0, -sinW) * 0.58 * p.moveBlend;
+  p.kneeR.rotation.x = 1.28 * p.crouchBlend + Math.max(0, sinW) * 0.58 * p.moveBlend;
+
+  // Braço esquerdo (balanço natural)
+  p.shoulderL.rotation.x = -legSwingL * 0.85 - 0.12 * p.crouchBlend;
+  p.elbowL.rotation.x = -0.28 - (gameState.isSprinting ? 0.55 * p.moveBlend : 0);
+
+  // Braço direito (postura tática baixa ao caminhar -> ergue reto na mira ao disparar)
+  const walkShoulderR = -legSwingR * 0.75 - 0.18;
+  const walkElbowR = -0.45 - (gameState.isSprinting ? 0.45 * p.moveBlend : 0);
+  const aimShoulderR = -1.38;
+  const aimElbowR = -0.16;
+  p.shoulderR.rotation.x = THREE.MathUtils.lerp(walkShoulderR, aimShoulderR, p.aimBlend);
+  p.elbowR.rotation.x = THREE.MathUtils.lerp(walkElbowR, aimElbowR, p.aimBlend);
 }
 
 export function updateCamera() {
