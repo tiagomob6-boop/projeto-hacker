@@ -514,16 +514,39 @@ export function buildSouthDistrictAndBridge() {
 }
 
 export function buildUrbanDetailsAndMidBlocks() {
-  // 1. Quarteirões intermediários dividindo espaços vazios em ruas de 2 faixas com calçadas reais
+  // 1. Quarteirões intermediários e arranha-céus preenchendo os vazios de Downtown, Distrito Sul e Docas
   [
+    // Downtown Oeste & Central (X: -180..65)
+    [-92, -16, 18, 28, 16, 0x00f0ff],
+    [-92, 16, 18, 24, 16, 0xff0055],
+    [-92, 48, 18, 22, 16, 0x38bdf8],
     [-92, 122, 20, 26, 18, 0x00f0ff],
+    [-132, -16, 20, 32, 18, 0xffaa00],
+    [-132, 18, 20, 26, 18, 0x00ff88],
+    [-132, 54, 20, 24, 18, 0xd946ef],
     [-162, 122, 22, 30, 18, 0xff0055],
+    [-172, -12, 20, 34, 18, 0x00f0ff],
+    [-172, 56, 20, 28, 18, 0xff0055],
     [-218, 42, 22, 28, 20, 0x38bdf8],
     [-218, 178, 20, 24, 18, 0xffaa00],
+    [-24, 96, 18, 22, 14, 0xffaa00],
+    [18, 96, 18, 20, 14, 0x38bdf8],
+    // Distrito Sul (Z: 120..360)
+    [22, 152, 20, 22, 18, 0x00f0ff],
+    [22, 212, 20, 20, 18, 0xff0055],
+    [22, 272, 20, 18, 18, 0x00ff88],
+    [-22, 152, 20, 24, 18, 0xd946ef],
     [-16, 212, 22, 20, 18, 0x00ff88],
+    [-22, 272, 20, 20, 18, 0xffaa00],
+    [-92, 252, 20, 22, 18, 0x38bdf8],
+    [-162, 212, 22, 24, 18, 0x00f0ff],
     [-148, 378, 24, 22, 18, 0xd946ef],
+    // Área Industrial das Docas (X: 410..560)
+    [426, 108, 18, 14, 18, 0xffaa00],
+    [492, 88, 22, 16, 18, 0x00f0ff],
     [492, 148, 24, 16, 20, 0xffaa00],
-    [526, 206, 22, 18, 18, 0x00f0ff]
+    [526, 206, 22, 18, 18, 0x00f0ff],
+    [542, 148, 22, 15, 20, 0xff0055]
   ].forEach(([bx, bz, bw, bh, bd, acc]) => {
     addStaticBox(bw + 6, 0.14, bd + 6, bx, 0.07, bz, 0x1a2234, { collide: false, occlude: false, edgesColor: 0x26324d, edgesOpacity: 0.45 });
     buildDetailedBuilding(bx, bz, bw, bh, bd, { accent: acc });
@@ -768,6 +791,68 @@ export function buildInstancedWorldElements() {
     });
   });
   refs.worldGroup.add(barrierMesh);
+
+  // 3b. Mobiliário Urbano nas Calçadas (Bancos, Lixeiras, Totens Holográficos e Paletes via InstancedMesh)
+  const benchPositions = [];
+  const trashPositions = [];
+  const holoPositions = [];
+  const palletPositions = [];
+  for (let z = -30; z <= 310; z += 34) {
+    benchPositions.push([-43, z], [43, z], [-76, z]);
+    trashPositions.push([-41, z + 6], [41, z + 6], [-74, z + 6], [DOCKS_OFFSET_X - 30, Math.min(260, z)]);
+  }
+  for (let x = -150; x <= 48; x += 28) {
+    holoPositions.push([x, 59], [x, 112], [x, 295]);
+    palletPositions.push([x + 6, 82], [DOCKS_OFFSET_X + 36 + (Math.abs(x) % 90), 54 + (Math.abs(x) % 70)]);
+  }
+
+  const benchMesh = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(2.1, 0.52, 0.65),
+    new THREE.MeshStandardMaterial({ color: 0x26344d, roughness: 0.65 }),
+    benchPositions.length
+  );
+  benchPositions.forEach(([bx, bz], i) => {
+    dummy.position.set(bx, 0.34, bz);
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.set(1, 1, 1);
+    dummy.updateMatrix();
+    benchMesh.setMatrixAt(i, dummy.matrix);
+  });
+
+  const trashMesh = new THREE.InstancedMesh(
+    new THREE.CylinderGeometry(0.24, 0.2, 0.72, 8),
+    new THREE.MeshStandardMaterial({ color: 0x1b263b, roughness: 0.5, metalness: 0.4 }),
+    trashPositions.length
+  );
+  trashPositions.forEach(([tx, tz], i) => {
+    dummy.position.set(tx, 0.42, tz);
+    dummy.updateMatrix();
+    trashMesh.setMatrixAt(i, dummy.matrix);
+  });
+
+  const holoMesh = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(0.26, 2.3, 0.95),
+    new THREE.MeshBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.72 }),
+    holoPositions.length
+  );
+  holoPositions.forEach(([hx, hz], i) => {
+    dummy.position.set(hx, 1.25, hz);
+    dummy.updateMatrix();
+    holoMesh.setMatrixAt(i, dummy.matrix);
+  });
+
+  const palletMesh = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(1.4, 0.85, 1.2),
+    new THREE.MeshStandardMaterial({ color: 0x3b3026, roughness: 0.85 }),
+    palletPositions.length
+  );
+  palletPositions.forEach(([px, pz], i) => {
+    dummy.position.set(px, 0.48, pz);
+    dummy.updateMatrix();
+    palletMesh.setMatrixAt(i, dummy.matrix);
+  });
+
+  refs.worldGroup.add(benchMesh, trashMesh, holoMesh, palletMesh);
 
   // 4. Prédios Distantes de Horizonte (1 única InstancedMesh com CanvasTexture)
   const skyBuildings = [];
@@ -2389,20 +2474,39 @@ export function buildTrafficCars() {
     [[416, 324], [-58, 324], [-58, 190], [-126, 190], [-126, 316], [416, 316]]
   ];
 
-  const configs = [
+  const baseConfigs = [
     { bodyType: 'HATCH', color: 0x2a3b5c, neon: 0x00f0ff, isPatrol: false, routeIdx: 0, startWp: 0, speed: 9.5 },
-    { bodyType: 'SPORT', color: 0x6b21a8, neon: 0xd946ef, isPatrol: false, routeIdx: 0, startWp: 2, speed: 12.0 },
-    { bodyType: 'SUV', color: 0x141720, neon: 0xff0044, isPatrol: true, routeIdx: 1, startWp: 0, speed: 10.5 },
-    { bodyType: 'HATCH', color: 0x1e3a5f, neon: 0x38bdf8, isPatrol: false, routeIdx: 1, startWp: 2, speed: 9.0 },
+    { bodyType: 'SPORT', color: 0x6b21a8, neon: 0xd946ef, isPatrol: false, routeIdx: 0, startWp: 1, speed: 12.0 },
+    { bodyType: 'SUV', color: 0x141720, neon: 0xff0044, isPatrol: true, routeIdx: 0, startWp: 2, speed: 10.5 },
+    { bodyType: 'HATCH', color: 0x1e3a5f, neon: 0x38bdf8, isPatrol: false, routeIdx: 0, startWp: 3, speed: 9.2 },
+    { bodyType: 'SPORT', color: 0x14532d, neon: 0x00ff88, isPatrol: false, routeIdx: 1, startWp: 0, speed: 11.8 },
+    { bodyType: 'SUV', color: 0x141720, neon: 0xff0044, isPatrol: true, routeIdx: 1, startWp: 1, speed: 10.5 },
+    { bodyType: 'HATCH', color: 0x334155, neon: 0xffaa00, isPatrol: false, routeIdx: 1, startWp: 2, speed: 9.0 },
+    { bodyType: 'SPORT', color: 0x3b0764, neon: 0xff0055, isPatrol: false, routeIdx: 1, startWp: 3, speed: 12.4 },
+    // Ponte Golden Gate <-> Docas (Leste e Oeste)
     { bodyType: 'SPORT', color: 0x0f766e, neon: 0x00ff88, isPatrol: false, routeIdx: 2, startWp: 0, speed: 12.5 },
     { bodyType: 'SUV', color: 0x334155, neon: 0xffaa00, isPatrol: false, routeIdx: 2, startWp: 1, speed: 10.0 },
-    { bodyType: 'HATCH', color: 0x475569, neon: 0x00f0ff, isPatrol: false, routeIdx: 3, startWp: 0, speed: 9.8 },
+    { bodyType: 'HATCH', color: 0x1e293b, neon: 0x00f0ff, isPatrol: false, routeIdx: 2, startWp: 2, speed: 9.8 },
+    { bodyType: 'SUV', color: 0x141720, neon: 0xff0044, isPatrol: true, routeIdx: 2, startWp: 3, speed: 11.2 },
+    { bodyType: 'SPORT', color: 0x4c1d95, neon: 0xd946ef, isPatrol: false, routeIdx: 2, startWp: 4, speed: 12.6 },
+    { bodyType: 'HATCH', color: 0x475569, neon: 0x38bdf8, isPatrol: false, routeIdx: 3, startWp: 0, speed: 9.8 },
+    { bodyType: 'SPORT', color: 0x7f1d1d, neon: 0xff0044, isPatrol: false, routeIdx: 3, startWp: 1, speed: 12.0 },
     { bodyType: 'SUV', color: 0x141720, neon: 0xff0044, isPatrol: true, routeIdx: 3, startWp: 2, speed: 11.0 },
+    { bodyType: 'HATCH', color: 0x1e3a5f, neon: 0x00f0ff, isPatrol: false, routeIdx: 3, startWp: 3, speed: 9.4 },
+    { bodyType: 'SUV', color: 0x26314a, neon: 0xffaa00, isPatrol: false, routeIdx: 3, startWp: 4, speed: 10.4 },
+    // Distrito Sul <-> Ponte Sul <-> Portuário
     { bodyType: 'HATCH', color: 0x3b2f4a, neon: 0xff0055, isPatrol: false, routeIdx: 4, startWp: 0, speed: 9.5 },
-    { bodyType: 'SPORT', color: 0x1e293b, neon: 0x00f0ff, isPatrol: false, routeIdx: 4, startWp: 2, speed: 12.2 },
+    { bodyType: 'SPORT', color: 0x1e293b, neon: 0x00f0ff, isPatrol: false, routeIdx: 4, startWp: 1, speed: 12.2 },
+    { bodyType: 'SUV', color: 0x141720, neon: 0xff0044, isPatrol: true, routeIdx: 4, startWp: 2, speed: 10.8 },
+    { bodyType: 'HATCH', color: 0x0f172a, neon: 0x00ff88, isPatrol: false, routeIdx: 4, startWp: 3, speed: 9.6 },
+    { bodyType: 'SPORT', color: 0x581c87, neon: 0xd946ef, isPatrol: false, routeIdx: 4, startWp: 4, speed: 12.5 },
     { bodyType: 'SUV', color: 0x26314a, neon: 0xffaa00, isPatrol: false, routeIdx: 5, startWp: 0, speed: 10.2 },
-    { bodyType: 'HATCH', color: 0x1f2937, neon: 0x38bdf8, isPatrol: false, routeIdx: 5, startWp: 3, speed: 9.2 }
+    { bodyType: 'HATCH', color: 0x1f2937, neon: 0x38bdf8, isPatrol: false, routeIdx: 5, startWp: 1, speed: 9.2 },
+    { bodyType: 'SPORT', color: 0x115e59, neon: 0x00f0ff, isPatrol: false, routeIdx: 5, startWp: 2, speed: 12.1 },
+    { bodyType: 'SUV', color: 0x141720, neon: 0xff0044, isPatrol: true, routeIdx: 5, startWp: 3, speed: 10.9 },
+    { bodyType: 'HATCH', color: 0x312e81, neon: 0xff0055, isPatrol: false, routeIdx: 5, startWp: 4, speed: 9.4 }
   ];
+  const configs = baseConfigs;
 
   configs.forEach((cfg, i) => {
     const waypoints = routes[cfg.routeIdx];
@@ -2498,18 +2602,47 @@ export function buildPedestrians() {
     ['Pedro Henrique', 'Estudante de Robótica'],
     ['Vitoria Ramos', 'Produtora Musical'],
     ['Daniel Mendes', 'Fiscal de Tráfego'],
-    ['Clara Freitas', 'Fotógrafa Urbana']
+    ['Clara Freitas', 'Fotógrafa Urbana'],
+    ['Renato Alves', 'Consultor de Cibersegurança'],
+    ['Fernanda Lima', 'Estilista DedSec'],
+    ['Thiago Martins', 'Piloto de Drone'],
+    ['Isabela Gomes', 'Biohacker'],
+    ['Leonardo Dias', 'Analista Financeiro'],
+    ['Amanda Ferreira', 'Curadora Digital'],
+    ['Vinicius Prado', 'Engenheiro Elétrico'],
+    ['Carolina Nunes', 'Influenciadora Tech'],
+    ['Henrique Souza', 'Técnico de Servidores'],
+    ['Leticia Barbosa', 'Barista Cyber Café'],
+    ['Gustavo Vieira', 'Vendedor SF Motors'],
+    ['Natalia Cardoso', 'Pesquisadora de Redes'],
+    ['Eduardo Teixeira', 'Motorista de App'],
+    ['Mariana Ribeiro', 'Designer de Moda'],
+    ['Caio Moreira', 'Especialista em Cripto'],
+    ['Bianca Correia', 'Repórter de Campo'],
+    ['Rodrigo Monteiro', 'Operador de Guindaste'],
+    ['Aline Cavalcanti', 'Arquiteta de Nuvem'],
+    ['Igor Nascimento', 'Músico Synthwave'],
+    ['Priscila Azevedo', 'Auditora ctOS'],
+    ['Murilo Campos', 'Estudante de TI'],
+    ['Tatiane Castro', 'Gerente Portuária'],
+    ['Andreia Lopes', 'Tatuadora Neon'],
+    ['Samuel Farias', 'Atleta Parkour'],
+    ['Heloisa Pires', 'Engenheira de Dados']
   ];
 
   const jacketColors = [0x2563eb, 0x9333ea, 0x059669, 0xd97706, 0xdc2626, 0x0891b2, 0x475569, 0xdb2777];
   const pantsColors = [0x111827, 0x1e293b, 0x312e81, 0x27272a];
   const skinColors = [0xc89678, 0xe0b596, 0x8d5524, 0xf1c27d];
   const zones = [
-    [-38, 48, 22],
-    [28, 52, 22],
-    [0, 56, 26],
-    [-64, 18, 24],
-    [60, 62, 18],
+    [-32, 60, 14], // Entrada DedSec Style
+    [0, 56, 16],   // Entrada SF Motors & Praça Central
+    [32, 60, 14],  // Entrada HackShop Armory
+    [-42, 22, 16], // Calçada Café Cyber
+    [42, 22, 16],  // Calçada Escritório ctOS
+    [-38, 48, 20],
+    [28, 52, 20],
+    [-64, 18, 22],
+    [-76, 140, 24],
     [-115, 315, 24],
     [DOCKS_OFFSET_X - 24, 55, 20],
     [DOCKS_OFFSET_X + 26, 48, 20]

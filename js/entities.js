@@ -498,6 +498,7 @@ export function buildDroneMesh() {
     rotors.push(rotorGroup);
   });
 
+  droneGroup.scale.set(0.38, 0.38, 0.38);
   droneGroup.visible = false;
   refs.droneGroup = droneGroup;
   refs.droneRotors = rotors;
@@ -1916,28 +1917,27 @@ export function updateCamera() {
 
     if (gameState.firstPerson) {
       // Visão da lente frontal do gimbal (Tecla P)
-      refs.camera.position.set(dPos.x + lookX * 0.42, dPos.y - 0.05, dPos.z + lookZ * 0.42);
+      refs.camera.position.set(dPos.x + lookX * 0.22, dPos.y - 0.02, dPos.z + lookZ * 0.22);
       refs.camera.lookAt(dPos.x + lookX * 14, dPos.y + lookY * 14, dPos.z + lookZ * 14);
     } else {
-      // Visão em 3ª pessoa próxima atrás/acima do drone (dist = 2.1m, heightOffset = 0.65m)
-      const dist = 2.1;
-      const heightOffset = 0.65;
+      // Visão em 3ª pessoa próxima atrás/acima do drone (dist = 1.9m, heightOffset = 0.48m, lerp suave)
+      const dist = 1.9;
+      const heightOffset = 0.48;
       const idealPos = new THREE.Vector3(
         dPos.x + Math.sin(yaw) * Math.cos(pitch) * dist,
-        dPos.y + heightOffset + Math.sin(pitch) * dist * 0.5,
+        dPos.y + heightOffset + Math.sin(pitch) * dist * 0.45,
         dPos.z + Math.cos(yaw) * Math.cos(pitch) * dist
       );
       const camDir = idealPos.clone().sub(dPos).normalize();
       raycaster.set(dPos, camDir);
       raycaster.far = idealPos.distanceTo(dPos);
       const hits = raycaster.intersectObjects(occluders, false);
-      if (hits.length > 0) {
-        const safeD = Math.max(0.65, hits[0].distance - 0.25);
-        refs.camera.position.copy(dPos).addScaledVector(camDir, safeD);
-      } else {
-        refs.camera.position.copy(idealPos);
-      }
-      refs.camera.lookAt(dPos.x + lookX * 6.5, dPos.y + lookY * 4.5, dPos.z + lookZ * 6.5);
+      const targetCamPos =
+        hits.length > 0
+          ? dPos.clone().addScaledVector(camDir, Math.max(0.55, hits[0].distance - 0.22))
+          : idealPos;
+      refs.camera.position.lerp(targetCamPos, 0.22);
+      refs.camera.lookAt(dPos.x + lookX * 2.5, dPos.y + lookY * 2.5, dPos.z + lookZ * 2.5);
     }
     return;
   }
