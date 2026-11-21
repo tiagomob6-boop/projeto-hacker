@@ -626,6 +626,11 @@ export function applyPlayerSkin(skinId) {
 // ==========================================
 // CÂMERAS DE SEGURANÇA HACKEÁVEIS
 // ==========================================
+// Geometria do cone laser das câmeras (vértice na lente, base larga inclinada para a rua)
+const CAM_CONE_LENGTH = 12;
+const CAM_CONE_RADIUS = 4.2;
+const CAM_CONE_PITCH = 0.65; // rad para baixo
+
 export function buildSecurityCameras(cfg, missionKey = 'COMPLEXO_CTOS') {
   cfg.cameras.forEach((camCfg) => {
     const idx = securityCameras.length;
@@ -651,9 +656,14 @@ export function buildSecurityCameras(cfg, missionKey = 'COMPLEXO_CTOS') {
       side: THREE.DoubleSide,
       depthWrite: false
     });
-    const laserMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 2.8, 14, 12, 1, true), laserMat);
-    laserMesh.position.set(0, -2.6, 6.2);
-    laserMesh.rotation.x = Math.PI / 2 + 0.36;
+    // Cone aberto com o vértice na lente e a base larga projetada para baixo, sobre a rua/calçada
+    const laserGeo = new THREE.ConeGeometry(CAM_CONE_RADIUS, CAM_CONE_LENGTH, 20, 1, true);
+    laserGeo.translate(0, -CAM_CONE_LENGTH / 2, 0); // vértice na origem, eixo ao longo de -Y
+    laserGeo.boundingBox = new THREE.Box3(); // feixe visual: nunca entra em colisão
+    const laserMesh = new THREE.Mesh(laserGeo, laserMat);
+    laserMesh.position.set(0, 0, 0.4); // lente da câmera
+    laserMesh.rotation.x = CAM_CONE_PITCH - Math.PI / 2; // eixo -Y -> (0, -sin(p), cos(p)) = inclinado para baixo
+    laserMesh.raycast = () => {};
     mesh.add(laserMesh);
 
     refs.worldGroup.add(mesh);
@@ -670,8 +680,8 @@ export function buildSecurityCameras(cfg, missionKey = 'COMPLEXO_CTOS') {
       basePitch: camCfg.basePitch,
       yawOffset: 0,
       pitchOffset: 0,
-      visionRange: 16,
-      visionHalfAngle: Math.PI / 5,
+      visionRange: CAM_CONE_LENGTH,
+      visionHalfAngle: Math.atan(CAM_CONE_RADIUS / CAM_CONE_LENGTH),
       disabledTimer: 0,
       alertCooldown: 0,
       sweepPhase: idx * 1.5,
@@ -2367,14 +2377,15 @@ export function updateSecurityCameras(dt, playerPos, playerCenter) {
     camObj.currentYaw = yaw;
     camObj.mesh.rotation.y = yaw;
 
-    // Verificar se o jogador entrou no feixe laser vermelho da câmera
-    const camForward = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
-    const toPlayer = playerPos.clone().sub(camObj.pos);
-    toPlayer.y = 0;
-    const dist = toPlayer.length();
+    // Detecção 3D idêntica ao cone visual: eixo inclinado para baixo (CAM_CONE_PITCH), vértice na lente
+    const cosP = Math.cos(CAM_CONE_PITCH);
+    const camAxis = new THREE.Vector3(Math.sin(yaw) * cosP, -Math.sin(CAM_CONE_PITCH), Math.cos(yaw) * cosP);
+    const lensPos = camObj.pos.clone().addScaledVector(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)), 0.4);
+    const toTarget = playerCenter.clone().sub(lensPos);
+    const dist = toTarget.length();
 
     if (dist <= camObj.visionRange && dist > 0.2) {
-      const angle = Math.acos(THREE.MathUtils.clamp(camForward.dot(toPlayer.normalize()), -1, 1));
+      const angle = Math.acos(THREE.MathUtils.clamp(camAxis.dot(toTarget.normalize()), -1, 1));
       if (angle <= camObj.visionHalfAngle) {
         const rayDir = playerCenter.clone().sub(camObj.pos).normalize();
         raycaster.set(camObj.pos, rayDir);

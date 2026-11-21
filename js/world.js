@@ -278,6 +278,41 @@ export const TextureGenerator = {
     return this.cache.sky;
   },
 
+  // Feixe de farol: degradê cônico (branco-quente -> ciano) que some nas bordas laterais e na ponta distante.
+  // Topo da textura = saída do farol (estreito); base = ponta distante (largo e 100% transparente).
+  getHeadlightBeamTexture() {
+    if (!this.cache.headlightBeam) {
+      const w = 128;
+      const h = 256;
+      const c = this._makeCanvas(w, h);
+      const ctx = c.getContext('2d');
+      const img = ctx.createImageData(w, h);
+      for (let y = 0; y < h; y++) {
+        const t = y / (h - 1);
+        const halfW = 0.10 + 0.40 * t;
+        const lengthFade = Math.pow(1 - t, 1.35);
+        const r = Math.round(255 - 85 * t);
+        const g = Math.round(248 - 3 * t);
+        const b = Math.round(225 + 30 * t);
+        for (let x = 0; x < w; x++) {
+          const nx = (x / (w - 1) - 0.5) / halfW;
+          const lateral = Math.max(0, 1 - nx * nx);
+          const a = Math.min(1, lengthFade * lateral * lateral * 1.1);
+          const i = (y * w + x) * 4;
+          img.data[i] = r;
+          img.data[i + 1] = g;
+          img.data[i + 2] = b;
+          img.data[i + 3] = Math.round(a * 255);
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      this.cache.headlightBeam = tex;
+    }
+    return this.cache.headlightBeam;
+  },
+
   getNeonSignTexture(text, colorHex = '#00f0ff') {
     const key = `sign_${text}_${colorHex}`;
     if (!this.cache[key]) {
@@ -2765,11 +2800,13 @@ export function buildCarMesh(color, neonTrim, isPatrol = false, bodyType = 'SPOR
   const headMat = new THREE.MeshBasicMaterial({ color: 0xdff9ff });
   const tailMat = new THREE.MeshBasicMaterial({ color: 0xff0044 });
   const beamMat = new THREE.MeshBasicMaterial({
-    color: 0xa8f5ff,
+    map: TextureGenerator.getHeadlightBeamTexture(),
     transparent: true,
-    opacity: 0.22,
+    opacity: 0.85,
     depthWrite: false,
-    side: THREE.DoubleSide
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    fog: false
   });
   const tailGlowMat = new THREE.MeshBasicMaterial({
     color: 0xff0044,
@@ -2786,9 +2823,17 @@ export function buildCarMesh(color, neonTrim, isPatrol = false, bodyType = 'SPOR
     registerPart(hl, headMat);
 
     // Feixe luminoso plano no chão à frente do carro (visível do alto sem criar PointLights)
-    const beam = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 5.4), beamMat);
+    // Feixe cônico degradê saindo de cada farol dianteiro (puramente visual: sem colisão)
+    const beamGeo = new THREE.PlaneGeometry(2.0, 6.8);
+    // Bounding box vazia: Box3.setFromObject(carGroup) ignora o feixe e o colisor do carro não cresce
+    beamGeo.boundingBox = new THREE.Box3();
+    const beam = new THREE.Mesh(beamGeo, beamMat);
+    beam.name = 'headlightBeam';
+    beam.userData.noCollide = true;
+    beam.renderOrder = 2;
+    beam.raycast = () => {};
     beam.rotation.x = -Math.PI / 2;
-    beam.position.set(side * (cfg.width * 0.32), 0.08, cfg.frontZ + 2.75);
+    beam.position.set(side * (cfg.width * 0.32), 0.08, cfg.frontZ + 0.12 + 3.4);
     carGroup.add(beam);
 
     const tl = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.18, 0.14), tailMat);
