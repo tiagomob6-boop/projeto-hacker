@@ -476,15 +476,17 @@ export function getSurfaceHeight(x, z) {
     if (x <= 400) return ((400 - x) / 40) * 7;
     return 0;
   }
-  // Píeres de embarque Oeste (X: 64..76, Z: 57..67 e Z: 215..225)
-  if ((z >= 57 && z <= 67 || z >= 215 && z <= 225) && x >= 64 && x <= 76) {
-    if (x <= 68) return ((x - 64) / 4) * -0.35;
-    return -0.35;
+  // Píeres de embarque Oeste (X: 70..83, Z: 56..68 e Z: 214..226)
+  if ((z >= 56 && z <= 68 || z >= 214 && z <= 226) && x >= 70 && x <= 83) {
+    if (x <= 72) return 0;
+    if (x < 77) return ((72 - x) / 5) * 0.25;
+    return -0.25;
   }
-  // Píeres de embarque Leste (X: 394..404, Z: 57..67 e Z: -125..-115)
-  if ((z >= 57 && z <= 67 || z >= -125 && z <= -115) && x >= 394 && x <= 404) {
-    if (x >= 400) return ((404 - x) / 4) * -0.35;
-    return -0.35;
+  // Píeres de embarque Leste (X: 395..408, Z: 56..68 e Z: -126..-114)
+  if ((z >= 56 && z <= 68 || z >= -126 && z <= -114) && x >= 395 && x <= 408) {
+    if (x >= 406) return 0;
+    if (x > 401) return ((x - 406) / 5) * 0.25;
+    return -0.25;
   }
   // Colina-Mirante acessível no Distrito Sul (rampa em Z: 355..405, platô em Z: 405..425, X: 28..48)
   if (x >= 28 && x <= 48 && z >= 355 && z <= 425) {
@@ -536,26 +538,45 @@ export function createHackableDevice(w, h, d, x, y, z, glowColor, name) {
 // ==========================================
 // CARROS 3D PROCEDURAIS (ESTACIONADOS + DEDSEC)
 
+export const BAY_MIN_X = 76;
+export const BAY_MAX_X = 402;
+
+export function isPierArea(x, z) {
+  // Píeres Oeste (X: 70..83, Z: 56..68 e Z: 214..226)
+  if ((z >= 56 && z <= 68 || z >= 214 && z <= 226) && x >= 70 && x <= 83) return true;
+  // Píeres Leste (X: 395..408, Z: 56..68 e Z: -126..-114)
+  if ((z >= 56 && z <= 68 || z >= -126 && z <= -114) && x >= 395 && x <= 408) return true;
+  return false;
+}
+
 export function isWaterForBoats(x, z) {
-  // Plataformas terrestres (barcos navegam livremente por baixo da Golden Gate e Ponte Sul)
-  if (x >= -540 && x <= 80 && z >= -480 && z <= 780) return false;
-  if (x >= 400 && x <= 960 && z >= -280 && z <= 360) return false;
-  // Encostas rochosas e cadeias montanhosas ao redor da baía (Marin Headlands / Leste / Sul)
-  if (z <= -215) return false;
-  if (x >= 450 && z >= 360) return false;
-  if (z >= 520) return false;
-  if ((z >= 57 && z <= 67 || z >= 215 && z <= 225) && x >= 64 && x <= 76) return false;
-  if ((z >= 57 && z <= 67 || z >= -125 && z <= -115) && x >= 394 && x <= 404) return false;
+  // Canal da Baía de São Francisco: navegável livremente por baixo das pontes Golden Gate e Sul
+  if (x > BAY_MIN_X && x < BAY_MAX_X) {
+    if (z < -380 || z > 620) return false;
+    return true;
+  }
+  // Áreas marítimas abertas fora das plataformas terrestres
+  if (x <= BAY_MIN_X) {
+    if (z < -480 || z > 780) return true;
+    return false;
+  }
+  if (x >= BAY_MAX_X) {
+    if (z < -280 || z > 360) return true;
+    return false;
+  }
   return true;
 }
 
 export function isWaterForLand(x, z) {
-  if (!isWaterForBoats(x, z)) return false;
-  // Pista da Ponte Golden Gate (X: 78..402, Z: 26.5..43.5)
-  if (x >= 78 && x <= 402 && z >= 26.5 && z <= 43.5) return false;
-  // Pista da Ponte Sul (X: 78..402, Z: 312..328)
+  // Pista da Ponte Golden Gate atravessável (X: 78..402, Z: 26..44)
+  if (x >= 78 && x <= 402 && z >= 26 && z <= 44) return false;
+  // Pista da Ponte Sul atravessável (X: 78..402, Z: 312..328)
   if (x >= 78 && x <= 402 && z >= 312 && z <= 328) return false;
-  return true;
+
+  // Canal da Baía de São Francisco
+  if (x > BAY_MIN_X && x < BAY_MAX_X) return true;
+
+  return isWaterForBoats(x, z);
 }
 
 export function isWaterArea(x, z) {

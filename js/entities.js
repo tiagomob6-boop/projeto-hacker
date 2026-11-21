@@ -43,6 +43,8 @@ import {
   createHackableDevice,
   isWaterArea,
   isWaterForBoats,
+  isWaterForLand,
+  isPierArea,
   checkCollision,
   checkCarCollision,
   checkDroneCollision
@@ -1041,13 +1043,13 @@ export function handleInteractPress() {
 export function toggleDriveDedsecCar() {
   if (gameState.terminalOpen || gameState.missionModalOpen || gameState.activeCamIndex >= 0) return;
 
-  // Desembarcar do barco em terra firme ou píer mais próximo (Oeste Centro, Oeste Sul, Leste Centro, Leste Norte)
+  // Desembarcar do barco em terra firme ou píer mais próximo (Oeste: X = 74, Leste: X = 404)
   if (gameState.drivingBoat) {
     const boat = gameState.drivingBoat;
     const bPos = boat.mesh.position;
     const pierSpots = [
-      [66, 62],
-      [66, 220],
+      [74, 62],
+      [74, 220],
       [404, 62],
       [404, -120]
     ];
@@ -1061,35 +1063,31 @@ export function toggleDriveDedsecCar() {
       }
     }
 
-    let baseX = nearestPier[0];
-    let baseZ = nearestPier[1];
-    if (bestPierDist > 26 && bPos.x < 95) {
-      baseX = 64;
-      baseZ = THREE.MathUtils.clamp(bPos.z, -80, 240);
-    } else if (bestPierDist > 26 && bPos.x > 375) {
-      baseX = 406;
-      baseZ = THREE.MathUtils.clamp(bPos.z, -140, 100);
+    let landX = nearestPier[0];
+    let landZ = nearestPier[1];
+    if (bestPierDist > 30) {
+      // Se estiver longe dos píeres, desembarca na margem/calçada mais próxima fora da baía
+      landX = bPos.x < 240 ? 74 : 404;
+      landZ = THREE.MathUtils.clamp(bPos.z, -260, 340);
     }
 
-    let landX = baseX;
-    let landZ = baseZ;
-    const landOffsets = [
+    const offsets = [
       [0, 0],
+      [-2, 0],
+      [2, 0],
+      [0, -2],
+      [0, 2],
       [-4, 0],
-      [4, 0],
-      [0, -4],
-      [0, 4],
-      [-6, -4],
-      [6, 4],
-      [-8, 0],
-      [8, 0]
+      [4, 0]
     ];
-    for (const [ox, oz] of landOffsets) {
-      const tx = baseX + ox;
-      const tz = baseZ + oz;
-      if (!isWaterArea(tx, tz) && !checkCollision(tx, tz, PLAYER_RADIUS)) {
-        landX = tx;
-        landZ = tz;
+    let targetX = landX;
+    let targetZ = landZ;
+    for (const [ox, oz] of offsets) {
+      const tx = landX + ox;
+      const tz = landZ + oz;
+      if (!isWaterForLand(tx, tz) && !checkCollision(tx, tz, PLAYER_RADIUS)) {
+        targetX = tx;
+        targetZ = tz;
         break;
       }
     }
@@ -1098,7 +1096,7 @@ export function toggleDriveDedsecCar() {
     boat.speed = 0;
     if (boat.wakePoints) boat.wakePoints.visible = false;
     AudioManager.stopEngineSound();
-    refs.playerGroup.position.set(landX, getSurfaceHeight(landX, landZ), landZ);
+    refs.playerGroup.position.set(targetX, 0.1, targetZ);
     refs.playerGroup.visible = true;
     return;
   }
@@ -1149,7 +1147,7 @@ export function toggleDriveDedsecCar() {
 
   // Verificar embarque em lancha DedSec
   for (const boat of boats) {
-    if (refs.playerGroup.position.distanceTo(boat.mesh.position) < 5.2) {
+    if (refs.playerGroup.position.distanceTo(boat.mesh.position) < 5.8) {
       gameState.drivingBoat = boat;
       gameState.isCrouching = false;
       gameState.isSprinting = false;
@@ -1706,20 +1704,10 @@ export function updatePlayer(dt) {
       boat.mesh.position.x = nextX;
       boat.mesh.position.z = nextZ;
     } else {
-      boat.speed *= -0.2;
-      // Empuxo suave de retorno para a água ao tocar a margem
-      const toBayX = 240 - boat.mesh.position.x;
-      const toBayZ = 62 - boat.mesh.position.z;
-      const bayDist = Math.hypot(toBayX, toBayZ) || 1;
-      const pushX = (toBayX / bayDist) * 3.8 * dt - fx * 2.2 * dt;
-      const pushZ = (toBayZ / bayDist) * 3.8 * dt - fz * 2.2 * dt;
-      if (isWaterForBoats(boat.mesh.position.x + pushX, boat.mesh.position.z + pushZ)) {
-        boat.mesh.position.x += pushX;
-        boat.mesh.position.z += pushZ;
-      }
+      boat.speed = 0;
     }
 
-    boat.mesh.position.y = -0.32 + Math.sin(gameState.elapsedTime * 3.0 + boat.id) * 0.05;
+    boat.mesh.position.y = -0.42 + Math.sin(gameState.elapsedTime * 2.5 + boat.id) * 0.05;
     refs.playerGroup.position.copy(boat.mesh.position);
 
     // Rastro ciano na popa
@@ -1734,7 +1722,7 @@ export function updatePlayer(dt) {
           w.life -= dt;
           if (w.life <= 0) {
             w.life = 0.35 + Math.random() * 0.4;
-            attr.setXYZ(i, sternX + (Math.random() - 0.5) * 1.2, -0.35, sternZ + (Math.random() - 0.5) * 1.2);
+            attr.setXYZ(i, sternX + (Math.random() - 0.5) * 1.2, -0.42, sternZ + (Math.random() - 0.5) * 1.2);
           }
         }
         attr.needsUpdate = true;
@@ -1953,10 +1941,12 @@ export function updatePlayer(dt) {
 
     // Tentativa separada nos eixos X e Z para deslizar suavemente nas paredes e bloquear água
     const pos = refs.playerGroup.position;
-    if (!checkCollision(pos.x + stepX, pos.z) && !isWaterArea(pos.x + stepX, pos.z)) {
+    const canWalkX = !isWaterArea(pos.x + stepX, pos.z) || isPierArea(pos.x + stepX, pos.z);
+    if (!checkCollision(pos.x + stepX, pos.z) && canWalkX) {
       pos.x += stepX;
     }
-    if (!checkCollision(pos.x, pos.z + stepZ) && !isWaterArea(pos.x, pos.z + stepZ)) {
+    const canWalkZ = !isWaterArea(pos.x, pos.z + stepZ) || isPierArea(pos.x, pos.z + stepZ);
+    if (!checkCollision(pos.x, pos.z + stepZ) && canWalkZ) {
       pos.z += stepZ;
     }
 
@@ -2788,7 +2778,7 @@ export function updateInteractionsAndMission(dt) {
       promptText = '[F] SAIR DO CARRO DEDSEC';
     } else {
       for (const boat of boats) {
-        if (pPos.distanceTo(boat.mesh.position) < 5.2) {
+        if (pPos.distanceTo(boat.mesh.position) < 5.8) {
           promptText = '[F] PILOTAR LANCHA DEDSEC';
           break;
         }

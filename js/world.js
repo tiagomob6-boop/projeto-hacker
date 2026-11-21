@@ -3218,31 +3218,41 @@ export function buildBoatMesh(color, neonTrim) {
 }
 
 export function buildBoatPiersAndBoats() {
-  // 2 Píeres de embarque ao nível da água (y = -0.35) com rampa de acesso
-  // Píer Oeste (margem leste do Centro Urbano: X = 72, Z = 62)
-  addStaticBox(8, 0.35, 10, 72, -0.42, 62, 0x1c263b, { collide: false, occlude: false, edgesColor: 0x00f0ff, edgesOpacity: 0.5 });
-  const rampW = addStaticBox(4.5, 0.25, 10, 66, -0.18, 62, 0x202b42, { collide: false, occlude: false });
-  rampW.rotation.z = -0.09;
+  // Píeres de embarque flutuantes (y = -0.25) com rampas inclinadas conectando a calçada (y = 0)
+  const pierMatColor = 0x1c263b;
+  const pierMatOpts = { collide: false, occlude: false };
 
-  // Píer Leste (margem oeste das Docas: X = 398, Z = 62)
-  addStaticBox(8, 0.35, 10, 398, -0.42, 62, 0x1c263b, { collide: false, occlude: false, edgesColor: 0x00f0ff, edgesOpacity: 0.5 });
-  const rampE = addStaticBox(4.5, 0.25, 10, 402, -0.18, 62, 0x202b42, { collide: false, occlude: false });
-  rampE.rotation.z = 0.09;
+  // Píer Oeste 1 (Centro Urbano: X: 72..82, Z = 62)
+  const rampW1 = addStaticBox(5.0, 0.2, 7.0, 74.5, -0.125, 62, 0x202b42, pierMatOpts);
+  rampW1.rotation.z = -0.05;
+  addStaticBox(5.0, 0.35, 7.0, 79.5, -0.425, 62, pierMatColor, { ...pierMatOpts, edgesColor: 0x00f0ff, edgesOpacity: 0.65 });
 
+  // Píer Oeste 2 (Sul Downtown: X: 72..82, Z = 220)
+  const rampW2 = addStaticBox(5.0, 0.2, 7.0, 74.5, -0.125, 220, 0x202b42, pierMatOpts);
+  rampW2.rotation.z = -0.05;
+  addStaticBox(5.0, 0.35, 7.0, 79.5, -0.425, 220, pierMatColor, { ...pierMatOpts, edgesColor: 0xffaa00, edgesOpacity: 0.65 });
+
+  // Píer Leste 1 (Docas: X: 396..406, Z = 62)
+  const rampE1 = addStaticBox(5.0, 0.2, 7.0, 403.5, -0.125, 62, 0x202b42, pierMatOpts);
+  rampE1.rotation.z = 0.05;
+  addStaticBox(5.0, 0.35, 7.0, 398.5, -0.425, 62, pierMatColor, { ...pierMatOpts, edgesColor: 0x00ff88, edgesOpacity: 0.65 });
+
+  // Píer Leste 2 (Industrial Norte: X: 396..406, Z = -120)
+  const rampE2 = addStaticBox(5.0, 0.2, 7.0, 403.5, -0.125, -120, 0x202b42, pierMatOpts);
+  rampE2.rotation.z = 0.05;
+  addStaticBox(5.0, 0.35, 7.0, 398.5, -0.425, -120, pierMatColor, { ...pierMatOpts, edgesColor: 0xff0055, edgesOpacity: 0.65 });
+
+  // Lanchas posicionadas diretamente dentro da água (x = 84 no lado de Downtown e x = 394 no lado das Docas, y = -0.42)
   const boatConfigs = [
-    { x: 78, z: 62, yaw: Math.PI / 2, color: 0x111a2e, neon: 0x00f0ff },
-    { x: 391, z: 62, yaw: -Math.PI / 2, color: 0x111a2e, neon: 0x00ff88 },
-    { x: 78, z: 220, yaw: Math.PI / 2, color: 0x141f36, neon: 0xffaa00 },
-    { x: 391, z: -120, yaw: -Math.PI / 2, color: 0x141f36, neon: 0xff0055 }
+    { x: 84, z: 62, yaw: Math.PI / 2, color: 0x111a2e, neon: 0x00f0ff },
+    { x: 394, z: 62, yaw: -Math.PI / 2, color: 0x111a2e, neon: 0x00ff88 },
+    { x: 84, z: 220, yaw: Math.PI / 2, color: 0x141f36, neon: 0xffaa00 },
+    { x: 394, z: -120, yaw: -Math.PI / 2, color: 0x141f36, neon: 0xff0055 }
   ];
-
-  // Píeres extras (Sul Downtown X=72, Z=220 e Industrial Norte X=398, Z=-120)
-  addStaticBox(8, 0.35, 10, 72, -0.42, 220, 0x1c263b, { collide: false, occlude: false, edgesColor: 0xffaa00, edgesOpacity: 0.5 });
-  addStaticBox(8, 0.35, 10, 398, -0.42, -120, 0x1c263b, { collide: false, occlude: false, edgesColor: 0xff0055, edgesOpacity: 0.5 });
 
   boatConfigs.forEach((bCfg, idx) => {
     const mesh = buildBoatMesh(bCfg.color, bCfg.neon);
-    mesh.position.set(bCfg.x, -0.32, bCfg.z);
+    mesh.position.set(bCfg.x, -0.42, bCfg.z);
     mesh.rotation.y = bCfg.yaw;
     refs.worldGroup.add(mesh);
 
@@ -3252,7 +3262,7 @@ export function buildBoatPiersAndBoats() {
     const wakeData = [];
     for (let i = 0; i < wakeCount; i++) {
       wakePos[i * 3] = bCfg.x;
-      wakePos[i * 3 + 1] = -0.35;
+      wakePos[i * 3 + 1] = -0.42;
       wakePos[i * 3 + 2] = bCfg.z;
       wakeData.push({ life: 0, vx: 0, vz: 0 });
     }
@@ -3275,7 +3285,7 @@ export function buildBoatPiersAndBoats() {
     boats.push({
       id: idx,
       mesh,
-      initialPos: new THREE.Vector3(bCfg.x, -0.32, bCfg.z),
+      initialPos: new THREE.Vector3(bCfg.x, -0.42, bCfg.z),
       initialYaw: bCfg.yaw,
       speed: 0,
       wakePoints,
