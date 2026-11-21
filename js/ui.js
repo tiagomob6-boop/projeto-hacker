@@ -890,7 +890,9 @@ export function updateRadar() {
   const mapCfg = MAPS_CONFIG[gameState.selectedMap] || MAPS_CONFIG.COMPLEXO_CTOS;
   const scale = mapCfg.radarScale || 1.55;
 
-  const pPos = refs.playerGroup.position;
+  const isDrone = gameState.droneActive && !!refs.droneGroup;
+  const centerPos = isDrone ? refs.droneGroup.position : refs.playerGroup.position;
+  const radarYaw = isDrone ? gameState.droneYaw : gameState.cameraYaw;
 
   ctx.clearRect(0, 0, size, size);
   ctx.save();
@@ -910,13 +912,13 @@ export function updateRadar() {
     ctx.stroke();
   });
 
-  // Transformar mundo para o espaço do radar (jogador no centro, câmera apontando para cima)
+  // Transformar mundo para o espaço do radar (agente ou drone no centro)
   ctx.translate(cx, cy);
-  ctx.rotate(gameState.cameraYaw);
+  ctx.rotate(radarYaw);
 
   const toRadar = (wx, wz) => ({
-    x: (wx - pPos.x) * scale,
-    y: (wz - pPos.z) * scale
+    x: (wx - centerPos.x) * scale,
+    y: (wz - centerPos.z) * scale
   });
 
   // Ponte Golden Gate (Z: 35) e Ponte Sul (Z: 320) no radar
@@ -1128,16 +1130,40 @@ export function updateRadar() {
     ctx.restore();
   }
 
-  // Seta do jogador no centro
-  ctx.rotate(-refs.playerGroup.rotation.y);
-  ctx.fillStyle = '#00f0ff';
-  ctx.beginPath();
-  ctx.moveTo(0, 6);
-  ctx.lineTo(-4.5, -5);
-  ctx.lineTo(0, -2.5);
-  ctx.lineTo(4.5, -5);
-  ctx.closePath();
-  ctx.fill();
+  // Marcador verde para a posição onde o corpo do agente ficou enquanto pilota o drone
+  if (isDrone) {
+    const bodyPt = toRadar(refs.playerGroup.position.x, refs.playerGroup.position.z);
+    ctx.fillStyle = '#00ff88';
+    ctx.beginPath();
+    ctx.arc(bodyPt.x, bodyPt.y, 4.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+  }
+
+  // Seta do jogador ou ícone do Drone no centro
+  if (isDrone) {
+    ctx.rotate(-gameState.droneYaw);
+    ctx.strokeStyle = '#00f0ff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-4, -4);
+    ctx.lineTo(4, 4);
+    ctx.moveTo(4, -4);
+    ctx.lineTo(-4, 4);
+    ctx.stroke();
+  } else {
+    ctx.rotate(-refs.playerGroup.rotation.y);
+    ctx.fillStyle = '#00f0ff';
+    ctx.beginPath();
+    ctx.moveTo(0, 6);
+    ctx.lineTo(-4.5, -5);
+    ctx.lineTo(0, -2.5);
+    ctx.lineTo(4.5, -5);
+    ctx.closePath();
+    ctx.fill();
+  }
 
   ctx.restore();
 }

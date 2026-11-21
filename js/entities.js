@@ -2570,15 +2570,17 @@ export function updateInteractionsAndMission(dt) {
     return;
   }
 
+  const isDrone = gameState.droneActive && !!refs.droneGroup;
   const pPos = refs.playerGroup.position;
+  const activePos = isDrone ? refs.droneGroup.position : pPos;
   let promptText = '';
 
   if (gameState.markerCooldown > 0) {
     gameState.markerCooldown = Math.max(0, gameState.markerCooldown - dt);
   }
 
-  // Verificar gatilhos de missão em FREE_ROAM
-  if (gameState.mission === MISSION_STATE.FREE_ROAM && !gameState.missionModalOpen && gameState.markerCooldown === 0) {
+  // Verificar gatilhos de missão em FREE_ROAM (apenas a pé/carro)
+  if (!isDrone && gameState.mission === MISSION_STATE.FREE_ROAM && !gameState.missionModalOpen && gameState.markerCooldown === 0) {
     for (const m of missionMarkers) {
       const distMarker = Math.hypot(pPos.x - m.pos.x, pPos.z - m.pos.z);
       if (distMarker < 2.8) {
@@ -2588,11 +2590,11 @@ export function updateInteractionsAndMission(dt) {
     }
   }
 
-  // Checar lojas interativas (DedSec Style / HackShop Armory / SF Motors)
+  // Checar lojas interativas (apenas a pé)
   if (gameState.shopCooldown > 0) {
     gameState.shopCooldown = Math.max(0, gameState.shopCooldown - dt);
   }
-  if (!gameState.drivingCar && !gameState.drivingBoat && !gameState.shopOpen && gameState.activeCamIndex < 0) {
+  if (!isDrone && !gameState.drivingCar && !gameState.drivingBoat && !gameState.shopOpen && gameState.activeCamIndex < 0) {
     let minStoreDist = Infinity;
     for (const st of stores) {
       const dStore = Math.hypot(pPos.x - st.pos.x, pPos.z - st.pos.z);
@@ -2610,8 +2612,8 @@ export function updateInteractionsAndMission(dt) {
     }
   }
 
-  // Prompt de caixas de suprimentos nos prédios abertos
-  if (!promptText && gameState.activeCamIndex < 0) {
+  // Prompt de caixas de suprimentos nos prédios abertos (apenas a pé)
+  if (!isDrone && !promptText && gameState.activeCamIndex < 0) {
     for (const sb of supplyBoxes) {
       if (!sb.used && pPos.distanceTo(sb.pos) < 3.0) {
         promptText =
@@ -2623,17 +2625,18 @@ export function updateInteractionsAndMission(dt) {
     }
   }
 
-  // Prompt dos painéis de portão
+  // Prompt dos painéis de portão (a pé ou remotamente pelo Drone)
+  const gateLimit = isDrone ? 18.0 : 3.6;
   for (let i = 0; i < gates.length; i++) {
     const g = gates[i];
-    if (!g.unlocked && pPos.distanceTo(g.panelMesh.position) < 3.6) {
+    if (!g.unlocked && activePos.distanceTo(g.panelMesh.position) < gateLimit) {
       promptText = `[E] HACKEAR PAINEL DO PORTÃO ${gates.length > 1 ? i + 1 : ''}`.trim();
       break;
     }
   }
 
-  // Prompt do carro DedSec ou lancha navegável
-  if (!promptText && gameState.activeCamIndex < 0) {
+  // Prompt do carro DedSec ou lancha navegável (oculto no modo Drone)
+  if (!isDrone && !promptText && gameState.activeCamIndex < 0) {
     if (gameState.drivingBoat) {
       promptText = '[F] DESEMBARCAR DA LANCHA';
     } else if (gameState.drivingCar) {
@@ -2671,7 +2674,7 @@ export function updateInteractionsAndMission(dt) {
     if (gameState.netHackActive) {
       for (const tl of trafficLights) {
         if (tl.hackedTimer > 0) continue;
-        const distTl = pPos.distanceTo(tl.pos);
+        const distTl = activePos.distanceTo(tl.pos);
         const toTl = tl.pos.clone().add(new THREE.Vector3(0, 4.8, 0)).sub(refs.camera.position).normalize();
         if (distTl < 36 && camDir.dot(toTl) > 0.88) {
           promptText = '[E] HACKEAR SEMÁFORO (CAOS NO TRÁFEGO)';
@@ -2683,7 +2686,7 @@ export function updateInteractionsAndMission(dt) {
     if (!promptText && gameState.netHackActive) {
       for (const camObj of securityCameras) {
         if (camObj.disabledTimer > 0) continue;
-        const distCam = pPos.distanceTo(camObj.pos);
+        const distCam = activePos.distanceTo(camObj.pos);
         const toCam = camObj.pos.clone().sub(refs.camera.position).normalize();
         if (distCam < 26 && camDir.dot(toCam) > 0.90) {
           promptText = `[E] DESATIVAR CÂMERA (15s) // ${camObj.name}`;
@@ -2694,7 +2697,7 @@ export function updateInteractionsAndMission(dt) {
 
     if (!promptText && gameState.netHackActive) {
       for (const ped of pedestrians) {
-        const distPed = pPos.distanceTo(ped.mesh.position);
+        const distPed = activePos.distanceTo(ped.mesh.position);
         const toPed = ped.mesh.position.clone().add(new THREE.Vector3(0, 1.3, 0)).sub(refs.camera.position).normalize();
         if (distPed < 22 && camDir.dot(toPed) > 0.91) {
           promptText = ped.profile.hacked
@@ -2707,10 +2710,10 @@ export function updateInteractionsAndMission(dt) {
 
     if (!promptText) {
       for (const box of electricBoxes) {
-      const distBox = pPos.distanceTo(box.mesh.position);
+      const distBox = activePos.distanceTo(box.mesh.position);
       const toBox = box.mesh.position.clone().sub(refs.camera.position).normalize();
       const lookingInNetHack = gameState.netHackActive && distBox < 28 && camDir.dot(toBox) > 0.90;
-      if (distBox < 3.6 || lookingInNetHack) {
+      if ((!isDrone && distBox < 3.6) || lookingInNetHack) {
         promptText =
           box.cooldown > 0
             ? `CAIXA ELÉTRICA EM RECARGA (${Math.ceil(box.cooldown)}s)`
@@ -2721,8 +2724,8 @@ export function updateInteractionsAndMission(dt) {
     }
   }
 
-  // Firewall e Download dos dados no Servidor Central
-  if (gameState.mission === MISSION_STATE.STEAL_DATA) {
+  // Firewall e Download dos dados no Servidor Central (apenas corpo do agente)
+  if (!isDrone && gameState.mission === MISSION_STATE.STEAL_DATA) {
     const distServer = pPos.distanceTo(refs.serverMesh.position);
     if (distServer < 3.8 && gameState.activeCamIndex < 0) {
       if (!gameState.serverFirewallDisabled) {
