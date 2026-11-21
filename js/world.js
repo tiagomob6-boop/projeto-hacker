@@ -2414,17 +2414,43 @@ export function buildCarMesh(color, neonTrim, isPatrol = false, bodyType = 'SPOR
 
   const headMat = new THREE.MeshBasicMaterial({ color: 0xdff9ff });
   const tailMat = new THREE.MeshBasicMaterial({ color: 0xff0044 });
+  const beamMat = new THREE.MeshBasicMaterial({
+    color: 0xa8f5ff,
+    transparent: true,
+    opacity: 0.22,
+    depthWrite: false,
+    side: THREE.DoubleSide
+  });
+  const tailGlowMat = new THREE.MeshBasicMaterial({
+    color: 0xff0044,
+    transparent: true,
+    opacity: 0.20,
+    depthWrite: false,
+    side: THREE.DoubleSide
+  });
+
   [-1, 1].forEach((side) => {
-    const hl = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.13, 0.10), headMat);
+    const hl = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.16, 0.12), headMat);
     hl.position.set(side * (cfg.width * 0.34), bodyType === 'SUV' ? 0.72 : 0.54, cfg.frontZ + 0.06);
     hl.rotation.y = side * -0.18;
     registerPart(hl, headMat);
 
-    const tl = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.12, 0.10), tailMat);
-    tl.position.set(side * (cfg.width * 0.33), bodyType === 'SUV' ? 0.76 : 0.62, cfg.rearZ - 0.06);
+    // Feixe luminoso plano no chão à frente do carro (visível do alto sem criar PointLights)
+    const beam = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 5.4), beamMat);
+    beam.rotation.x = -Math.PI / 2;
+    beam.position.set(side * (cfg.width * 0.32), 0.08, cfg.frontZ + 2.75);
+    carGroup.add(beam);
+
+    const tl = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.18, 0.14), tailMat);
+    tl.position.set(side * (cfg.width * 0.33), bodyType === 'SUV' ? 0.78 : 0.64, cfg.rearZ - 0.07);
     tl.rotation.y = side * 0.14;
     registerPart(tl, tailMat);
   });
+
+  const rearGlow = new THREE.Mesh(new THREE.PlaneGeometry(cfg.width * 0.95, 1.4), tailGlowMat);
+  rearGlow.rotation.x = -Math.PI / 2;
+  rearGlow.position.set(0, 0.07, cfg.rearZ - 0.75);
+  carGroup.add(rearGlow);
 
   // Vidros semitransparentes (opacity: 0.45) para enxergar o interior/motorista
   const glassMat = new THREE.MeshStandardMaterial({
@@ -2628,18 +2654,22 @@ export function buildCars() {
 
 export function buildTrafficCars() {
   const routes = [
-    // Rota 1: Circuito ortogonal Downtown (avenida principal Z=31 / Z=39 e vias X=±36)
-    [[-36, 31], [36, 31], [36, 39], [-36, 39]],
-    [[36, 39], [-36, 39], [-36, 31], [36, 31]],
-    // Rota 2: Golden Gate <-> Docas (estritamente ortogonal nas pistas Z=31 e Z=39)
+    // Rota 0: Avenida Principal Centro / Complexo ctOS & Lojas (Sentido Horário)
+    [[-36, 17], [36, 17], [36, 59], [-36, 59]],
+    // Rota 1: Avenida Principal Centro / Complexo ctOS & Lojas (Sentido Anti-Horário)
+    [[36, 24], [-36, 24], [-36, 54], [36, 54]],
+    // Rota 2: Golden Gate <-> Docas (Leste Z=31 / Oeste Z=39)
     [[24, 31], [420, 31], [472, 31], [472, 39], [420, 39], [24, 39]],
+    // Rota 3: Downtown <-> Golden Gate (Retorno Oeste/Leste)
     [[460, 39], [60, 39], [-32, 39], [-32, 31], [60, 31], [460, 31]],
-    // Rota 3: Avenida Sul <-> Ponte Sul <-> Portuário (eixos ortogonais X=-66 / X=436, Z=316 / Z=324)
-    [[-66, 62], [-66, 316], [436, 316], [436, 324], [-58, 324], [-58, 62]],
-    [[416, 324], [-58, 324], [-58, 190], [-126, 190], [-126, 316], [416, 316]]
+    // Rota 4: Avenida Oeste Downtown <-> Distrito Sul <-> Ponte Sul
+    [[-68, -24], [-68, 316], [436, 316], [436, 324], [-60, 324], [-60, -24]],
+    // Rota 5: Circuito Distrito Sul <-> Garagem DedSec <-> Ponte Sul
+    [[416, 324], [-60, 324], [-60, 190], [-126, 190], [-126, 316], [416, 316]]
   ];
 
   const baseConfigs = [
+    // 10 carros circulando continuamente nas avenidas centrais de Downtown (Complexo ctOS & Lojas)
     { bodyType: 'HATCH', color: 0x2a3b5c, neon: 0x00f0ff, isPatrol: false, routeIdx: 0, startWp: 0, speed: 9.5 },
     { bodyType: 'SPORT', color: 0x6b21a8, neon: 0xd946ef, isPatrol: false, routeIdx: 0, startWp: 1, speed: 12.0 },
     { bodyType: 'SUV', color: 0x141720, neon: 0xff0044, isPatrol: true, routeIdx: 0, startWp: 2, speed: 10.5 },
@@ -2648,7 +2678,9 @@ export function buildTrafficCars() {
     { bodyType: 'SUV', color: 0x141720, neon: 0xff0044, isPatrol: true, routeIdx: 1, startWp: 1, speed: 10.5 },
     { bodyType: 'HATCH', color: 0x334155, neon: 0xffaa00, isPatrol: false, routeIdx: 1, startWp: 2, speed: 9.0 },
     { bodyType: 'SPORT', color: 0x3b0764, neon: 0xff0055, isPatrol: false, routeIdx: 1, startWp: 3, speed: 12.4 },
-    // Ponte Golden Gate <-> Docas (Leste e Oeste)
+    { bodyType: 'HATCH', color: 0x1d4ed8, neon: 0x00f0ff, isPatrol: false, routeIdx: 0, startWp: 0, speed: 9.8 },
+    { bodyType: 'SPORT', color: 0x991b1b, neon: 0xffaa00, isPatrol: false, routeIdx: 1, startWp: 2, speed: 11.6 },
+    // 10 carros na Ponte Golden Gate <-> Docas
     { bodyType: 'SPORT', color: 0x0f766e, neon: 0x00ff88, isPatrol: false, routeIdx: 2, startWp: 0, speed: 12.5 },
     { bodyType: 'SUV', color: 0x334155, neon: 0xffaa00, isPatrol: false, routeIdx: 2, startWp: 1, speed: 10.0 },
     { bodyType: 'HATCH', color: 0x1e293b, neon: 0x00f0ff, isPatrol: false, routeIdx: 2, startWp: 2, speed: 9.8 },
@@ -2659,7 +2691,7 @@ export function buildTrafficCars() {
     { bodyType: 'SUV', color: 0x141720, neon: 0xff0044, isPatrol: true, routeIdx: 3, startWp: 2, speed: 11.0 },
     { bodyType: 'HATCH', color: 0x1e3a5f, neon: 0x00f0ff, isPatrol: false, routeIdx: 3, startWp: 3, speed: 9.4 },
     { bodyType: 'SUV', color: 0x26314a, neon: 0xffaa00, isPatrol: false, routeIdx: 3, startWp: 4, speed: 10.4 },
-    // Distrito Sul <-> Ponte Sul <-> Portuário
+    // 10 carros na Avenida Oeste, Distrito Sul e Ponte Sul
     { bodyType: 'HATCH', color: 0x3b2f4a, neon: 0xff0055, isPatrol: false, routeIdx: 4, startWp: 0, speed: 9.5 },
     { bodyType: 'SPORT', color: 0x1e293b, neon: 0x00f0ff, isPatrol: false, routeIdx: 4, startWp: 1, speed: 12.2 },
     { bodyType: 'SUV', color: 0x141720, neon: 0xff0044, isPatrol: true, routeIdx: 4, startWp: 2, speed: 10.8 },

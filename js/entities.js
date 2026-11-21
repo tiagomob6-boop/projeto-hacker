@@ -1393,7 +1393,7 @@ export function updateCars(dt) {
           const ox = other.mesh.position.x - car.mesh.position.x;
           const oz = other.mesh.position.z - car.mesh.position.z;
           const od = Math.hypot(ox, oz);
-          if (od < 8.5 && (ox * fwdX + oz * fwdZ) / (od || 1) > 0.75 && Math.abs(other.mesh.position.y - car.mesh.position.y) < 3.0) {
+          if (od < 7.2 && (ox * fwdX + oz * fwdZ) / (od || 1) > 0.78 && Math.abs(other.mesh.position.y - car.mesh.position.y) < 3.0) {
             blocked = true;
             if (car.hornCooldown <= 0 && distPlayer < 45) {
               AudioManager.playHorn();
