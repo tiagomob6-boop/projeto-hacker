@@ -2827,27 +2827,30 @@ export function buildPedestrians() {
     ['Heloisa Pires', 'Engenheira de Dados']
   ];
 
-  const jacketColors = [0x2563eb, 0x9333ea, 0x059669, 0xd97706, 0xdc2626, 0x0891b2, 0x475569, 0xdb2777];
+  const jacketColors = [0x00c8ff, 0xff2a85, 0x10b981, 0xf59e0b, 0x8b5cf6, 0xef4444, 0x38bdf8, 0xec4899];
   const pantsColors = [0x111827, 0x1e293b, 0x312e81, 0x27272a];
   const skinColors = [0xc89678, 0xe0b596, 0x8d5524, 0xf1c27d];
-  const zones = [
-    [-32, 60, 14], // Entrada DedSec Style
-    [0, 56, 16],   // Entrada SF Motors & Praça Central
-    [32, 60, 14],  // Entrada HackShop Armory
-    [-42, 22, 16], // Calçada Café Cyber
-    [42, 22, 16],  // Calçada Escritório ctOS
-    [-38, 48, 20],
-    [28, 52, 20],
-    [-64, 18, 22],
-    [-76, 140, 24],
-    [-115, 315, 24],
-    [DOCKS_OFFSET_X - 24, 55, 20],
-    [DOCKS_OFFSET_X + 26, 48, 20]
+  // Rotas ao longo das calçadas elevadas e praças de Downtown, Distrito Sul e Docas
+  const sidewalkPaths = [
+    [[-42, 4], [-42, 61], [42, 61], [42, 4]],          // Calçada principal de Downtown e Lojas
+    [[-38, 60], [-10, 60], [10, 60], [38, 60]],        // Calçada sul (DedSec Style / SF Motors / HackShop)
+    [[-9, 41], [9, 41], [9, 55], [-9, 55]],            // Praça central da extração
+    [[-122, 78], [-102, 78], [-102, 94], [-122, 94]],  // Praça Verde Downtown Oeste
+    [[-12, 118], [12, 118], [12, 130], [-12, 130]],    // Praça Verde Sul
+    [[-138, 244], [-118, 244], [-118, 260], [-138, 260]], // Praça Distrito Sul
+    [[DOCKS_OFFSET_X - 36, 48], [DOCKS_OFFSET_X - 14, 48], [DOCKS_OFFSET_X - 14, 70], [DOCKS_OFFSET_X - 36, 70]], // Calçada Docas
+    [[DOCKS_OFFSET_X + 14, 46], [DOCKS_OFFSET_X + 36, 46], [DOCKS_OFFSET_X + 36, 68], [DOCKS_OFFSET_X + 14, 68]]
   ];
 
   profiles.forEach(([name, job], i) => {
     const pedGroup = new THREE.Group();
-    const jacketMat = new THREE.MeshStandardMaterial({ color: jacketColors[i % jacketColors.length], roughness: 0.72 });
+    const jCol = jacketColors[i % jacketColors.length];
+    const jacketMat = new THREE.MeshStandardMaterial({
+      color: jCol,
+      emissive: jCol,
+      emissiveIntensity: 0.18,
+      roughness: 0.65
+    });
     const pantsMat = new THREE.MeshStandardMaterial({ color: pantsColors[i % pantsColors.length], roughness: 0.8 });
     const skinMat = new THREE.MeshStandardMaterial({ color: skinColors[i % skinColors.length], roughness: 0.65 });
     const hairMat = new THREE.MeshStandardMaterial({ color: i % 3 === 0 ? 0x3b2314 : 0x111827, roughness: 0.8 });
@@ -2888,18 +2891,16 @@ export function buildPedestrians() {
 
     pedGroup.add(legL, legR, torso, armL, armR, head, hair, phoneIcon);
 
-    const [zx, zz, rad] = zones[i % zones.length];
-    const ang = (i / profiles.length) * Math.PI * 2;
-    const px = zx + Math.cos(ang) * (rad * 0.45);
-    const pz = zz + Math.sin(ang) * (rad * 0.45);
+    const path = sidewalkPaths[i % sidewalkPaths.length];
+    const startIdx = i % path.length;
+    const nextIdx = (startIdx + 1) % path.length;
+    const t = ((i * 0.27) % 0.85) + 0.08;
+    const px = THREE.MathUtils.lerp(path[startIdx][0], path[nextIdx][0], t);
+    const pz = THREE.MathUtils.lerp(path[startIdx][1], path[nextIdx][1], t);
     pedGroup.position.set(px, getSurfaceHeight(px, pz), pz);
     refs.worldGroup.add(pedGroup);
 
-    const wps = [
-      [zx + Math.cos(ang) * rad * 0.5, zz + Math.sin(ang) * rad * 0.5],
-      [zx + Math.cos(ang + 1.8) * rad * 0.5, zz + Math.sin(ang + 1.8) * rad * 0.5],
-      [zx + Math.cos(ang + 3.6) * rad * 0.5, zz + Math.sin(ang + 3.6) * rad * 0.5]
-    ];
+    const wps = path.map(([wx, wz]) => [wx, wz]);
 
     pedestrians.push({
       id: i,
@@ -2910,7 +2911,7 @@ export function buildPedestrians() {
       armR,
       phoneIcon,
       waypoints: wps,
-      currentTarget: 1,
+      currentTarget: nextIdx,
       walkSpeed: 1.8 + (i % 4) * 0.25,
       phase: Math.random() * Math.PI * 2,
       panickedTimer: 0,

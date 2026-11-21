@@ -36,7 +36,7 @@ Explore livremente o mapa contínuo (`-30000..30000`) com `$500` iniciais e ativ
 | `Mouse` (Pointer Lock) | Orbitar câmera em 3ª pessoa / Olhar em 1ª pessoa / Girar câmera de segurança |
 | `P` | Alternar câmera entre **3ª Pessoa** e **1ª Pessoa** (a pé com arma visível ou visão de **Cockpit** no carro) |
 | `Tab` | Abrir / fechar o **Mapa Tático Completo** (clique para marcar um destino GPS no Radar DedSec) |
-| `V` | Alternar **Visão NetHack** (muros wireframe, rede ctOS e **Profiler** de pedestres) |
+| `V` | Alternar **Visão NetHack** (muros wireframe, rede ctOS e **Profiler** de pedestres a pé ou no Drone) |
 | `C` | Hackear / alternar entre **Câmeras de Segurança** e voltar ao agente |
 | `R` | Sobrecarregar e desativar por `15s` a câmera controlada no momento |
 | `E` | Hackear Portão / Firewall, Caixa Elétrica, Semáforo, Câmera (`V+E`), Carro, Pedestre (`+$75`) ou acessar **Lojas / SF Motors** |

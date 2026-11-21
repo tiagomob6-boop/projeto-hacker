@@ -125,17 +125,37 @@ export function buildNetHackLabels() {
       36
     );
   });
+
+  guards.forEach((g, idx) => {
+    registerTag(
+      () => g.mesh.position.clone().add(new THREE.Vector3(0, 2.25, 0)),
+      () =>
+        g.state === GUARD_STATE.DEAD
+          ? `ALVO_${idx + 1} ABATIDO`
+          : g.marked
+          ? `⚠ GUARDA MARCADO [${g.state}]`
+          : '',
+      42
+    );
+  });
 }
 
 export function updateNetHackLabels() {
   if (!gameState.netHackActive || !dom.nethackLabels) return;
   const w = window.innerWidth;
   const h = window.innerHeight;
-  const pPos = refs.playerGroup?.position;
+  const viewOrigin =
+    gameState.droneActive && refs.droneGroup ? refs.droneGroup.position : refs.playerGroup?.position;
 
   netHackTagItems.forEach((item) => {
+    const labelText = item.getText();
+    if (!labelText) {
+      item.el.style.display = 'none';
+      return;
+    }
     const pos = item.getPos();
-    if (item.maxDist < Infinity && pPos && pos.distanceTo(pPos) > item.maxDist) {
+    const distLimit = gameState.droneActive && item.maxDist < Infinity ? item.maxDist * 1.65 : item.maxDist;
+    if (distLimit < Infinity && viewOrigin && pos.distanceTo(viewOrigin) > distLimit) {
       item.el.style.display = 'none';
       return;
     }
@@ -156,7 +176,7 @@ export function updateNetHackLabels() {
     item.el.style.display = 'block';
     item.el.style.left = `${sx.toFixed(1)}px`;
     item.el.style.top = `${sy.toFixed(1)}px`;
-    item.el.textContent = item.getText();
+    item.el.textContent = labelText;
   });
 }
 
