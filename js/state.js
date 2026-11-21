@@ -311,6 +311,7 @@ export const refs = {
   waterMesh: null,
   waterTexture: null,
   dedsecCar: null,
+  activeHeadlight: null,
   showroomTurntable: null,
   vehicleDeliveryGroup: null,
   vehicleDeliveryRing: null,
@@ -380,6 +381,7 @@ export const gameState = {
   hasShotgun: false,
   shopOpen: false,
   shopCooldown: 0,
+  shopMustExitRing: false,
   damageFlashTimer: 0,
   baseAlert: false,
   wantedLevel: 0,
@@ -451,6 +453,17 @@ export function getSurfaceHeight(x, z) {
     if (x >= 400) return ((404 - x) / 4) * -0.35;
     return -0.35;
   }
+  // Pisos internos das 3 lojas em Downtown (DedSec Style, SF Motors, HackShop Armory)
+  if (z >= 61.5 && z <= 74.5 && ((x >= -38.5 && x <= -25.5) || (x >= -8.5 && x <= 8.5) || (x >= 25.5 && x <= 38.5))) {
+    return 0.19;
+  }
+  // Pisos internos dos 4 prédios abertos em Downtown
+  if (
+    ((x >= -59 && x <= -45) || (x >= 45 && x <= 59)) &&
+    ((z >= 9 && z <= 23) || (z >= 34 && z <= 50))
+  ) {
+    return 0.19;
+  }
   return 0;
 }
 
@@ -485,19 +498,26 @@ export function createHackableDevice(w, h, d, x, y, z, glowColor, name) {
 // ==========================================
 // CARROS 3D PROCEDURAIS (ESTACIONADOS + DEDSEC)
 
-export function isWaterArea(x, z) {
-  // Distrito Downtown & Financial + Residencial & Colinas (Oeste/Sul: X: -540..80, Z: -480..780)
+export function isWaterForBoats(x, z) {
+  // Plataformas terrestres (barcos navegam livremente por baixo da Golden Gate e Ponte Sul)
   if (x >= -540 && x <= 80 && z >= -480 && z <= 780) return false;
-  // Distrito Portuário & Industrial (Leste: X: 400..960, Z: -280..360)
   if (x >= 400 && x <= 960 && z >= -280 && z <= 360) return false;
+  if ((z >= 57 && z <= 67 || z >= 215 && z <= 225) && x >= 64 && x <= 76) return false;
+  if ((z >= 57 && z <= 67 || z >= -125 && z <= -115) && x >= 394 && x <= 404) return false;
+  return true;
+}
+
+export function isWaterForLand(x, z) {
+  if (!isWaterForBoats(x, z)) return false;
   // Pista da Ponte Golden Gate (X: 78..402, Z: 26.5..43.5)
   if (x >= 78 && x <= 402 && z >= 26.5 && z <= 43.5) return false;
   // Pista da Ponte Sul (X: 78..402, Z: 312..328)
   if (x >= 78 && x <= 402 && z >= 312 && z <= 328) return false;
-  // Píeres de embarque
-  if ((z >= 57 && z <= 67 || z >= 215 && z <= 225) && x >= 64 && x <= 76) return false;
-  if ((z >= 57 && z <= 67 || z >= -125 && z <= -115) && x >= 394 && x <= 404) return false;
   return true;
+}
+
+export function isWaterArea(x, z) {
+  return isWaterForLand(x, z);
 }
 
 export function checkCollision(x, z, radius = PLAYER_RADIUS, ignoreCar = null) {

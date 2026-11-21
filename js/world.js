@@ -302,6 +302,8 @@ export function buildMap() {
   refs.waterMesh = null;
   refs.dedsecCar = null;
   refs.showroomTurntable = null;
+  refs.activeHeadlight = new THREE.PointLight(0x00f0ff, 0, 18);
+  refs.worldGroup.add(refs.activeHeadlight);
 
   // Água da Baía de São Francisco cobrindo todo o mundo aberto 50x (WORLD_BOUNDS: -30000..30000)
   refs.waterTexture = TextureGenerator.getWaterTexture();
@@ -413,6 +415,21 @@ export function buildSouthDistrictAndBridge() {
 
   addStaticBox(240, 1.1, 0.6, 240, 7.55, zS - 8.3, 0x26314a, { occlude: false, edgesColor: 0x00f0ff, edgesOpacity: 0.65 });
   addStaticBox(240, 1.1, 0.6, 240, 7.55, zS + 8.3, 0x26314a, { occlude: false, edgesColor: 0x00f0ff, edgesOpacity: 0.65 });
+
+  // Guarda-corpo lateral nas rampas da Ponte Sul (X: 80..120 e X: 360..400)
+  [
+    { x: 100, rotZ: rampAng },
+    { x: 380, rotZ: -rampAng }
+  ].forEach(({ x, rotZ }) => {
+    [zS - 8.3, zS + 8.3].forEach((wz) => {
+      const rail = addStaticBox(rampLen, 1.1, 0.6, x, 4.05, wz, 0x26314a, {
+        occlude: false,
+        edgesColor: 0x00f0ff,
+        edgesOpacity: 0.65
+      });
+      rail.rotation.z = rotZ;
+    });
+  });
 
   // Garagem Clandestina DedSec no Distrito Sul (X: -120, Z: 320)
   addStaticBox(26, 0.4, 22, -120, 4.8, 320, 0x141d2e, { collide: false, occlude: false, edgesColor: 0x00ff88, edgesOpacity: 0.8 });
@@ -576,7 +593,10 @@ export function buildInstancedWorldElements() {
   // 1. Postes de Luz (InstancedMesh) ao longo das avenidas dos 4 distritos
   const lampPositions = [];
   for (let z = -220; z <= 520; z += 45) {
-    lampPositions.push([-32, z], [32, z], [-95, z], [DOCKS_OFFSET_X + 65, z > 320 ? 320 : z]);
+    [[-32, z], [32, z], [-95, z], [DOCKS_OFFSET_X + 65, z > 320 ? 320 : z]].forEach(([lx, lz]) => {
+      if (Math.abs(lz - 50) < 18 && Math.abs(lx) <= 40) return;
+      lampPositions.push([lx, lz]);
+    });
   }
   for (let x = -320; x <= 740; x += 65) {
     if (x > 75 && x < 405) continue;
@@ -1016,10 +1036,6 @@ export function buildStores() {
     ring.position.set(st.x, 0.2, triggerZ);
     refs.worldGroup.add(ring);
 
-    const shopLight = new THREE.PointLight(st.color, 1.8, 14);
-    shopLight.position.set(st.x, 3.4, st.z);
-    refs.worldGroup.add(shopLight);
-
     stores.push({
       type: st.type,
       name: st.name,
@@ -1325,7 +1341,7 @@ export function buildEnterableBuilding(x, z, w, h, d, opts = {}) {
   structureMeshes.push(upperMesh);
   refs.worldGroup.add(upperMesh);
 
-  // Luz interna e tela holográfica na parede dos fundos
+  // Tela holográfica na parede dos fundos
   const backX = doorSide === 'EAST' ? x - w / 2 + 0.45 : x + w / 2 - 0.45;
   addStaticBox(0.14, 1.8, 3.8, backX, 2.3, z, accent, {
     collide: false,
@@ -1333,9 +1349,6 @@ export function buildEnterableBuilding(x, z, w, h, d, opts = {}) {
     emissive: accent,
     emissiveIntensity: 0.95
   });
-  const intLight = new THREE.PointLight(accent, 1.6, 15);
-  intLight.position.set(x, 3.6, z);
-  refs.worldGroup.add(intLight);
 
   // Mobília interna com colisão e oclusão (para cobertura em tiroteios internos)
   const midDir = doorSide === 'EAST' ? -1 : 1;
@@ -2240,12 +2253,7 @@ export function buildCars() {
     refs.worldGroup.add(carGroup);
 
     const isDrivable = !!(carCfg.isDedsec || carCfg.isDrivable);
-    let headlight = null;
-    if (isDrivable) {
-      headlight = new THREE.PointLight(carCfg.neon || 0x00f0ff, 0, 16);
-      headlight.position.set(0, 1.0, 2.8);
-      carGroup.add(headlight);
-    }
+    const headlight = null;
 
     // Partículas de fumaça escura (ativas quando HP <= 35)
     const smokeCount = 22;
@@ -2347,9 +2355,7 @@ export function buildTrafficCars() {
     carGroup.rotation.y = yaw;
     refs.worldGroup.add(carGroup);
 
-    const headlight = new THREE.PointLight(cfg.neon, 0, 16);
-    headlight.position.set(0, 1.0, 2.8);
-    carGroup.add(headlight);
+    const headlight = null;
 
     const smokeCount = 22;
     const smokePos = new Float32Array(smokeCount * 3);
@@ -2776,10 +2782,13 @@ export function resetWorldState(keepPlayerPos = false) {
 
   const preset = DIFFICULTY_PRESETS[gameState.difficulty];
 
-  // Limpar projéteis e ondas EMP ativos
+  // Limpar projéteis, ondas EMP, policiais dinâmicos, civis fugindo, suprimentos e postes derrubados
   for (let i = projectiles.length - 1; i >= 0; i--) {
-    refs.scene.remove(projectiles[i].mesh);
-    refs.scene.remove(projectiles[i].line);
+    const p = projectiles[i];
+    refs.scene.remove(p.mesh);
+    refs.scene.remove(p.line);
+    if (p.line?.geometry) p.line.geometry.dispose();
+    if (p.line?.material) p.line.material.dispose();
     projectiles.splice(i, 1);
   }
   for (let i = guardProjectiles.length - 1; i >= 0; i--) {
@@ -2787,9 +2796,69 @@ export function resetWorldState(keepPlayerPos = false) {
     guardProjectiles.splice(i, 1);
   }
   for (let i = empWaves.length - 1; i >= 0; i--) {
-    refs.scene.remove(empWaves[i].mesh);
+    const w = empWaves[i];
+    refs.scene.remove(w.mesh);
+    if (w.mesh?.geometry) w.mesh.geometry.dispose();
+    if (w.mat) w.mat.dispose();
     empWaves.splice(i, 1);
   }
+  for (let i = fleeingDrivers.length - 1; i >= 0; i--) {
+    refs.worldGroup.remove(fleeingDrivers[i].mesh);
+    fleeingDrivers.splice(i, 1);
+  }
+  for (let i = policeCars.length - 1; i >= 0; i--) {
+    const pc = policeCars[i];
+    refs.worldGroup.remove(pc.mesh);
+    const cIdx = cars.indexOf(pc);
+    if (cIdx !== -1) cars.splice(cIdx, 1);
+    const colIdx = colliders.indexOf(pc.colliderObj);
+    if (colIdx !== -1) colliders.splice(colIdx, 1);
+    const occIdx = occluders.indexOf(pc.bodyMesh);
+    if (occIdx !== -1) occluders.splice(occIdx, 1);
+    policeCars.splice(i, 1);
+  }
+  for (let i = guards.length - 1; i >= 0; i--) {
+    if (guards[i].isPolice) {
+      refs.worldGroup.remove(guards[i].mesh);
+      guards.splice(i, 1);
+    }
+  }
+  supplyBoxes.forEach((sb) => {
+    sb.used = false;
+    if (sb.mesh?.userData?.normalMaterial?.emissive) {
+      sb.mesh.userData.normalMaterial.emissiveIntensity = 0.65;
+    }
+  });
+  const poleDummy = new THREE.Object3D();
+  lightPoles.forEach((pole) => {
+    if (!pole.fallen) return;
+    pole.fallen = false;
+    pole.falling = false;
+    pole.fallProgress = 0;
+    if (pole.fallGroup) {
+      refs.worldGroup.remove(pole.fallGroup);
+      pole.fallGroup = null;
+    }
+    if (pole.sparkPoints) {
+      refs.worldGroup.remove(pole.sparkPoints);
+      if (pole.sparkPoints.geometry) pole.sparkPoints.geometry.dispose();
+      if (pole.sparkPoints.material) pole.sparkPoints.material.dispose();
+      pole.sparkPoints = null;
+    }
+    poleDummy.position.set(pole.x, 2.9, pole.z);
+    poleDummy.rotation.set(0, 0, 0);
+    poleDummy.scale.set(1, 1, 1);
+    poleDummy.updateMatrix();
+    pole.poleMesh.setMatrixAt(pole.id, poleDummy.matrix);
+    poleDummy.position.set(pole.x, 5.85, pole.z);
+    poleDummy.updateMatrix();
+    pole.headMesh.setMatrixAt(pole.id, poleDummy.matrix);
+    pole.poleMesh.instanceMatrix.needsUpdate = true;
+    pole.headMesh.instanceMatrix.needsUpdate = true;
+    if (!colliders.includes(pole.colliderObj)) {
+      colliders.push(pole.colliderObj);
+    }
+  });
 
   // Resetar guardas, câmeras e caixas elétricas
   guards.forEach((g) => {
@@ -2905,14 +2974,26 @@ export function spawnPurchasedVehicle(vehCfg) {
   const sz = 56;
   const yaw = Math.PI / 2;
 
+  // Remover qualquer carro anteriormente estacionado na vaga da SF Motors para evitar empilhamento
+  for (let i = cars.length - 1; i >= 0; i--) {
+    const existing = cars[i];
+    if (existing === gameState.drivingCar || existing.isDedsec) continue;
+    if (Math.hypot(existing.mesh.position.x - sx, existing.mesh.position.z - sz) < 4.8) {
+      refs.worldGroup.remove(existing.mesh);
+      const colIdx = colliders.indexOf(existing.colliderObj);
+      if (colIdx !== -1) colliders.splice(colIdx, 1);
+      const occIdx = occluders.indexOf(existing.bodyMesh);
+      if (occIdx !== -1) occluders.splice(occIdx, 1);
+      cars.splice(i, 1);
+    }
+  }
+
   const { carGroup, bodyMesh, driverMesh } = buildCarMesh(vehCfg.color, vehCfg.neon, false, vehCfg.bodyType, false);
   carGroup.position.set(sx, getSurfaceHeight(sx, sz), sz);
   carGroup.rotation.y = yaw;
   refs.worldGroup.add(carGroup);
 
-  const headlight = new THREE.PointLight(vehCfg.neon || 0x00f0ff, 0, 16);
-  headlight.position.set(0, 1.0, 2.8);
-  carGroup.add(headlight);
+  const headlight = null;
 
   const smokeCount = 22;
   const smokePos = new Float32Array(smokeCount * 3);
@@ -2996,9 +3077,7 @@ export function spawnPoliceReinforcement() {
   carGroup.rotation.y = yaw;
   refs.worldGroup.add(carGroup);
 
-  const headlight = new THREE.PointLight(0x0088ff, 1.6, 16);
-  headlight.position.set(0, 1.0, 2.8);
-  carGroup.add(headlight);
+  const headlight = null;
 
   carGroup.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(carGroup);
@@ -3089,10 +3168,19 @@ export function updateVisualEffects(dt, nowSec) {
   for (let i = impactFlashes.length - 1; i >= 0; i--) {
     const f = impactFlashes[i];
     f.life -= dt;
-    f.light.intensity = Math.max(0, 5.0 * (f.life / 0.15));
-    if (f.life <= 0) {
-      refs.scene.remove(f.light);
-      impactFlashes.splice(i, 1);
+    if (f.mesh && f.mat) {
+      f.mat.opacity = Math.max(0, 0.9 * (f.life / 0.15));
+      if (f.life <= 0) {
+        refs.scene.remove(f.mesh);
+        f.mat.dispose();
+        impactFlashes.splice(i, 1);
+      }
+    } else if (f.light) {
+      f.light.intensity = Math.max(0, 5.0 * (f.life / 0.15));
+      if (f.life <= 0) {
+        refs.scene.remove(f.light);
+        impactFlashes.splice(i, 1);
+      }
     }
   }
 

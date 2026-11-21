@@ -22,6 +22,27 @@ import {
 import { AudioManager } from './audio.js';
 import { updateWeaponHUD, updateHpHUD, updateVehicleHpHUD, updateWantedHUD, triggerGameOver } from './ui.js';
 
+// Geometrias e materiais compartilhados para evitar memory leaks em WebGL
+const sharedPlayerBoltGeo = new THREE.BoxGeometry(0.1, 0.1, 0.55);
+const sharedGuardBulletGeo = new THREE.BoxGeometry(0.1, 0.1, 0.45);
+const sharedGuardBulletMat = new THREE.MeshBasicMaterial({ color: 0xff3300 });
+const sharedFlashGeo = new THREE.SphereGeometry(0.32, 8, 8);
+const sharedBoltMats = new Map();
+
+function getSharedBoltMat(colorHex) {
+  if (!sharedBoltMats.has(colorHex)) {
+    sharedBoltMats.set(colorHex, new THREE.MeshBasicMaterial({ color: colorHex }));
+  }
+  return sharedBoltMats.get(colorHex);
+}
+
+function disposePlayerProjectile(p) {
+  refs.scene.remove(p.mesh);
+  refs.scene.remove(p.line);
+  if (p.line?.geometry) p.line.geometry.dispose();
+  if (p.line?.material) p.line.material.dispose();
+}
+
 export function selectWeapon(weaponType) {
   if (weaponType === WEAPON_TYPE.SHOTGUN && !gameState.hasShotgun) return;
   gameState.equippedWeapon = weaponType;
@@ -124,10 +145,12 @@ export function triggerBaseAlert() {
 }
 
 export function spawnTaserFlash(pos, color = 0x00f0ff) {
-  const light = new THREE.PointLight(color, 5.0, 9);
-  light.position.copy(pos);
-  refs.scene.add(light);
-  impactFlashes.push({ light, life: 0.15 });
+  // Usa malha emissiva leve em vez de criar PointLights dinâmicas
+  const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 });
+  const mesh = new THREE.Mesh(sharedFlashGeo, mat);
+  mesh.position.copy(pos);
+  refs.scene.add(mesh);
+  impactFlashes.push({ mesh, mat, life: 0.15 });
 }
 
 export function stunGuard(guard, duration) {
@@ -197,10 +220,7 @@ export function fireEquippedWeapon() {
 
   angles.forEach((ang) => {
     const dir = baseDir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), ang);
-    const boltMesh = new THREE.Mesh(
-      new THREE.BoxGeometry(0.1, 0.1, 0.55),
-      new THREE.MeshBasicMaterial({ color: cfg.color })
-    );
+    const boltMesh = new THREE.Mesh(sharedPlayerBoltGeo, getSharedBoltMat(cfg.color));
     boltMesh.position.copy(startPos);
     boltMesh.lookAt(startPos.clone().add(dir));
     refs.scene.add(boltMesh);
@@ -290,7 +310,6 @@ export function updateProjectiles(dt) {
   }
 
   updateWeaponHUD();
-  if (refs.playerParts) refs.playerParts.aimTimer = 0.45;
 
   for (let i = projectiles.length - 1; i >= 0; i--) {
     const p = projectiles[i];
@@ -325,8 +344,7 @@ export function updateProjectiles(dt) {
       } else {
         damageGuard(hitGuard, p.damage);
       }
-      refs.scene.remove(p.mesh);
-      refs.scene.remove(p.line);
+      disposePlayerProjectile(p);
       projectiles.splice(i, 1);
       continue;
     }
@@ -355,16 +373,14 @@ export function updateProjectiles(dt) {
       if (!p.isTaser) {
         reportCrimeToCivilians(hitPed.mesh.position, 22, 2);
       }
-      refs.scene.remove(p.mesh);
-      refs.scene.remove(p.line);
+      disposePlayerProjectile(p);
       projectiles.splice(i, 1);
       continue;
     }
 
     if (hitObs.length > 0 || p.life <= 0) {
       if (hitObs.length > 0) spawnTaserFlash(hitObs[0].point, p.color);
-      refs.scene.remove(p.mesh);
-      refs.scene.remove(p.line);
+      disposePlayerProjectile(p);
       projectiles.splice(i, 1);
     }
   }
@@ -496,6 +512,8 @@ export function updateEmpWaves(dt) {
     w.mat.opacity = Math.max(0, 0.85 * (1 - w.radius / w.maxRadius));
     if (w.radius >= w.maxRadius) {
       refs.scene.remove(w.mesh);
+      if (w.mesh.geometry) w.mesh.geometry.dispose();
+      if (w.mat) w.mat.dispose();
       empWaves.splice(i, 1);
     }
   }
@@ -510,10 +528,7 @@ export function fireGuardBullet(guard, targetPos) {
   dir.z += (Math.random() - 0.5) * 0.09;
   dir.normalize();
 
-  const bullet = new THREE.Mesh(
-    new THREE.BoxGeometry(0.1, 0.1, 0.45),
-    new THREE.MeshBasicMaterial({ color: 0xff3300 })
-  );
+  const bullet = new THREE.Mesh(sharedGuardBulletGeo, sharedGuardBulletMat);
   bullet.position.copy(startPos);
   bullet.lookAt(startPos.clone().add(dir));
   refs.scene.add(bullet);

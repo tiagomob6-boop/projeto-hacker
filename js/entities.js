@@ -39,6 +39,7 @@ import {
   getSurfaceHeight,
   createHackableDevice,
   isWaterArea,
+  isWaterForBoats,
   checkCollision,
   checkCarCollision
 } from './state.js';
@@ -1117,6 +1118,8 @@ export function updateCars(dt) {
       pole.sparkPoints.material.opacity = pole.sparkTimer / 1.4;
       if (pole.sparkTimer <= 0) {
         refs.worldGroup.remove(pole.sparkPoints);
+        if (pole.sparkPoints.geometry) pole.sparkPoints.geometry.dispose();
+        if (pole.sparkPoints.material) pole.sparkPoints.material.dispose();
         pole.sparkPoints = null;
       }
     }
@@ -1225,8 +1228,8 @@ export function updateCars(dt) {
           car.mesh.updateMatrixWorld(true);
           car.colliderObj.box.setFromObject(car.mesh);
         } else {
+          // Frear e aguardar atrás do bloqueio em vez de pular waypoint e sair da faixa
           car.speed = 0;
-          car.currentTarget = (car.currentTarget + 1) % car.waypoints.length;
         }
       }
       return;
@@ -1304,7 +1307,7 @@ export function updatePlayer(dt) {
     const nextX = THREE.MathUtils.clamp(boat.mesh.position.x + fx * boat.speed * dt, WORLD_BOUNDS.minX + 4, WORLD_BOUNDS.maxX - 4);
     const nextZ = THREE.MathUtils.clamp(boat.mesh.position.z + fz * boat.speed * dt, WORLD_BOUNDS.minZ + 4, WORLD_BOUNDS.maxZ - 4);
 
-    if (isWaterArea(nextX, nextZ)) {
+    if (isWaterForBoats(nextX, nextZ)) {
       boat.mesh.position.x = nextX;
       boat.mesh.position.z = nextZ;
     } else {
@@ -1422,6 +1425,12 @@ export function updatePlayer(dt) {
     car.colliderObj.box.setFromObject(car.mesh);
     refs.playerGroup.position.copy(cPos);
 
+    // Acoplar o único PointLight de farol dinâmico apenas ao veículo dirigido
+    if (refs.activeHeadlight) {
+      refs.activeHeadlight.intensity = 2.4;
+      refs.activeHeadlight.position.set(cPos.x + fx * 2.8, cPos.y + 1.0, cPos.z + fz * 2.8);
+    }
+
     if (Math.abs(car.speed) > 5.0) {
       guards.forEach((g) => {
         if (g.state !== GUARD_STATE.STUNNED && g.mesh.position.distanceTo(cPos) < 2.4) {
@@ -1436,6 +1445,8 @@ export function updatePlayer(dt) {
     }
     return;
   }
+
+  if (refs.activeHeadlight) refs.activeHeadlight.intensity = 0;
 
   let inputZ = 0;
   let inputX = 0;
@@ -1949,7 +1960,7 @@ export function updateGuards(dt) {
 
     let guardSeesPlayer = false;
     const isContractGuard =
-      gameState.mission !== MISSION_STATE.FREE_ROAM && g.missionKey === gameState.activeMissionKey;
+      g.isPolice || (gameState.mission !== MISSION_STATE.FREE_ROAM && g.missionKey === gameState.activeMissionKey);
 
     if (isContractGuard && distToPlayer <= effectiveRange && distToPlayer > 0.1) {
       const dirFlat = toPlayer.clone().normalize();
@@ -1992,7 +2003,32 @@ export function updateGuards(dt) {
         g.mesh.rotation.y += diff * Math.min(1, dt * 10);
 
         if (!guardSeesPlayer || dist > 9.0) {
-          g.mesh.position.addScaledVector(toTarget, g.speed * 1.2 * dt);
+          const moveStep = g.speed * 1.2 * dt;
+          const stepX = toTarget.x * moveStep;
+          const stepZ = toTarget.z * moveStep;
+          const gx = g.mesh.position.x;
+          const gz = g.mesh.position.z;
+          let moved = false;
+
+          if (!checkCollision(gx + stepX, gz, 0.42) && !isWaterArea(gx + stepX, gz)) {
+            g.mesh.position.x += stepX;
+            moved = true;
+          }
+          if (!checkCollision(g.mesh.position.x, gz + stepZ, 0.42) && !isWaterArea(g.mesh.position.x, gz + stepZ)) {
+            g.mesh.position.z += stepZ;
+            moved = true;
+          }
+          // Vetor de desvio lateral caso bloqueado de frente por muro ou móvel
+          if (!moved) {
+            const sideSign = g.id % 2 === 0 ? 1 : -1;
+            const sideX = -toTarget.z * sideSign * moveStep;
+            const sideZ = toTarget.x * sideSign * moveStep;
+            if (!checkCollision(gx + sideX, gz + sideZ, 0.42) && !isWaterArea(gx + sideX, gz + sideZ)) {
+              g.mesh.position.x += sideX;
+              g.mesh.position.z += sideZ;
+            }
+          }
+          g.mesh.position.y = getSurfaceHeight(g.mesh.position.x, g.mesh.position.z);
         }
       }
 
@@ -2181,20 +2217,25 @@ export function updateInteractionsAndMission(dt) {
     }
   }
 
-  // Checar lojas interativas (DedSec Style / HackShop Armory)
+  // Checar lojas interativas (DedSec Style / HackShop Armory / SF Motors)
   if (gameState.shopCooldown > 0) {
     gameState.shopCooldown = Math.max(0, gameState.shopCooldown - dt);
   }
   if (!gameState.drivingCar && !gameState.drivingBoat && !gameState.shopOpen && gameState.activeCamIndex < 0) {
+    let minStoreDist = Infinity;
     for (const st of stores) {
       const dStore = Math.hypot(pPos.x - st.pos.x, pPos.z - st.pos.z);
-      if (dStore < 2.2 && gameState.shopCooldown <= 0) {
+      if (dStore < minStoreDist) minStoreDist = dStore;
+      if (dStore < 2.2 && gameState.shopCooldown <= 0 && !gameState.shopMustExitRing) {
         openShopModal(st.type);
         return;
       }
       if (!promptText && dStore < 3.6) {
         promptText = `[E] ACESSAR ${st.name}`;
       }
+    }
+    if (minStoreDist > 3.2) {
+      gameState.shopMustExitRing = false;
     }
   }
 
@@ -2257,6 +2298,18 @@ export function updateInteractionsAndMission(dt) {
     refs.camera.getWorldDirection(camDir);
 
     if (gameState.netHackActive) {
+      for (const camObj of securityCameras) {
+        if (camObj.disabledTimer > 0) continue;
+        const distCam = pPos.distanceTo(camObj.pos);
+        const toCam = camObj.pos.clone().sub(refs.camera.position).normalize();
+        if (distCam < 26 && camDir.dot(toCam) > 0.90) {
+          promptText = `[E] DESATIVAR CÂMERA (15s) // ${camObj.name}`;
+          break;
+        }
+      }
+    }
+
+    if (!promptText && gameState.netHackActive) {
       for (const ped of pedestrians) {
         const distPed = pPos.distanceTo(ped.mesh.position);
         const toPed = ped.mesh.position.clone().add(new THREE.Vector3(0, 1.3, 0)).sub(refs.camera.position).normalize();

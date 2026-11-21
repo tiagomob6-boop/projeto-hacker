@@ -23,15 +23,15 @@ Este documento descreve a arquitetura do protótipo **Projeto Hacker**, constru�
 ## 2. Arquitetura da Cena Three.js
 
 ### 2.1 Renderização, Iluminação e Texturas Procedurais
-- **Cúpula de Céu e Neblina (`skyDome`):** `THREE.SphereGeometry(780, 32, 20)` com `THREE.BackSide` e gradiente procedural de entardecer cyberpunk de São Francisco (azul-noturno no topo, roxo, magenta suave e laranja no horizonte com estrelas sutis), combinado com `THREE.FogExp2(0x1c1430, 0.0020)` e `camera.far = 950`.
+- **Cúpula de Céu e Neblina (`skyDome`):** `THREE.SphereGeometry(2000, 32, 20)` com `THREE.BackSide` e `depthWrite: false`, gradiente procedural de entardecer cyberpunk de São Francisco (azul-noturno no topo, roxo, magenta suave e laranja no horizonte com estrelas sutis), combinado com `THREE.FogExp2(0x1c1430, 0.00085)` e `camera.far = 2400`.
 - **Texturas Procedurais (`TextureGenerator` via `HTML5 Canvas` -> `THREE.CanvasTexture`):**
   - **Asfalto Urbano (`getAsphaltTexture`):** Textura granulada escura com faixas viárias e desgaste (`RepeatWrapping`).
   - **Fachadas de Prédios (`getBuildingFacadeTexture`):** Vidro e concreto com dezenas de janelas iluminadas em ciano, âmbar e branco-azulado.
   - **Contêineres Portuários (`getContainerTexture`):** Chapa metálica corrugada industrial.
   - **Água da Baía (`getWaterTexture`):** Ondulação reflexiva animada continuamente via `offset.x` / `offset.y` em `updateVisualEffects()`.
-- **Iluminação:**
-  - `THREE.AmbientLight` (`0x7662a8`, intensidade `2.15`), `THREE.HemisphereLight` (`0xff8c66` / `0x1c2540`, `0.95`) e `THREE.DirectionalLight` (`0xffb899`, `1.3`) com `PCFSoftShadowMap` (`2048x2048`) para destacar prédios, veículos e personagens no entardecer.
-  - `THREE.PointLight` em ciano e magenta na rua externa, luz de destaque na fachada da entrada, luzes internas no pátio, ciano sobre o Servidor Central e verde na Zona de Extração.
+- **Iluminação Otimizada (≤ 8 `PointLight` simultâneas):**
+  - `THREE.AmbientLight` (`0x7662a8`, intensidade `2.15`), `THREE.HemisphereLight` (`0xff8c66` / `0x1c2540`, `0.95`) e `THREE.DirectionalLight` (`0xffb899`, `1.3`) com `PCFSoftShadowMap` (`2048x2048`).
+  - No máximo **8 `THREE.PointLight` ativas** (6 luzes estratégicas na rua/base, 1 na extração e **1 farol dinâmico compartilhado `refs.activeHeadlight`** acoplado apenas ao veículo dirigido), além de geometrias/materiais compartilhados nos projéteis e `.dispose()` em efeitos temporários para 60 FPS estáveis.
 
 ### 2.2 Construção Procedural do Mapa e Atmosfera
 Todas as geometrias são primitivas do Three.js (`BoxGeometry`, `PlaneGeometry`, `RingGeometry`, `CircleGeometry`, `OctahedronGeometry`, `CylinderGeometry`, `EdgesGeometry`, `BufferGeometry`):
@@ -52,7 +52,7 @@ Todas as geometrias são primitivas do Three.js (`BoxGeometry`, `PlaneGeometry`,
 - **Carros 3D Procedurais, Tráfego & Motoristas (`buildCarMesh` / `buildCars` / `buildTrafficCars` / `spawnFleeingDriver`):** 3 carrocerias distintas em `ExtrudeGeometry` com perfil lateral chanfrado (**`SPORT`** com aerofólio e difusor, **`SUV`** com quebra-mato e rack/giroflex, **`HATCH`** compacto urbano), rodas com aros/calotas neon, para-choques, retrovisores, grade iluminada, faróis chanfrados e vidros semitransparentes (`opacity: 0.45`). Além dos carros estacionados e veículos VIP, `trafficCars` adiciona **12 veículos em movimento contínuo** (mão dupla por Downtown, Ponte Golden Gate, Docas e Distrito Sul) com detecção frontal para frenagem e buzina (`AudioManager.playHorn()`), visíveis no Radar DedSec. Ao pressionar `F` perto de qualquer carro ocupado, o motorista é ejetado (`fleeingDrivers`), e na Visão NetHack (`V + E`) carros podem ser hackeados para acelerar/desviar.
 - **Pedestres Vivos & Profiler ctOS (`buildPedestrians` / `updatePedestrians` / `panicPedestrians`):** **20 pedestres estilizados** com anatomia arredondada (`CapsuleGeometry` + `SphereGeometry`) circulam pelas calçadas, praças e parques e fogem correndo ao ouvir tiros ou explosões. Na **Visão NetHack (`V`)**, olhar para um pedestre próximo exibe seu card flutuante estilo **Profiler Watch Dogs 2** (nome, profissão e ação `[E] +$75` para hackear a conta bancária uma vez).
 - **Horizonte de São Francisco (Skyline + Golden Gate):** Prédios distantes fora da área jogável com faixas de janelas emissivas sutis e uma estrutura estilizada da **Ponte Golden Gate** (`buildGoldenGateBridge`) ao fundo (`z = -52`), com duas torres, tabuleiro, cabos suspensos e iluminação laranja-neon (`fog: false`).
-- **Complexo Protegido:** Perímetro murado (`X: -16..16`, `Z: -26..6`) com abertura frontal fechada pelo `gateMesh` deslizante e painel eletrônico lateral (`gatePanelMesh`). Inclui pórtico luminoso e letreiros/faixas emissivas (`buildComplexNeonAccents`) na fachada e muros, contornos neon (`THREE.EdgesGeometry` + `THREE.LineSegments`) nos muros, caixas de cobertura e portão, 2 câmeras elevadas nos muros e o `serverMesh` no fundo (`z = -21.5`) com sistema de partículas flutuantes (`THREE.Points` em `buildServerParticles`).
+- **Complexo Protegido:** Perímetro murado ampliado (`X: -28..28`, `Z: -48..8`) com Ala Oeste, Ala Leste, abertura frontal fechada pelo `gateMesh` deslizante e painel eletrônico lateral (`gatePanelMesh`). Inclui pórtico luminoso e letreiros/faixas emissivas (`buildComplexNeonAccents`), contornos neon (`THREE.EdgesGeometry` + `THREE.LineSegments`), 3 câmeras elevadas por missão + 4 câmeras de rua (`STREET_CAM_01..04`) com laser vermelho de varredura, e `serverMesh` com sistema de partículas flutuantes (`THREE.Points` em `buildServerParticles`).
 
 ### 2.3 Sistema de Colisão, Água e Câmera (1ª / 3ª Pessoa)
 - **Colisão AABB x Círculo e Perímetro de Veículos (`checkCollision` / `checkCarCollision` / `isWaterArea`):** Cada obstáculo sólido (prédios, muros, quarteirões intermediários, barreiras e árvores instanciadas na área jogável) registra sua `THREE.Box3` no array `colliders`. Para veículos, `checkCarCollision()` testa 6 pontos rotacionados do perímetro (frente, traseira e laterais) contra `colliders` e contra `isWaterArea(x, z)`, impedindo carros e o jogador a pé de entrar na água (apenas barcos navegam na baía) ou atravessar paredes. Caso um carro caia na água por acidente, afunda/enguiça e ejeta o jogador na margem mais próxima.
@@ -67,9 +67,11 @@ Todas as geometrias são primitivas do Three.js (`BoxGeometry`, `PlaneGeometry`,
 O fluxo é controlado pelo objeto `gameState.mission` com base no enum `MISSION_STATE`:
 
 ```text
-IDLE ──(Iniciar Missão)──▶ INFILTRATE ──(Hack do Portão)──▶ STEAL_DATA ──(Download 100%)──▶ ESCAPE ──(Zona Verde)──▶ VICTORY
-                               │                              │                              │
-                               └──────────────────────────────┴────(Detecção == 100%)────────┴──────────────────▶ GAMEOVER
+FREE_ROAM ──(Contrato Infiltração)──▶ INFILTRATE ──(Hack Portão)──▶ STEAL_DATA ──(Download 100%)──▶ ESCAPE ──(Extração)──▶ VICTORY
+   │                                      │                             │                            │
+   ├──(Contrato VIP)──▶ STEAL_CAR ────────┼─────────────────────────────┴────(Entrega Garagem)───────┘
+   │                        │             │
+   └────────────────────────┴─────────────┴────(HP <= 0 ou Carro VIP Destruído)──────────────────────▶ GAMEOVER
 ```
 
 - **`INFILTRATE`:** Portão trancado. Objetivo aponta para o painel na entrada.

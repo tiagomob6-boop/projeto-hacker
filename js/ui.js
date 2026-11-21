@@ -602,7 +602,8 @@ export function openShopModal(storeType) {
 
 export function closeShopModal() {
   gameState.shopOpen = false;
-  gameState.shopCooldown = 3.5;
+  gameState.shopCooldown = 1.5;
+  gameState.shopMustExitRing = true;
   if (dom.shopModal) dom.shopModal.classList.add('hidden');
   dom.canvas.requestPointerLock();
 }
