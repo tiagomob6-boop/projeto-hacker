@@ -87,6 +87,10 @@
           <span>REDE:</span>
           <button id="btn-network-mode" class="mute-btn" type="button">[MODO: SOLO // CO-OP READY]</button>
         </div>
+        <div class="status-row">
+          <span>CLIMA:</span>
+          <button id="btn-rain" class="mute-btn" type="button">CHUVA: ON</button>
+        </div>
       </div>
     </div>
 
@@ -141,6 +145,7 @@
 
     <!-- Mira Central e Barra de Recarga -->
     <div id="crosshair"></div>
+    <div id="hitmarker" class="hidden">✕</div>
     <div id="weapon-cooldown-bar" class="hidden">
       <div id="weapon-cooldown-fill"></div>
     </div>
@@ -267,6 +272,20 @@
       <div class="shop-balance">SALDO DISPONÍVEL: <strong id="shop-money" class="neon-green">$500</strong></div>
       <div id="shop-items" class="shop-items"></div>
       <button id="btn-close-shop" type="button" class="cyber-btn danger-btn">SAIR DA LOJA [ESC]</button>
+    </div>
+  </div>
+
+  <!-- Overlay de Mapa Tático Completo (TAB) -->
+  <div id="tactical-map-modal" class="overlay-screen hidden">
+    <div class="terminal-card tactical-map-card">
+      <div class="brand-tag">ctOS // MAPA TÁTICO DE SÃO FRANCISCO</div>
+      <h2 class="status-title neon-cyan">NAVEGAÇÃO GPS DEDSEC</h2>
+      <canvas id="tactical-map-canvas" width="560" height="380"></canvas>
+      <p class="intro-desc">Clique em qualquer ponto do mapa para definir um destino GPS personalizado. Pressione <kbd>TAB</kbd> ou <kbd>ESC</kbd> para fechar.</p>
+      <div class="diff-buttons">
+        <button id="btn-clear-gps" type="button" class="cyber-btn">LIMPAR GPS</button>
+        <button id="btn-close-map" type="button" class="cyber-btn danger-btn">FECHAR MAPA [TAB]</button>
+      </div>
     </div>
   </div>
 

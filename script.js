@@ -20,6 +20,10 @@ import {
   closeMissionModal,
   acceptPendingMission,
   closeShopModal,
+  toggleTacticalMap,
+  handleTacticalMapClick,
+  renderTacticalMap,
+  toggleRain,
   updateMoneyHUD,
   updateHpHUD,
   updateRadar
@@ -95,6 +99,17 @@ function setupInputs() {
 
     if (gameState.shopOpen) {
       if (code === 'Escape') closeShopModal();
+      return;
+    }
+
+    if (code === 'Tab') {
+      e.preventDefault();
+      toggleTacticalMap();
+      return;
+    }
+
+    if (gameState.tacticalMapOpen) {
+      if (code === 'Escape') toggleTacticalMap(false);
       return;
     }
 
@@ -212,6 +227,21 @@ function setupInputs() {
   }
   if (dom.btnNetworkMode) {
     dom.btnNetworkMode.addEventListener('click', () => networkManager.toggleMode());
+  }
+  if (dom.btnRain) {
+    dom.btnRain.addEventListener('click', () => toggleRain());
+  }
+  if (dom.btnCloseMap) {
+    dom.btnCloseMap.addEventListener('click', () => toggleTacticalMap(false));
+  }
+  if (dom.btnClearGps) {
+    dom.btnClearGps.addEventListener('click', () => {
+      gameState.gpsWaypoint = null;
+      renderTacticalMap();
+    });
+  }
+  if (dom.tacticalMapCanvas) {
+    dom.tacticalMapCanvas.addEventListener('click', handleTacticalMapClick);
   }
   dom.mapButtons.forEach((btn) => {
     btn.addEventListener('click', () => {

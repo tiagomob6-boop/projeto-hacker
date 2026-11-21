@@ -229,6 +229,26 @@ export const TextureGenerator = {
       this.cache.sky = new THREE.CanvasTexture(c);
     }
     return this.cache.sky;
+  },
+
+  getNeonSignTexture(text, colorHex = '#00f0ff') {
+    const key = `sign_${text}_${colorHex}`;
+    if (!this.cache[key]) {
+      const c = this._makeCanvas(512, 128);
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#070e1d';
+      ctx.fillRect(0, 0, 512, 128);
+      ctx.strokeStyle = colorHex;
+      ctx.lineWidth = 6;
+      ctx.strokeRect(8, 8, 496, 112);
+      ctx.fillStyle = colorHex;
+      ctx.font = 'bold 44px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, 256, 66);
+      this.cache[key] = new THREE.CanvasTexture(c);
+    }
+    return this.cache[key];
   }
 };
 
@@ -306,6 +326,27 @@ export function buildMap() {
   refs.showroomTurntable = null;
   refs.activeHeadlight = new THREE.PointLight(0x00f0ff, 0, 18);
   refs.worldGroup.add(refs.activeHeadlight);
+
+  // Chuva cyberpunk leve (360 partículas acompanhando a câmera sem pesar no FPS)
+  const rainCount = 360;
+  const rainPos = new Float32Array(rainCount * 3);
+  for (let i = 0; i < rainCount; i++) {
+    rainPos[i * 3] = (Math.random() - 0.5) * 56;
+    rainPos[i * 3 + 1] = Math.random() * 26;
+    rainPos[i * 3 + 2] = (Math.random() - 0.5) * 56;
+  }
+  const rainGeo = new THREE.BufferGeometry();
+  rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+  const rainMat = new THREE.PointsMaterial({
+    color: 0x38bdf8,
+    size: 0.16,
+    transparent: true,
+    opacity: 0.48,
+    depthWrite: false
+  });
+  refs.rainPoints = new THREE.Points(rainGeo, rainMat);
+  refs.rainPoints.visible = gameState.rainEnabled;
+  refs.worldGroup.add(refs.rainPoints);
 
   // Água da Baía de São Francisco cobrindo todo o mundo aberto 50x (WORLD_BOUNDS: -30000..30000)
   refs.waterTexture = TextureGenerator.getWaterTexture();
@@ -438,7 +479,13 @@ export function buildSouthDistrictAndBridge() {
   [[-132, 310], [-108, 310], [-132, 330], [-108, 330]].forEach(([px, pz]) => {
     addStaticBox(0.8, 4.8, 0.8, px, 2.4, pz, 0x24324c, { occlude: false });
   });
-  addStaticBox(14, 0.4, 0.3, -120, 4.2, 309, 0x00ff88, { collide: false, occlude: false, emissive: 0x00ff88, emissiveIntensity: 1.4 });
+  // Letreiro 3D legível na Garagem Clandestina DedSec
+  const garSign = new THREE.Mesh(
+    new THREE.PlaneGeometry(10, 2.2),
+    new THREE.MeshBasicMaterial({ map: TextureGenerator.getNeonSignTexture('GARAGEM DEDSEC', '#00ff88'), side: THREE.DoubleSide })
+  );
+  garSign.position.set(-120, 4.1, 308.7);
+  refs.worldGroup.add(garSign);
 
   // Quarteirões variados de Downtown & Financial e Residencial Sul + Galpões Industriais Leste
   [
@@ -981,14 +1028,16 @@ export function buildStores() {
     addStaticBox(w, h, 0.55, st.x, h / 2, backZ, 0x182136, { edgesColor: st.color, edgesOpacity: 0.55 });
     addStaticBox(segW, h, 0.55, st.x - (doorW / 2 + segW / 2), h / 2, frontZ, 0x182136, { edgesColor: st.color, edgesOpacity: 0.65 });
     addStaticBox(segW, h, 0.55, st.x + (doorW / 2 + segW / 2), h / 2, frontZ, 0x182136, { edgesColor: st.color, edgesOpacity: 0.65 });
-    // Teto e marquise frontal com letreiro neon
+    // Teto e marquise frontal com letreiro 3D legível (CanvasTexture)
     addStaticBox(w + 0.6, 0.45, d + 0.6, st.x, h + 0.22, st.z, 0x101726, { collide: false, occlude: false, edgesColor: st.color, edgesOpacity: 0.7 });
-    addStaticBox(6.8, 0.7, 0.25, st.x, h - 0.35, frontZ - 0.35, st.color, {
-      collide: false,
-      occlude: false,
-      emissive: st.color,
-      emissiveIntensity: 1.25
-    });
+    const hexStr = `#${st.color.toString(16).padStart(6, '0')}`;
+    const signLabel = st.type === 'ARMORY' ? 'HACKSHOP' : st.name;
+    const signPlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(7.2, 1.65),
+      new THREE.MeshBasicMaterial({ map: TextureGenerator.getNeonSignTexture(signLabel, hexStr), side: THREE.DoubleSide })
+    );
+    signPlane.position.set(st.x, h - 0.35, frontZ - 0.38);
+    refs.worldGroup.add(signPlane);
 
     // Decoração interna específica de cada loja
     if (st.type === 'STYLE') {
@@ -1306,29 +1355,33 @@ export function buildEnterableBuilding(x, z, w, h, d, opts = {}) {
   addStaticBox(w, floorH, wallT, x, floorH / 2, z + d / 2, 0x192338, { edgesColor: accent, edgesOpacity: 0.45 });
 
   const segD = (d - doorW) / 2;
+  const bHexStr = `#${accent.toString(16).padStart(6, '0')}`;
+  const bTitle = opts.title || 'EDIFÍCIO ctOS';
   if (doorSide === 'EAST') {
     // Parede oeste fechada, parede leste com porta aberta
     addStaticBox(wallT, floorH, d, x - w / 2, floorH / 2, z, 0x192338, { edgesColor: accent, edgesOpacity: 0.45 });
     addStaticBox(wallT, floorH, segD, x + w / 2, floorH / 2, z - (doorW / 2 + segD / 2), 0x192338, { edgesColor: accent, edgesOpacity: 0.55 });
     addStaticBox(wallT, floorH, segD, x + w / 2, floorH / 2, z + (doorW / 2 + segD / 2), 0x192338, { edgesColor: accent, edgesOpacity: 0.55 });
-    // Letreiro neon acima da porta
-    addStaticBox(0.24, 0.65, 5.4, x + w / 2 + 0.35, floorH - 0.35, z, accent, {
-      collide: false,
-      occlude: false,
-      emissive: accent,
-      emissiveIntensity: 1.25
-    });
+    // Letreiro 3D legível acima da porta
+    const bSign = new THREE.Mesh(
+      new THREE.PlaneGeometry(6.2, 1.45),
+      new THREE.MeshBasicMaterial({ map: TextureGenerator.getNeonSignTexture(bTitle, bHexStr), side: THREE.DoubleSide })
+    );
+    bSign.rotation.y = Math.PI / 2;
+    bSign.position.set(x + w / 2 + 0.38, floorH - 0.35, z);
+    refs.worldGroup.add(bSign);
   } else {
     // Parede leste fechada, parede oeste com porta aberta
     addStaticBox(wallT, floorH, d, x + w / 2, floorH / 2, z, 0x192338, { edgesColor: accent, edgesOpacity: 0.45 });
     addStaticBox(wallT, floorH, segD, x - w / 2, floorH / 2, z - (doorW / 2 + segD / 2), 0x192338, { edgesColor: accent, edgesOpacity: 0.55 });
     addStaticBox(wallT, floorH, segD, x - w / 2, floorH / 2, z + (doorW / 2 + segD / 2), 0x192338, { edgesColor: accent, edgesOpacity: 0.55 });
-    addStaticBox(0.24, 0.65, 5.4, x - w / 2 - 0.35, floorH - 0.35, z, accent, {
-      collide: false,
-      occlude: false,
-      emissive: accent,
-      emissiveIntensity: 1.25
-    });
+    const bSign = new THREE.Mesh(
+      new THREE.PlaneGeometry(6.2, 1.45),
+      new THREE.MeshBasicMaterial({ map: TextureGenerator.getNeonSignTexture(bTitle, bHexStr), side: THREE.DoubleSide })
+    );
+    bSign.rotation.y = -Math.PI / 2;
+    bSign.position.set(x - w / 2 - 0.38, floorH - 0.35, z);
+    refs.worldGroup.add(bSign);
   }
 
   // Laje do teto do térreo + torre superior estilizada (acima de y = floorH, sem bloquear interior)
@@ -3148,6 +3201,27 @@ export function spawnPoliceReinforcement() {
 export function updateVisualEffects(dt, nowSec) {
   if (refs.showroomTurntable) {
     refs.showroomTurntable.rotation.y += dt * 0.65;
+  }
+  if (refs.rainPoints && gameState.rainEnabled && refs.camera) {
+    refs.rainPoints.visible = true;
+    refs.rainPoints.position.set(refs.camera.position.x, 0, refs.camera.position.z);
+    const attr = refs.rainPoints.geometry.getAttribute('position');
+    const count = attr.count || 360;
+    for (let i = 0; i < count; i++) {
+      let ry = attr.getY(i) - dt * 22;
+      if (ry < 0) ry = 26;
+      attr.setY(i, ry);
+    }
+    attr.needsUpdate = true;
+  }
+  if (gameState.hitmarkerTimer > 0) {
+    gameState.hitmarkerTimer = Math.max(0, gameState.hitmarkerTimer - dt);
+    if (gameState.hitmarkerTimer === 0 && dom.hitmarker) {
+      dom.hitmarker.classList.add('hidden');
+    }
+  }
+  if (gameState.recoilTimer > 0) {
+    gameState.recoilTimer = Math.max(0, gameState.recoilTimer - dt);
   }
   if (refs.skyDome && refs.camera) {
     refs.skyDome.position.copy(refs.camera.position);

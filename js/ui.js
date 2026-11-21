@@ -630,6 +630,188 @@ export function closeShopModal() {
   dom.canvas.requestPointerLock();
 }
 
+export function triggerHitmarker(isLethal = false) {
+  gameState.hitmarkerTimer = 0.16;
+  if (!dom.hitmarker) return;
+  dom.hitmarker.classList.remove('hidden');
+  dom.hitmarker.classList.toggle('lethal', !!isLethal);
+}
+
+export function toggleRain() {
+  gameState.rainEnabled = !gameState.rainEnabled;
+  if (refs.rainPoints) refs.rainPoints.visible = gameState.rainEnabled;
+  if (dom.btnRain) dom.btnRain.textContent = gameState.rainEnabled ? 'CHUVA: ON' : 'CHUVA: OFF';
+}
+
+export function getActiveGpsTarget() {
+  if (gameState.gpsWaypoint) return gameState.gpsWaypoint;
+  if (gameState.mission === MISSION_STATE.STEAL_CAR) return { x: -120, z: 320 };
+  if (gameState.mission === MISSION_STATE.ESCAPE && refs.extractionZoneGroup) {
+    return { x: refs.extractionZoneGroup.position.x, z: refs.extractionZoneGroup.position.z };
+  }
+  if (gameState.mission === MISSION_STATE.STEAL_DATA && refs.serverMesh) {
+    return { x: refs.serverMesh.position.x, z: refs.serverMesh.position.z };
+  }
+  if (gameState.mission === MISSION_STATE.INFILTRATE) {
+    const lockedGate = gates.find((g) => !g.unlocked);
+    if (lockedGate) return { x: lockedGate.panelMesh.position.x, z: lockedGate.panelMesh.position.z };
+  }
+  if (missionMarkers.length > 0 && refs.playerGroup) {
+    let best = missionMarkers[0].pos;
+    let bestD = Infinity;
+    for (const m of missionMarkers) {
+      const d = refs.playerGroup.position.distanceTo(m.pos);
+      if (d < bestD) {
+        bestD = d;
+        best = m.pos;
+      }
+    }
+    return { x: best.x, z: best.z };
+  }
+  return null;
+}
+
+const MAP_BOUNDS = { minX: -280, maxX: 660, minZ: -160, maxZ: 520 };
+
+export function renderTacticalMap() {
+  if (!dom.tacticalMapCanvas) return;
+  const ctx = dom.tacticalMapCanvas.getContext('2d');
+  const w = dom.tacticalMapCanvas.width;
+  const h = dom.tacticalMapCanvas.height;
+  const toCanvas = (wx, wz) => ({
+    x: ((wx - MAP_BOUNDS.minX) / (MAP_BOUNDS.maxX - MAP_BOUNDS.minX)) * w,
+    y: ((wz - MAP_BOUNDS.minZ) / (MAP_BOUNDS.maxZ - MAP_BOUNDS.minZ)) * h
+  });
+
+  // Água da Baía SF
+  ctx.fillStyle = '#07172b';
+  ctx.fillRect(0, 0, w, h);
+
+  // 4 Distritos terrestres
+  const drawRectWorld = (x1, z1, x2, z2, fill, stroke, label) => {
+    const p1 = toCanvas(x1, z1);
+    const p2 = toCanvas(x2, z2);
+    ctx.fillStyle = fill;
+    ctx.fillRect(p1.x, p1.y, p2.x - p1.x, p2.y - p1.y);
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(p1.x, p1.y, p2.x - p1.x, p2.y - p1.y);
+    if (label) {
+      ctx.fillStyle = 'rgba(220, 240, 255, 0.72)';
+      ctx.font = 'bold 11px monospace';
+      ctx.fillText(label, p1.x + 8, p1.y + 16);
+    }
+  };
+
+  drawRectWorld(-260, -140, 80, 120, '#101a2e', 'rgba(0,240,255,0.45)', 'DOWNTOWN & FINANCIAL');
+  drawRectWorld(-260, 120, 80, 500, '#121d2d', 'rgba(0,255,136,0.4)', 'DISTRITO SUL & COLINAS');
+  drawRectWorld(400, -140, 640, 360, '#161b2a', 'rgba(255,170,0,0.45)', 'DOCAS & PORTUÁRIO');
+
+  // Ponte Golden Gate e Ponte Sul
+  [
+    { z: 35, color: '#ff5a1f', label: 'GOLDEN GATE' },
+    { z: 320, color: '#00f0ff', label: 'PONTE SUL' }
+  ].forEach((b) => {
+    const s = toCanvas(80, b.z);
+    const e = toCanvas(400, b.z);
+    ctx.strokeStyle = b.color;
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(s.x, s.y);
+    ctx.lineTo(e.x, e.y);
+    ctx.stroke();
+    ctx.fillStyle = b.color;
+    ctx.font = 'bold 10px monospace';
+    ctx.fillText(b.label, (s.x + e.x) / 2 - 36, s.y - 7);
+  });
+
+  // Garagem DedSec
+  const gar = toCanvas(-120, 320);
+  ctx.fillStyle = '#00ff88';
+  ctx.fillRect(gar.x - 6, gar.y - 6, 12, 12);
+  ctx.font = '10px monospace';
+  ctx.fillText('GARAGEM DEDSEC', gar.x + 10, gar.y + 4);
+
+  // Lojas (Style, Motors, Armory)
+  stores.forEach((st) => {
+    const sp = toCanvas(st.pos.x, st.pos.z);
+    ctx.fillStyle = st.type === 'STYLE' ? '#d946ef' : st.type === 'MOTORS' ? '#00f0ff' : '#ffaa00';
+    ctx.beginPath();
+    ctx.arc(sp.x, sp.y, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillText(st.name, sp.x - 24, sp.y + 16);
+  });
+
+  // Contratos disponíveis
+  missionMarkers.forEach((m) => {
+    const mp = toCanvas(m.pos.x, m.pos.z);
+    ctx.strokeStyle = m.key.startsWith('VIP_CAR') ? '#d946ef' : m.key === 'COMPLEXO_CTOS' ? '#00f0ff' : '#ffaa00';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(mp.x, mp.y, 7, 0, Math.PI * 2);
+    ctx.stroke();
+  });
+
+  // GPS Waypoint ativo + rota traçada
+  const pPos = refs.playerGroup?.position;
+  const target = getActiveGpsTarget();
+  if (pPos && target) {
+    const pp = toCanvas(pPos.x, pPos.z);
+    const tp = toCanvas(target.x, target.z);
+    ctx.save();
+    ctx.setLineDash([6, 4]);
+    ctx.strokeStyle = '#00ff88';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(pp.x, pp.y);
+    ctx.lineTo(tp.x, tp.y);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.strokeStyle = '#00ff88';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(tp.x, tp.y, 8, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Posição do jogador
+  if (pPos) {
+    const pp = toCanvas(pPos.x, pPos.z);
+    ctx.fillStyle = '#00f0ff';
+    ctx.beginPath();
+    ctx.arc(pp.x, pp.y, 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+export function toggleTacticalMap(forceState) {
+  if (!dom.tacticalMapModal) return;
+  gameState.tacticalMapOpen = forceState !== undefined ? forceState : !gameState.tacticalMapOpen;
+  if (gameState.tacticalMapOpen) {
+    renderTacticalMap();
+    dom.tacticalMapModal.classList.remove('hidden');
+    if (document.pointerLockElement === dom.canvas) {
+      document.exitPointerLock();
+    }
+  } else {
+    dom.tacticalMapModal.classList.add('hidden');
+    dom.canvas.requestPointerLock();
+  }
+}
+
+export function handleTacticalMapClick(e) {
+  if (!dom.tacticalMapCanvas) return;
+  const rect = dom.tacticalMapCanvas.getBoundingClientRect();
+  const rx = (e.clientX - rect.left) / rect.width;
+  const ry = (e.clientY - rect.top) / rect.height;
+  const wx = MAP_BOUNDS.minX + rx * (MAP_BOUNDS.maxX - MAP_BOUNDS.minX);
+  const wz = MAP_BOUNDS.minZ + ry * (MAP_BOUNDS.maxZ - MAP_BOUNDS.minZ);
+  gameState.gpsWaypoint = { x: wx, z: wz };
+  AudioManager.playKeyBeep();
+  renderTacticalMap();
+}
+
 export function triggerGameOver(
   title = 'AGENTE ABATIDO',
   desc = 'Os guardas do complexo neutralizaram sua infiltração.'
@@ -922,6 +1104,25 @@ export function updateRadar() {
     ctx.arc(gp.x, gp.y, 3.8, 0, Math.PI * 2);
     ctx.fill();
   });
+
+  // Linha guia GPS tracejada no Radar DedSec até o objetivo/waypoint ativo
+  const gpsTarget = getActiveGpsTarget();
+  if (gpsTarget) {
+    const gp = toRadar(gpsTarget.x, gpsTarget.z);
+    ctx.save();
+    ctx.setLineDash([5, 4]);
+    ctx.strokeStyle = gameState.gpsWaypoint ? '#00ff88' : '#00f0ff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(gp.x, gp.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.arc(gp.x, gp.y, 4.5, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
 
   // Seta do jogador no centro
   ctx.rotate(-refs.playerGroup.rotation.y);

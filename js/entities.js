@@ -1711,10 +1711,11 @@ export function updatePlayer(dt) {
   p.shoulderL.rotation.x = -legSwingL * 0.85 - 0.12 * p.crouchBlend;
   p.elbowL.rotation.x = -0.28 - (gameState.isSprinting ? 0.55 * p.moveBlend : 0);
 
-  // Braço direito (postura tática baixa ao caminhar -> ergue reto na mira ao disparar)
+  // Braço direito (postura tática baixa ao caminhar -> ergue reto na mira ao disparar + leve recuo)
   const walkShoulderR = -legSwingR * 0.75 - 0.18;
   const walkElbowR = -0.45 - (gameState.isSprinting ? 0.45 * p.moveBlend : 0);
-  const aimShoulderR = -1.38;
+  const recoilKick = (gameState.recoilTimer / 0.12) * 0.26;
+  const aimShoulderR = -1.38 - recoilKick;
   const aimElbowR = -0.16;
   p.shoulderR.rotation.x = THREE.MathUtils.lerp(walkShoulderR, aimShoulderR, p.aimBlend);
   p.elbowR.rotation.x = THREE.MathUtils.lerp(walkElbowR, aimElbowR, p.aimBlend);
@@ -1835,7 +1836,8 @@ export function updateCamera() {
 
     refs.playerGroup.rotation.y = yaw + Math.PI;
     if (refs.playerParts?.shoulderR && refs.playerParts?.elbowR) {
-      refs.playerParts.shoulderR.rotation.x = -1.32 - pitch * 0.65;
+      const recoilKick = (gameState.recoilTimer / 0.12) * 0.24;
+      refs.playerParts.shoulderR.rotation.x = -1.32 - pitch * 0.65 - recoilKick;
       refs.playerParts.elbowR.rotation.x = -0.18;
     }
     return;

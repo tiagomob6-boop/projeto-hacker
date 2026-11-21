@@ -20,7 +20,7 @@ import {
   impactFlashes
 } from './state.js';
 import { AudioManager } from './audio.js';
-import { updateWeaponHUD, updateHpHUD, updateVehicleHpHUD, updateWantedHUD, triggerGameOver } from './ui.js';
+import { updateWeaponHUD, updateHpHUD, updateVehicleHpHUD, updateWantedHUD, triggerHitmarker, triggerGameOver } from './ui.js';
 
 // Geometrias e materiais compartilhados para evitar memory leaks em WebGL
 const sharedPlayerBoltGeo = new THREE.BoxGeometry(0.1, 0.1, 0.55);
@@ -53,6 +53,7 @@ export function selectWeapon(weaponType) {
   if (refs.playerParts.shotgunMesh) refs.playerParts.shotgunMesh.visible = weaponType === WEAPON_TYPE.SHOTGUN;
   updateWeaponHUD();
   if (refs.playerParts) refs.playerParts.aimTimer = 0.45;
+  gameState.recoilTimer = 0.12;
 }
 
 export function damagePlayer(amount) {
@@ -197,6 +198,7 @@ export function fireEquippedWeapon() {
   gameState.weaponCooldown = gameState.hasRapidReload ? cfg.cooldown * 0.55 : cfg.cooldown;
   updateWeaponHUD();
   if (refs.playerParts) refs.playerParts.aimTimer = 0.45;
+  gameState.recoilTimer = 0.12;
 
   if (gameState.equippedWeapon === WEAPON_TYPE.TASER) AudioManager.playTaserShot();
   else if (gameState.equippedWeapon === WEAPON_TYPE.PISTOL) AudioManager.playSilencedShot();
@@ -258,6 +260,7 @@ export function fireEmpPulse() {
   AudioManager.playEmpPulse();
   updateWeaponHUD();
   if (refs.playerParts) refs.playerParts.aimTimer = 0.45;
+  gameState.recoilTimer = 0.12;
 
   const pPos = refs.playerGroup.position.clone();
   const ringMat = new THREE.MeshBasicMaterial({
@@ -338,6 +341,7 @@ export function updateProjectiles(dt) {
 
     if (hitGuard) {
       spawnTaserFlash(p.pos, p.color);
+      triggerHitmarker(!p.isTaser);
       if (p.isTaser) {
         stunGuard(hitGuard, 10.0);
         AudioManager.playElectricZap();
@@ -361,6 +365,7 @@ export function updateProjectiles(dt) {
     }
     if (hitPed) {
       spawnTaserFlash(p.pos, p.color);
+      triggerHitmarker(!p.isTaser);
       hitPed.stunnedTimer = 12.0;
       hitPed.callingPolice = false;
       if (hitPed.phoneIcon) hitPed.phoneIcon.visible = false;
