@@ -33,6 +33,8 @@ import {
   stores,
   lightPoles,
   supplyBoxes,
+  remotePlayers,
+  playersMap,
   colliders,
   getSurfaceHeight,
   createHackableDevice,
@@ -62,9 +64,34 @@ import {
   reportCrimeToCivilians
 } from './combat.js';
 
-export function buildPlayer() {
-  refs.playerGroup = new THREE.Group();
-  refs.playerGroup.position.set(0, 0, 52);
+function createAgentNameTag(labelText) {
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 64;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = 'rgba(6, 12, 24, 0.85)';
+  ctx.fillRect(4, 8, 248, 48);
+  ctx.strokeStyle = '#00f0ff';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(4, 8, 248, 48);
+  ctx.fillStyle = '#00f0ff';
+  ctx.font = 'bold 24px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(labelText, 128, 32);
+
+  const tex = new THREE.CanvasTexture(c);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(1.6, 0.4, 1);
+  sprite.position.set(0, 2.25, 0);
+  return sprite;
+}
+
+export function createAgentMesh(config = {}) {
+  const agentGroup = new THREE.Group();
+  const pos = config.pos || [0, 0, 52];
+  agentGroup.position.set(pos[0], pos[1], pos[2]);
 
   const jacketMat = new THREE.MeshStandardMaterial({ color: 0x161c2e, roughness: 0.62, metalness: 0.18 });
   const innerMat = new THREE.MeshStandardMaterial({ color: 0x0c111d, roughness: 0.78 });
@@ -328,7 +355,7 @@ export function buildPlayer() {
   shotgunMesh.visible = false;
   weaponMount.add(shotgunMesh);
 
-  refs.playerParts = {
+  const parts = {
     upperBody,
     headGroup,
     torsoMeshes: [
@@ -371,9 +398,51 @@ export function buildPlayer() {
     aimTimer: 0
   };
 
-  refs.playerGroup.add(legLeft.hip, legRight.hip, upperBody);
+  agentGroup.add(legLeft.hip, legRight.hip, upperBody);
+  if (config.label) {
+    agentGroup.add(createAgentNameTag(config.label));
+  }
+  return { group: agentGroup, parts };
+}
+
+export function buildPlayer() {
+  const { group, parts } = createAgentMesh({
+    isLocal: true,
+    pos: [0, 0, 52],
+    skinId: gameState.equippedSkin || 'classic'
+  });
+  refs.playerGroup = group;
+  refs.playerParts = parts;
+  playersMap.set(gameState.localPlayerId || 'local', { group, parts, isLocal: true });
   refs.scene.add(refs.playerGroup);
   applyPlayerSkin(gameState.equippedSkin || 'classic');
+}
+
+export function upsertRemotePlayer(packet) {
+  if (!packet || !packet.id || packet.id === gameState.localPlayerId) return;
+  let entry = remotePlayers.get(packet.id);
+  if (!entry) {
+    const { group, parts } = createAgentMesh({
+      isLocal: false,
+      label: packet.name || `AGENTE_${String(packet.id).slice(0, 6).toUpperCase()}`,
+      pos: [packet.x || 0, packet.y || 0, packet.z || 0]
+    });
+    refs.scene.add(group);
+    entry = { group, parts, isLocal: false };
+    remotePlayers.set(packet.id, entry);
+    playersMap.set(packet.id, entry);
+  }
+  entry.group.position.set(packet.x || 0, packet.y || 0, packet.z || 0);
+  entry.group.rotation.y = packet.rotY || 0;
+  entry.group.visible = packet.inCar === null || packet.inCar === undefined;
+}
+
+export function removeRemotePlayer(id) {
+  const entry = remotePlayers.get(id);
+  if (!entry) return;
+  refs.scene.remove(entry.group);
+  remotePlayers.delete(id);
+  playersMap.delete(id);
 }
 
 export function applyPlayerSkin(skinId) {

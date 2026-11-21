@@ -270,6 +270,7 @@ export const dom = {
   hackFeedback: document.getElementById('hack-feedback'),
   terminalLogAction: document.getElementById('terminal-log-action'),
   btnMute: document.getElementById('btn-mute'),
+  btnNetworkMode: document.getElementById('btn-network-mode'),
   radarCanvas: document.getElementById('radar-canvas'),
   nethackLabels: document.getElementById('nethack-labels'),
   finalRank: document.getElementById('final-rank'),
@@ -353,6 +354,8 @@ export const stores = [];          // { type: 'STYLE'|'ARMORY'|'MOTORS', name, p
 export const lightPoles = [];      // Postes de iluminação urbana com colisão e queda física
 export const supplyBoxes = [];     // Caixas de suprimentos (+$100 ou +25 HP) nos interiores acessíveis
 export const policeCars = [];      // Viaturas de reforço policial ctOS spawnadas dinamicamente
+export const remotePlayers = new Map(); // Jogadores remotos (id -> { group, parts, targetPos, targetYaw })
+export const playersMap = new Map();    // Todos os agentes ativos ('local' + remotos)
 export const missionServers = {};  // { COMPLEXO_CTOS: { mesh, core, particles, particleData }, DOCAS_BAIA_SF: ... }
 export const missionExtractions = {}; // { COMPLEXO_CTOS: { group, ring, beam }, DOCAS_BAIA_SF: ... }
 
@@ -409,6 +412,8 @@ export const gameState = {
   isSprinting: false,
   isCrouching: false,
   firstPerson: false,
+  networkMode: 'OFFLINE_SOLO',
+  localPlayerId: 'local',
   cameraYaw: 0,
   cameraPitch: 0.34,
   keys: {}

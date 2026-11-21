@@ -15,7 +15,8 @@ Este documento descreve a arquitetura do protótipo **Projeto Hacker**, constru�
   - [js/ui.js](file:///c:/Users/tiago/programação/SENAC/atividade-IA/projeto-hacker/js/ui.js): Atualização do HUD (`updateHpHUD`, `updateMoneyHUD`, `updateWeaponHUD`), terminais de hack (`openTerminal`, `completeTerminalHack`), etiquetas 3D NetHack (`updateNetHackLabels`), modais de missão, telas finais e minimapa (`updateRadar`).
   - [js/combat.js](file:///c:/Users/tiago/programação/SENAC/atividade-IA/projeto-hacker/js/combat.js): Arsenal de armas (`selectWeapon`, `fireEquippedWeapon`, `fireEmpPulse`), projéteis (`updateProjectiles`, `updateGuardProjectiles`), dano (`damagePlayer`, `damageGuard`, `stunGuard`) e alertas da base (`triggerBaseAlert`).
   - [js/entities.js](file:///c:/Users/tiago/programação/SENAC/atividade-IA/projeto-hacker/js/entities.js): Construção e atualização do jogador (`buildPlayer`, `updatePlayer`), veículos e barcos (`updateCars`, `toggleDriveDedsecCar`), guardas (`buildGuards`, `updateGuards`), câmeras e interações.
-  - [js/world.js](file:///c:/Users/tiago/programação/SENAC/atividade-IA/projeto-hacker/js/world.js): `TextureGenerator` (`CanvasTexture`), inicialização da cena (`initThree`), iluminação, `buildMap`, Centro Urbano, `buildDetailedBuilding`, Ponte Golden Gate atravessável, Docas, barcos, carros e ciclo de missão (`resetWorldState`, `startContract`, `returnToFreeRoam`).
+  - [js/world.js](file:///c:/Users/tiago/programação/SENAC/atividade-IA/projeto-hacker/js/world.js): `TextureGenerator` (`CanvasTexture`), inicialização da cena (`initThree`), iluminação, `buildMap`, Centro Urbano, `buildDetailedBuilding`, `buildEnterableBuilding`, Ponte Golden Gate atravessável, Docas, barcos, carros, lojas, reforços policiais e ciclo de missão (`resetWorldState`, `startContract`, `returnToFreeRoam`).
+  - [js/network.js](file:///c:/Users/tiago/programação/SENAC/atividade-IA/projeto-hacker/js/network.js): Classe abstrata `NetworkManager` (modo padrão `OFFLINE_SOLO`, pronta para plugar **PeerJS / WebRTC P2P**), eventos limpos (`onPlayerMove`, `onPlayerShoot`, `onHackTriggered`, `onMissionSync`) e serialização leve `getLocalSyncPacket()`.
 
 ---
 
@@ -121,3 +122,20 @@ Todo o áudio do jogo é sintetizado em tempo real pelo módulo `AudioManager` e
 - **Efeitos Sonoros:** Bipe digital ao digitar no terminal (`playKeyBeep`), confirmação/erro (`playTerminalSuccess` / `playTerminalError`), pulso grave na Visão NetHack (`playNetHackPulse`), ruído mecânico filtrado ao abrir o portão (`playGateMechanical`), estalo elétrico em caixas de distração e sobrecarga de câmeras (`playElectricZap`), bips progressivos conforme `detectionLevel` (`updateAlertTick`), sirene no Game Over (`playGameOverSiren`) e acorde na Vitória (`playVictoryChime`).
 - **Trilha Synthwave Dinâmica:** Loop de baixo sintetizado (`sawtooth` + `BiquadFilterNode` passa-baixa) que toca em `96 BPM` durante `INFILTRATE` / `STEAL_DATA` e acelera automaticamente para `138 BPM` ao entrar no estado `ESCAPE`.
 - **Controle de Mudo:** Alternável a qualquer momento pela tecla `M` ou pelo botão `#btn-mute` no HUD (`AudioManager.toggleMute()`).
+
+---
+
+## 6. Arquitetura & Roadmap Multiplayer Cooperativo (P2P / PeerJS)
+
+A base do projeto já está desacoplada para suportar um modo **Multiplayer Cooperativo (2 jogadores)** sem alterar a física (`checkCollision` / `checkCarCollision`) nem o renderizador Three.js:
+
+- **Dicionário de Agentes (`playersMap` & `remotePlayers` em `js/state.js`):**
+  - `createAgentMesh(config)` em [js/entities.js](file:///c:/Users/tiago/programação/SENAC/atividade-IA/projeto-hacker/js/entities.js) instancia tanto o jogador local (`playersMap.get('local')`) quanto agentes remotos (`remotePlayers` via `upsertRemotePlayer(packet)` / `removeRemotePlayer(id)`) com etiqueta de nome flutuante (`THREE.Sprite` + `CanvasTexture`) acima da cabeça.
+- **Módulo de Rede Abstrato (`NetworkManager` em `js/network.js`):**
+  - Opera em modo `OFFLINE_SOLO` por padrão (zero overhead no Singleplayer), com botão de alternância no HUD (`[MODO: SOLO // CO-OP READY]`).
+  - **Eventos Limpos:** `onPlayerMove`, `onPlayerShoot`, `onHackTriggered`, `onMissionSync`.
+  - **Pacote de Sincronização Leve (`getLocalSyncPacket()` a `20 Hz`):** `{ id, x, y, z, rotY, animState, weapon, inCar }`.
+- **Sincronização P2P Futura com PeerJS (WebRTC):**
+  1. **Host (Agente 1):** Cria uma sala PeerJS (ID curto compartilhável) e atua como autoridade para estado de guardas, tráfego, portões e objetivos (`onMissionSync`).
+  2. **Cliente (Agente 2):** Conecta via `networkManager.connectPeer(dataConnection, peerId)` enviando `onPlayerMove`, `onPlayerShoot` e `onHackTriggered` a `20 Hz` via `RTCDataChannel` P2P gratuito (sem servidor backend dedicado).
+  3. **Missões Cooperativas:** Um agente pode controlar câmeras (`C`) e distrair guardas com caixas elétricas (`V + E`) enquanto o parceiro infiltra o servidor central ou dirige o veículo de fuga/entrega VIP.

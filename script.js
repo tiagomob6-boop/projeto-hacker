@@ -10,6 +10,7 @@ import {
   formatTime
 } from './js/state.js';
 import { AudioManager } from './js/audio.js';
+import { networkManager } from './js/network.js';
 import {
   toggleNetHack,
   closeGateTerminal,
@@ -38,6 +39,7 @@ import {
   toggleDriveDedsecCar,
   toggleFirstPerson,
   applyPlayerSkin,
+  upsertRemotePlayer,
   updatePlayer,
   updateCars,
   updateCamera,
@@ -64,6 +66,8 @@ refs.onApplySkin = applyPlayerSkin;
 refs.onSelectWeapon = selectWeapon;
 refs.onSpawnVehicle = spawnPurchasedVehicle;
 refs.onSpawnPolice = spawnPoliceReinforcement;
+
+networkManager.on('onPlayerMove', (packet) => upsertRemotePlayer(packet));
 
 function setupInputs() {
   window.addEventListener('keydown', (e) => {
@@ -197,6 +201,9 @@ function setupInputs() {
   if (dom.btnMute) {
     dom.btnMute.addEventListener('click', () => AudioManager.toggleMute());
   }
+  if (dom.btnNetworkMode) {
+    dom.btnNetworkMode.addEventListener('click', () => networkManager.toggleMode());
+  }
   dom.mapButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
       const nextMap = btn.dataset.map;
@@ -266,6 +273,7 @@ function animate() {
     updatePedestrians(dt);
     updateGuards(dt);
     updateInteractionsAndMission(dt);
+    networkManager.tick(dt);
     updateRadar();
     if (gameState.netHackActive) {
       updateNetHackLabels();
