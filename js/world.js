@@ -515,7 +515,7 @@ export function buildSouthDistrictAndBridge() {
 
 export function buildUrbanDetailsAndMidBlocks() {
   // 1. Quarteirões intermediários e arranha-céus preenchendo os vazios de Downtown, Distrito Sul e Docas
-  [
+  const midBlocks = [
     // Downtown Oeste & Central (X: -180..65)
     [-92, -16, 18, 28, 16, 0x00f0ff],
     [-92, 16, 18, 24, 16, 0xff0055],
@@ -547,10 +547,134 @@ export function buildUrbanDetailsAndMidBlocks() {
     [492, 148, 24, 16, 20, 0xffaa00],
     [526, 206, 22, 18, 18, 0x00f0ff],
     [542, 148, 22, 15, 20, 0xff0055]
-  ].forEach(([bx, bz, bw, bh, bd, acc]) => {
-    addStaticBox(bw + 6, 0.14, bd + 6, bx, 0.07, bz, 0x1a2234, { collide: false, occlude: false, edgesColor: 0x26324d, edgesOpacity: 0.45 });
+  ];
+  midBlocks.forEach(([bx, bz, bw, bh, bd, acc]) => {
     buildDetailedBuilding(bx, bz, bw, bh, bd, { accent: acc });
   });
+
+  // 1b. Calçadas elevadas (0.16m, cinza-azulado claro + meio-fio neon sutil) via InstancedMesh sob todos os quarteirões
+  const sidewalkPads = [
+    [-110, -40, 22, 20],
+    [-160, 20, 24, 22],
+    [-110, 180, 20, 18],
+    [-180, 260, 22, 20],
+    [-80, 420, 24, 22],
+    [-180, 460, 22, 20],
+    [560, -40, 26, 24],
+    [620, 120, 28, 26],
+    [560, 240, 24, 22],
+    ...midBlocks.map(([bx, bz, bw, , bd]) => [bx, bz, bw, bd])
+  ];
+
+  const dummy = new THREE.Object3D();
+  const sidewalkSlabMesh = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(1, 0.16, 1),
+    new THREE.MeshStandardMaterial({ color: 0x2c3b57, roughness: 0.85, metalness: 0.12 }),
+    sidewalkPads.length
+  );
+  sidewalkSlabMesh.receiveShadow = true;
+
+  const curbNeonMesh = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(1, 0.05, 1),
+    new THREE.MeshStandardMaterial({ color: 0x163d5c, emissive: 0x00a8cc, emissiveIntensity: 0.35, roughness: 0.5 }),
+    sidewalkPads.length
+  );
+
+  sidewalkPads.forEach(([sx, sz, sw, sd], i) => {
+    dummy.rotation.set(0, 0, 0);
+    dummy.position.set(sx, 0.08, sz);
+    dummy.scale.set(sw + 7.5, 1, sd + 7.5);
+    dummy.updateMatrix();
+    sidewalkSlabMesh.setMatrixAt(i, dummy.matrix);
+
+    dummy.position.set(sx, 0.03, sz);
+    dummy.scale.set(sw + 7.85, 1, sd + 7.85);
+    dummy.updateMatrix();
+    curbNeonMesh.setMatrixAt(i, dummy.matrix);
+  });
+  refs.worldGroup.add(sidewalkSlabMesh, curbNeonMesh);
+
+  // 1c. Praças Verdes com piso texturizado, canteiros centrais nas avenidas e faixas de pedestres (InstancedMesh)
+  const plazaDefs = [
+    [-112, 86, 24, 18],
+    [0, 124, 28, 16],
+    [-128, 252, 24, 20]
+  ];
+  const plazaBaseMesh = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(1, 0.16, 1),
+    new THREE.MeshStandardMaterial({ color: 0x133d30, roughness: 0.9 }),
+    plazaDefs.length
+  );
+  const plazaTrimMesh = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(1, 0.06, 1),
+    new THREE.MeshStandardMaterial({ color: 0x164e3f, emissive: 0x00ff88, emissiveIntensity: 0.28 }),
+    plazaDefs.length
+  );
+  plazaDefs.forEach(([px, pz, pw, pd], i) => {
+    dummy.position.set(px, 0.08, pz);
+    dummy.scale.set(pw, 1, pd);
+    dummy.updateMatrix();
+    plazaBaseMesh.setMatrixAt(i, dummy.matrix);
+
+    dummy.position.set(px, 0.04, pz);
+    dummy.scale.set(pw + 0.6, 1, pd + 0.6);
+    dummy.updateMatrix();
+    plazaTrimMesh.setMatrixAt(i, dummy.matrix);
+  });
+  refs.worldGroup.add(plazaBaseMesh, plazaTrimMesh);
+
+  // Canteiros divisores no meio das avenidas principais
+  const medianDefs = [
+    [-115, 35, 92, 2.2],
+    [-68, 165, 2.2, 130],
+    [-175, 320, 64, 2.2],
+    [-15, 320, 96, 2.2]
+  ];
+  const medianMesh = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(1, 0.24, 1),
+    new THREE.MeshStandardMaterial({ color: 0x1c2b3d, emissive: 0x06382b, emissiveIntensity: 0.35, roughness: 0.8 }),
+    medianDefs.length
+  );
+  medianDefs.forEach(([mx, mz, mw, md], i) => {
+    dummy.position.set(mx, 0.12, mz);
+    dummy.scale.set(mw, 1, md);
+    dummy.updateMatrix();
+    medianMesh.setMatrixAt(i, dummy.matrix);
+  });
+  refs.worldGroup.add(medianMesh);
+
+  // Faixas de pedestres nos cruzamentos principais
+  const crosswalkCenters = [
+    [-58, 35, true],
+    [0, 28, false],
+    [-32, 58, false],
+    [32, 58, false],
+    [-58, 175, true],
+    [432, 35, true]
+  ];
+  const stripePositions = [];
+  crosswalkCenters.forEach(([cx, cz, vertical]) => {
+    for (let k = -3; k <= 3; k++) {
+      stripePositions.push([
+        cx + (vertical ? 0 : k * 1.6),
+        cz + (vertical ? k * 1.6 : 0),
+        vertical ? Math.PI / 2 : 0
+      ]);
+    }
+  });
+  const crosswalkMesh = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(0.85, 0.025, 3.0),
+    new THREE.MeshBasicMaterial({ color: 0x647a99 }),
+    stripePositions.length
+  );
+  stripePositions.forEach(([sx, sz, rotY], i) => {
+    dummy.position.set(sx, 0.02, sz);
+    dummy.rotation.set(0, rotY, 0);
+    dummy.scale.set(1, 1, 1);
+    dummy.updateMatrix();
+    crosswalkMesh.setMatrixAt(i, dummy.matrix);
+  });
+  refs.worldGroup.add(crosswalkMesh);
 
   // 2. Semáforos funcionais e hackeáveis (V + E) nos cruzamentos principais
   [
