@@ -302,6 +302,7 @@ export const radarBuildings = [];  // { x, z, w, d } para quarteirões laterais 
 export const radarWalls = [];      // { x1, z1, x2, z2 } para paredes no radar
 export const gates = [];           // { gateMesh, panelMesh, unlocked, openProgress, initialX, openX }
 export const cars = [];            // { mesh, colliderObj, initialPos, initialYaw, isDedsec, speed, hackedTimer, hackedUsed, headlight }
+export const fleeingDrivers = [];  // { mesh, dirX, dirZ, timer, phase, legL, legR, armL, armR }
 export const boats = [];           // { id, mesh, initialPos, initialYaw, speed, wakePoints, wakeData }
 export const projectiles = [];     // { mesh, line, origin, pos, dir, speed, life, damage, isTaser }
 export const guardProjectiles = []; // { mesh, pos, dir, speed, life }

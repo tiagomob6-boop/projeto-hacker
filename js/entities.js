@@ -23,6 +23,7 @@ import {
   electricBoxes,
   gates,
   cars,
+  fleeingDrivers,
   boats,
   missionMarkers,
   getSurfaceHeight,
@@ -768,7 +769,7 @@ export function toggleDriveDedsecCar() {
   let nearestCar = null;
   let nearestDist = 4.2;
   for (const car of cars) {
-    if (!car.isDrivable || car.destroyed) continue;
+    if (!car.isDrivable || car.destroyed || Math.abs(car.speed) >= 6.0) continue;
     const d = refs.playerGroup.position.distanceTo(car.mesh.position);
     if (d < nearestDist) {
       nearestDist = d;
@@ -777,6 +778,11 @@ export function toggleDriveDedsecCar() {
   }
 
   if (nearestCar) {
+    if (nearestCar.hasDriver) {
+      nearestCar.hasDriver = false;
+      if (nearestCar.driverMesh) nearestCar.driverMesh.visible = false;
+      spawnFleeingDriver(nearestCar);
+    }
     gameState.drivingCar = nearestCar;
     gameState.isCrouching = false;
     gameState.isSprinting = false;
@@ -790,10 +796,73 @@ export function toggleDriveDedsecCar() {
   }
 }
 
+function spawnFleeingDriver(car) {
+  const npc = new THREE.Group();
+  const jacketMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.7 });
+  const pantsMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });
+  const skinMat = new THREE.MeshStandardMaterial({ color: 0xc69072, roughness: 0.65 });
+
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.32, 6, 10), jacketMat);
+  torso.position.y = 1.12;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 10), skinMat);
+  head.position.y = 1.56;
+  const legL = new THREE.Mesh(new THREE.CapsuleGeometry(0.065, 0.42, 4, 8), pantsMat);
+  legL.position.set(-0.1, 0.42, 0);
+  const legR = new THREE.Mesh(new THREE.CapsuleGeometry(0.065, 0.42, 4, 8), pantsMat);
+  legR.position.set(0.1, 0.42, 0);
+  const armL = new THREE.Mesh(new THREE.CapsuleGeometry(0.05, 0.36, 4, 8), jacketMat);
+  armL.position.set(-0.24, 1.18, 0);
+  const armR = new THREE.Mesh(new THREE.CapsuleGeometry(0.05, 0.36, 4, 8), jacketMat);
+  armR.position.set(0.24, 1.18, 0);
+  npc.add(torso, head, legL, legR, armL, armR);
+
+  const yaw = car.mesh.rotation.y;
+  const dirX = Math.cos(yaw);
+  const dirZ = -Math.sin(yaw);
+  const sx = THREE.MathUtils.clamp(car.mesh.position.x + dirX * 2.1, WORLD_BOUNDS.minX, WORLD_BOUNDS.maxX);
+  const sz = THREE.MathUtils.clamp(car.mesh.position.z + dirZ * 2.1, WORLD_BOUNDS.minZ, WORLD_BOUNDS.maxZ);
+  npc.position.set(sx, getSurfaceHeight(sx, sz), sz);
+  npc.rotation.y = Math.atan2(dirX, dirZ);
+  refs.worldGroup.add(npc);
+
+  fleeingDrivers.push({
+    mesh: npc,
+    dirX,
+    dirZ,
+    timer: 6.5,
+    phase: 0,
+    legL,
+    legR,
+    armL,
+    armR
+  });
+}
+
 // ==========================================
 // MOVIMENTAÇÃO, COLISÃO, CARROS E CÂMERA
 // ==========================================
 export function updateCars(dt) {
+  for (let i = fleeingDrivers.length - 1; i >= 0; i--) {
+    const drv = fleeingDrivers[i];
+    drv.timer -= dt;
+    drv.phase += dt * 16;
+    const nx = drv.mesh.position.x + drv.dirX * 5.2 * dt;
+    const nz = drv.mesh.position.z + drv.dirZ * 5.2 * dt;
+    if (!checkCollision(nx, nz, 0.35) && !isWaterArea(nx, nz)) {
+      drv.mesh.position.x = nx;
+      drv.mesh.position.z = nz;
+      drv.mesh.position.y = getSurfaceHeight(nx, nz);
+    }
+    const swing = Math.sin(drv.phase) * 0.7;
+    drv.legL.rotation.x = swing;
+    drv.legR.rotation.x = -swing;
+    drv.armL.rotation.x = -2.2 + swing * 0.4;
+    drv.armR.rotation.x = -2.2 - swing * 0.4;
+    if (drv.timer <= 0) {
+      refs.worldGroup.remove(drv.mesh);
+      fleeingDrivers.splice(i, 1);
+    }
+  }
   cars.forEach((car) => {
     // Fumaça escura quando integridade <= 35%
     if (car.smokePoints) {
@@ -1513,10 +1582,12 @@ export function updateInteractionsAndMission(dt) {
       }
       if (!promptText) {
         for (const car of cars) {
-          if (car.isDrivable && !car.destroyed && pPos.distanceTo(car.mesh.position) < 4.2) {
+          if (car.isDrivable && !car.destroyed && Math.abs(car.speed) < 6.0 && pPos.distanceTo(car.mesh.position) < 4.2) {
             promptText =
               car === gameState.targetCar
                 ? '[F] ROUBAR VEÍCULO VIP'
+                : car.hasDriver
+                ? '[F] ROUBAR VEÍCULO (EJETAR MOTORISTA)'
                 : car.isDedsec
                 ? '[F] ENTRAR NO CARRO DEDSEC'
                 : '[F] ENTRAR NO VEÍCULO';

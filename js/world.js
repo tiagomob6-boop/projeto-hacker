@@ -22,6 +22,7 @@ import {
   radarWalls,
   gates,
   cars,
+  fleeingDrivers,
   boats,
   projectiles,
   guardProjectiles,
@@ -273,6 +274,7 @@ export function buildMap() {
   electricBoxes.length = 0;
   guards.length = 0;
   cars.length = 0;
+  fleeingDrivers.length = 0;
   boats.length = 0;
   gates.length = 0;
   radarCrates.length = 0;
@@ -1528,7 +1530,7 @@ export function buildServerParticles(sx = 0, sz = -21.5) {
   refs.worldGroup.add(refs.serverParticles);
 }
 
-export function buildCarMesh(color, neonTrim, isPatrol = false) {
+export function buildCarMesh(color, neonTrim, isPatrol = false, bodyType = 'SPORT', hasDriver = false) {
   const carGroup = new THREE.Group();
   const nethackMat = new THREE.MeshBasicMaterial({
     color: 0x0b3a5c,
@@ -1549,98 +1551,267 @@ export function buildCarMesh(color, neonTrim, isPatrol = false) {
     carGroup.add(mesh);
   };
 
-  // Chassi
+  // Especificações por tipo de carroceria (SPORT, SUV, HATCH)
+  const specs = {
+    SPORT: {
+      width: 1.88,
+      frontZ: 2.28,
+      rearZ: -2.26,
+      wheelZ: 1.38,
+      wheelRadius: 0.35,
+      cabinY: 1.15,
+      profile: [
+        [-2.24, 0.30],
+        [2.26, 0.30],
+        [2.28, 0.56],
+        [1.95, 0.72],
+        [0.90, 0.80],
+        [0.32, 1.16],
+        [-0.95, 1.16],
+        [-1.85, 0.84],
+        [-2.24, 0.82]
+      ]
+    },
+    SUV: {
+      width: 1.98,
+      frontZ: 2.24,
+      rearZ: -2.22,
+      wheelZ: 1.40,
+      wheelRadius: 0.41,
+      cabinY: 1.54,
+      profile: [
+        [-2.20, 0.40],
+        [2.22, 0.40],
+        [2.24, 0.86],
+        [1.88, 0.98],
+        [0.92, 1.02],
+        [0.52, 1.56],
+        [-1.78, 1.56],
+        [-2.14, 1.06],
+        [-2.20, 0.86]
+      ]
+    },
+    HATCH: {
+      width: 1.76,
+      frontZ: 1.86,
+      rearZ: -1.84,
+      wheelZ: 1.18,
+      wheelRadius: 0.34,
+      cabinY: 1.34,
+      profile: [
+        [-1.82, 0.30],
+        [1.84, 0.30],
+        [1.86, 0.62],
+        [1.48, 0.78],
+        [0.72, 0.84],
+        [0.22, 1.34],
+        [-1.22, 1.34],
+        [-1.78, 0.92],
+        [-1.82, 0.68]
+      ]
+    }
+  };
+  const cfg = specs[bodyType] || specs.SPORT;
+
+  // Perfil lateral extrudado com chanfros (ExtrudeGeometry)
+  const shape = new THREE.Shape();
+  shape.moveTo(cfg.profile[0][0], cfg.profile[0][1]);
+  for (let i = 1; i < cfg.profile.length; i++) {
+    shape.lineTo(cfg.profile[i][0], cfg.profile[i][1]);
+  }
+  shape.closePath();
+
+  const bodyGeo = new THREE.ExtrudeGeometry(shape, {
+    depth: cfg.width,
+    bevelEnabled: true,
+    bevelThickness: 0.07,
+    bevelSize: 0.05,
+    bevelSegments: 2
+  });
+  bodyGeo.translate(0, 0, -cfg.width / 2);
+  bodyGeo.rotateY(-Math.PI / 2);
+
   const bodyMat = new THREE.MeshStandardMaterial({
     color,
-    roughness: 0.35,
-    metalness: 0.65,
+    roughness: 0.32,
+    metalness: 0.68,
     emissive: neonTrim,
     emissiveIntensity: 0.08
   });
-  const body = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.62, 4.4), bodyMat);
-  body.position.y = 0.56;
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
   body.castShadow = true;
   body.receiveShadow = true;
   body.add(
     new THREE.LineSegments(
-      new THREE.EdgesGeometry(body.geometry),
-      new THREE.LineBasicMaterial({ color: neonTrim, transparent: true, opacity: 0.75 })
+      new THREE.EdgesGeometry(bodyGeo, 28),
+      new THREE.LineBasicMaterial({ color: neonTrim, transparent: true, opacity: 0.55 })
     )
   );
   registerPart(body, bodyMat, true);
 
-  // Cabine
-  const cabinMat = new THREE.MeshStandardMaterial({
-    color: 0x0c1322,
-    roughness: 0.2,
-    metalness: 0.8
-  });
-  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.56, 2.1), cabinMat);
-  cabin.position.set(0, 1.12, -0.15);
-  cabin.castShadow = true;
-  registerPart(cabin, cabinMat);
+  // Para-choques dianteiro e traseiro
+  const bumperMat = new THREE.MeshStandardMaterial({ color: 0x161d2b, roughness: 0.55, metalness: 0.5 });
+  const frontBumper = new THREE.Mesh(new THREE.BoxGeometry(cfg.width + 0.10, 0.22, 0.22), bumperMat);
+  frontBumper.position.set(0, bodyType === 'SUV' ? 0.46 : 0.34, cfg.frontZ + 0.04);
+  const rearBumper = new THREE.Mesh(new THREE.BoxGeometry(cfg.width + 0.10, 0.24, 0.22), bumperMat);
+  rearBumper.position.set(0, bodyType === 'SUV' ? 0.46 : 0.34, cfg.rearZ - 0.04);
+  registerPart(frontBumper, bumperMat);
+  registerPart(rearBumper, bumperMat);
 
-  // Rodas (CylinderGeometry)
-  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x11141c, roughness: 0.85 });
-  const wheelGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.26, 14);
+  // Grade frontal iluminada & Faróis chanfrados + Lanternas traseiras
+  const grilleMat = new THREE.MeshBasicMaterial({ color: neonTrim });
+  const grille = new THREE.Mesh(new THREE.BoxGeometry(cfg.width * 0.46, 0.12, 0.06), grilleMat);
+  grille.position.set(0, bodyType === 'SUV' ? 0.68 : 0.50, cfg.frontZ + 0.08);
+  registerPart(grille, grilleMat);
+
+  const headMat = new THREE.MeshBasicMaterial({ color: 0xdff9ff });
+  const tailMat = new THREE.MeshBasicMaterial({ color: 0xff0044 });
+  [-1, 1].forEach((side) => {
+    const hl = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.13, 0.10), headMat);
+    hl.position.set(side * (cfg.width * 0.34), bodyType === 'SUV' ? 0.72 : 0.54, cfg.frontZ + 0.06);
+    hl.rotation.y = side * -0.18;
+    registerPart(hl, headMat);
+
+    const tl = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.12, 0.10), tailMat);
+    tl.position.set(side * (cfg.width * 0.33), bodyType === 'SUV' ? 0.76 : 0.62, cfg.rearZ - 0.06);
+    tl.rotation.y = side * 0.14;
+    registerPart(tl, tailMat);
+  });
+
+  // Vidros semitransparentes (opacity: 0.45) para enxergar o interior/motorista
+  const glassMat = new THREE.MeshStandardMaterial({
+    color: 0x1a3558,
+    roughness: 0.12,
+    metalness: 0.85,
+    transparent: true,
+    opacity: 0.45
+  });
+  const glassCabin = new THREE.Mesh(
+    new THREE.BoxGeometry(cfg.width - 0.16, bodyType === 'SPORT' ? 0.34 : 0.44, bodyType === 'HATCH' ? 1.55 : 1.95),
+    glassMat
+  );
+  glassCabin.position.set(0, cfg.cabinY - (bodyType === 'SPORT' ? 0.14 : 0.18), bodyType === 'SUV' ? -0.35 : -0.25);
+  registerPart(glassCabin, glassMat);
+
+  // Retrovisores laterais
+  const mirrorMat = new THREE.MeshStandardMaterial({ color: 0x111726, roughness: 0.4 });
+  [-1, 1].forEach((side) => {
+    const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.11, 0.14), mirrorMat);
+    mirror.position.set(side * (cfg.width / 2 + 0.11), bodyType === 'SUV' ? 1.06 : 0.84, 0.52);
+    registerPart(mirror, mirrorMat);
+  });
+
+  // Detalhes específicos por modelo
+  if (bodyType === 'SPORT') {
+    // Aerofólio e difusor traseiro
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(cfg.width + 0.06, 0.07, 0.32), bumperMat);
+    wing.position.set(0, 1.04, cfg.rearZ + 0.18);
+    registerPart(wing, bumperMat);
+    [-0.55, 0.55].forEach((px) => {
+      const pylon = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.22, 0.18), bumperMat);
+      pylon.position.set(px, 0.92, cfg.rearZ + 0.20);
+      registerPart(pylon, bumperMat);
+    });
+    const diffuser = new THREE.Mesh(new THREE.BoxGeometry(cfg.width * 0.72, 0.14, 0.14), grilleMat);
+    diffuser.position.set(0, 0.25, cfg.rearZ - 0.06);
+    registerPart(diffuser, grilleMat);
+  } else if (bodyType === 'SUV') {
+    // Quebra-mato frontal e rack de teto
+    const bullBar = new THREE.Mesh(new THREE.BoxGeometry(cfg.width * 0.64, 0.34, 0.14), bumperMat);
+    bullBar.position.set(0, 0.62, cfg.frontZ + 0.14);
+    registerPart(bullBar, bumperMat);
+    [-0.65, 0.65].forEach((rx) => {
+      const rack = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 1.85), bumperMat);
+      rack.position.set(rx, 1.62, -0.58);
+      registerPart(rack, bumperMat);
+    });
+  }
+
+  // Rodas (CylinderGeometry) com calotas/aros neon
+  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x10131b, roughness: 0.85 });
+  const rimMat = new THREE.MeshBasicMaterial({ color: neonTrim });
+  const wheelGeo = new THREE.CylinderGeometry(cfg.wheelRadius, cfg.wheelRadius, 0.28, 16);
+  const rimGeo = new THREE.CylinderGeometry(cfg.wheelRadius * 0.58, cfg.wheelRadius * 0.58, 0.30, 12);
+  const halfTrack = cfg.width / 2 + 0.02;
   [
-    [-1.02, 0.36, 1.35],
-    [1.02, 0.36, 1.35],
-    [-1.02, 0.36, -1.35],
-    [1.02, 0.36, -1.35]
+    [-halfTrack, cfg.wheelRadius, cfg.wheelZ],
+    [halfTrack, cfg.wheelRadius, cfg.wheelZ],
+    [-halfTrack, cfg.wheelRadius, -cfg.wheelZ],
+    [halfTrack, cfg.wheelRadius, -cfg.wheelZ]
   ].forEach(([wx, wy, wz]) => {
     const wheel = new THREE.Mesh(wheelGeo, wheelMat);
     wheel.rotation.z = Math.PI / 2;
     wheel.position.set(wx, wy, wz);
     wheel.castShadow = true;
     registerPart(wheel, wheelMat);
-  });
 
-  // Faróis dianteiros e lanternas traseiras emissivas
-  const headMat = new THREE.MeshBasicMaterial({ color: 0xdff9ff });
-  const tailMat = new THREE.MeshBasicMaterial({ color: 0xff0044 });
-  [-0.7, 0.7].forEach((lx) => {
-    const hl = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.16, 0.08), headMat);
-    hl.position.set(lx, 0.58, 2.22);
-    registerPart(hl, headMat);
-
-    const tl = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.14, 0.08), tailMat);
-    tl.position.set(lx, 0.62, -2.22);
-    registerPart(tl, tailMat);
+    const rim = new THREE.Mesh(rimGeo, rimMat);
+    rim.rotation.z = Math.PI / 2;
+    rim.position.set(wx, wy, wz);
+    registerPart(rim, rimMat);
   });
 
   // Giroflex azul/vermelho piscando para viaturas ctOS
   if (isPatrol) {
     const blueMat = new THREE.MeshBasicMaterial({ color: 0x0088ff });
     const redMat = new THREE.MeshBasicMaterial({ color: 0xff0033 });
+    const sirenY = bodyType === 'SUV' ? 1.66 : cfg.cabinY + 0.12;
     const barL = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.12, 0.24), blueMat);
-    barL.position.set(-0.26, 1.46, -0.15);
+    barL.position.set(-0.26, sirenY, -0.25);
     const barR = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.12, 0.24), redMat);
-    barR.position.set(0.26, 1.46, -0.15);
+    barR.position.set(0.26, sirenY, -0.25);
     carGroup.add(barL, barR);
     sirenLights.push({ blueMat, redMat, phase: Math.random() * Math.PI * 2 });
   }
 
-  return { carGroup, bodyMesh: body };
+  // Motorista NPC 3D visível no banco do motorista
+  let driverMesh = null;
+  if (hasDriver) {
+    driverMesh = new THREE.Group();
+    const drvY = bodyType === 'SUV' ? 0.92 : 0.64;
+    driverMesh.position.set(0.38, drvY, 0.05);
+
+    const drvJacket = new THREE.MeshStandardMaterial({ color: isPatrol ? 0x1e293b : 0x334155, roughness: 0.7 });
+    const drvSkin = new THREE.MeshStandardMaterial({ color: 0xc69072, roughness: 0.65 });
+    const drvTorso = new THREE.Mesh(new THREE.CapsuleGeometry(0.14, 0.24, 6, 10), drvJacket);
+    drvTorso.position.y = 0.18;
+    const drvHead = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 10), drvSkin);
+    drvHead.position.y = 0.45;
+    const drvHair = new THREE.Mesh(
+      new THREE.SphereGeometry(0.135, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55),
+      new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.8 })
+    );
+    drvHair.position.y = 0.46;
+    driverMesh.add(drvTorso, drvHead, drvHair);
+    carGroup.add(driverMesh);
+  }
+
+  return { carGroup, bodyMesh: body, driverMesh };
 }
 
 export function buildCars() {
   const worldCars = [
-    { x: -10, z: 42, yaw: Math.PI / 2, color: 0x111827, neon: 0x00f0ff, isDedsec: true, isDrivable: true, maxHp: 100 },
-    { x: -42, z: -24, yaw: Math.PI * 0.5, color: 0xcc22ff, neon: 0xd946ef, isDedsec: false, isDrivable: true, maxHp: 120, vipMissionKey: 'VIP_CAR_01' },
-    { x: DOCKS_OFFSET_X + 76, z: 14, yaw: -Math.PI * 0.5, color: 0x3b4252, neon: 0xd946ef, isDedsec: false, isDrivable: true, maxHp: 220, vipMissionKey: 'VIP_CAR_02' },
-    { x: -40, z: 28, yaw: 0, color: 0x141720, neon: 0xff0044, isDedsec: false, isPatrol: true },
-    { x: 16, z: 16, yaw: -Math.PI / 2, color: 0x141720, neon: 0xff0044, isDedsec: false, isPatrol: true },
-    { x: -16, z: 16, yaw: Math.PI / 2, color: 0x26314a, neon: 0xffaa00, isDedsec: false },
-    { x: 24, z: 42, yaw: -Math.PI / 2, color: 0x2b1d38, neon: 0xff0055, isDedsec: false },
-    { x: -24, z: 46, yaw: 0, color: 0x1e2b3a, neon: 0x38bdf8, isDedsec: false },
-    { x: -40, z: 38, yaw: Math.PI, color: 0x202a3c, neon: 0x00f0ff, isDedsec: false },
-    { x: DOCKS_OFFSET_X + 20, z: 36, yaw: -Math.PI / 2, color: 0x141720, neon: 0xff0044, isDedsec: false, isPatrol: true },
-    { x: DOCKS_OFFSET_X - 22, z: 38, yaw: Math.PI / 2, color: 0x26314a, neon: 0xffaa00, isDedsec: false }
+    { x: -10, z: 42, yaw: Math.PI / 2, color: 0x111827, neon: 0x00f0ff, bodyType: 'SPORT', isDedsec: true, isDrivable: true, maxHp: 100, hasDriver: false },
+    { x: -42, z: -24, yaw: Math.PI * 0.5, color: 0xcc22ff, neon: 0xd946ef, bodyType: 'SPORT', isDedsec: false, isDrivable: true, maxHp: 120, vipMissionKey: 'VIP_CAR_01', hasDriver: false },
+    { x: DOCKS_OFFSET_X + 76, z: 14, yaw: -Math.PI * 0.5, color: 0x3b4252, neon: 0xd946ef, bodyType: 'SUV', isDedsec: false, isDrivable: true, maxHp: 220, vipMissionKey: 'VIP_CAR_02', hasDriver: false },
+    { x: -40, z: 28, yaw: 0, color: 0x141720, neon: 0xff0044, bodyType: 'SUV', isDedsec: false, isDrivable: true, isPatrol: true, hasDriver: true },
+    { x: 16, z: 16, yaw: -Math.PI / 2, color: 0x141720, neon: 0xff0044, bodyType: 'SUV', isDedsec: false, isDrivable: true, isPatrol: true, hasDriver: true },
+    { x: -16, z: 16, yaw: Math.PI / 2, color: 0x26314a, neon: 0xffaa00, bodyType: 'HATCH', isDedsec: false, isDrivable: true, hasDriver: true },
+    { x: 24, z: 42, yaw: -Math.PI / 2, color: 0x2b1d38, neon: 0xff0055, bodyType: 'SPORT', isDedsec: false, isDrivable: true, hasDriver: true },
+    { x: -24, z: 46, yaw: 0, color: 0x1e2b3a, neon: 0x38bdf8, bodyType: 'HATCH', isDedsec: false, isDrivable: true, hasDriver: true },
+    { x: -40, z: 38, yaw: Math.PI, color: 0x202a3c, neon: 0x00f0ff, bodyType: 'HATCH', isDedsec: false, isDrivable: true, hasDriver: true },
+    { x: DOCKS_OFFSET_X + 20, z: 36, yaw: -Math.PI / 2, color: 0x141720, neon: 0xff0044, bodyType: 'SUV', isDedsec: false, isDrivable: true, isPatrol: true, hasDriver: true },
+    { x: DOCKS_OFFSET_X - 22, z: 38, yaw: Math.PI / 2, color: 0x26314a, neon: 0xffaa00, bodyType: 'HATCH', isDedsec: false, isDrivable: true, hasDriver: true }
   ];
 
   worldCars.forEach((carCfg, idx) => {
-    const { carGroup, bodyMesh } = buildCarMesh(carCfg.color, carCfg.neon, !!carCfg.isPatrol);
+    const { carGroup, bodyMesh, driverMesh } = buildCarMesh(
+      carCfg.color,
+      carCfg.neon,
+      !!carCfg.isPatrol,
+      carCfg.bodyType || 'SPORT',
+      !!carCfg.hasDriver
+    );
     carGroup.position.set(carCfg.x, 0, carCfg.z);
     carGroup.rotation.y = carCfg.yaw;
     refs.worldGroup.add(carGroup);
@@ -1687,6 +1858,9 @@ export function buildCars() {
       id: idx,
       mesh: carGroup,
       bodyMesh,
+      driverMesh,
+      initialHasDriver: !!carCfg.hasDriver,
+      hasDriver: !!carCfg.hasDriver,
       colliderObj,
       initialPos: new THREE.Vector3(carCfg.x, 0, carCfg.z),
       initialYaw: carCfg.yaw,
@@ -1895,6 +2069,8 @@ export function resetWorldState(keepPlayerPos = false) {
       car.mesh.rotation.y = car.initialYaw;
       car.hp = car.maxHp;
       car.destroyed = false;
+      car.hasDriver = car.initialHasDriver;
+      if (car.driverMesh) car.driverMesh.visible = car.hasDriver;
       if (car.smokePoints) car.smokePoints.visible = false;
       if (car.bodyMesh?.userData?.normalMaterial) {
         car.bodyMesh.userData.normalMaterial.color.setHex(car.initialColor ?? 0x111827);
