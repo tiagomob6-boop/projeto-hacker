@@ -43,7 +43,7 @@
       </div>
 
       <div class="hud-top-right">
-        <button id="btn-quick-guide" class="quick-guide-btn" type="button">[H] GUIA RÁPIDO</button>
+        <button id="btn-quick-guide" class="quick-guide-btn" type="button">[H] AJUDA</button>
         <div class="hud-panel status-panel">
           <div class="panel-label">SISTEMA // DEDSEC_OS</div>
         <div class="status-row">
@@ -346,7 +346,21 @@
           </ul>
         </div>
       </div>
-      <button id="btn-close-guide" type="button" class="cyber-btn danger-btn">FECHAR GUIA [H / ESC]</button>
+      <div class="guide-settings">
+        <div class="guide-setting-item">
+          <span>SOMBRAS (PERFORMANCE):</span>
+          <button id="btn-toggle-shadows" type="button" class="cyber-btn small-btn active">SOMBRAS: ON</button>
+        </div>
+        <div class="guide-setting-item">
+          <span>SENSIBILIDADE DO MOUSE:</span>
+          <div class="sens-buttons">
+            <button type="button" class="cyber-btn small-btn sens-btn" data-sens="0.0016">BAIXA (0.0016)</button>
+            <button type="button" class="cyber-btn small-btn sens-btn active" data-sens="0.0024">MÉDIA (0.0024)</button>
+            <button type="button" class="cyber-btn small-btn sens-btn" data-sens="0.0034">ALTA (0.0034)</button>
+          </div>
+        </div>
+      </div>
+      <button id="btn-close-guide" type="button" class="cyber-btn danger-btn">FECHAR AJUDA [H / ESC]</button>
     </div>
   </div>
 

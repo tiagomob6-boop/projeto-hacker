@@ -23,6 +23,8 @@ import {
   closeShopModal,
   toggleTacticalMap,
   toggleQuickGuide,
+  toggleShadows,
+  setMouseSensitivity,
   handleTacticalMapClick,
   renderTacticalMap,
   toggleRain,
@@ -174,7 +176,7 @@ function setupInputs() {
     if (document.pointerLockElement !== dom.canvas) return;
     if (gameState.terminalOpen) return;
 
-    const sens = 0.0024;
+    const sens = gameState.mouseSensitivity || 0.0024;
     if (gameState.activeCamIndex >= 0) {
       const camObj = securityCameras[gameState.activeCamIndex];
       camObj.yawOffset = THREE.MathUtils.clamp(camObj.yawOffset - e.movementX * sens, -0.9, 0.9);
@@ -251,6 +253,14 @@ function setupInputs() {
   }
   if (dom.btnCloseGuide) {
     dom.btnCloseGuide.addEventListener('click', () => toggleQuickGuide(false));
+  }
+  if (dom.btnToggleShadows) {
+    dom.btnToggleShadows.addEventListener('click', () => toggleShadows());
+  }
+  if (dom.sensButtons) {
+    dom.sensButtons.forEach((btn) => {
+      btn.addEventListener('click', () => setMouseSensitivity(btn.dataset.sens));
+    });
   }
   if (dom.btnClearGps) {
     dom.btnClearGps.addEventListener('click', () => {

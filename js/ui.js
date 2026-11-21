@@ -840,6 +840,31 @@ export function toggleQuickGuide(forceState) {
   }
 }
 
+export function toggleShadows(forceState) {
+  gameState.shadowsEnabled = forceState !== undefined ? forceState : !gameState.shadowsEnabled;
+  if (refs.renderer) {
+    refs.renderer.shadowMap.enabled = gameState.shadowsEnabled;
+    if (gameState.shadowsEnabled) {
+      refs.renderer.shadowMap.needsUpdate = true;
+    }
+  }
+  if (dom.btnToggleShadows) {
+    dom.btnToggleShadows.textContent = gameState.shadowsEnabled ? 'SOMBRAS: ON' : 'SOMBRAS: OFF';
+    dom.btnToggleShadows.classList.toggle('active', gameState.shadowsEnabled);
+  }
+}
+
+export function setMouseSensitivity(val) {
+  const num = Number(val);
+  if (!Number.isFinite(num) || num <= 0) return;
+  gameState.mouseSensitivity = num;
+  if (dom.sensButtons) {
+    dom.sensButtons.forEach((btn) => {
+      btn.classList.toggle('active', Number(btn.dataset.sens) === num);
+    });
+  }
+}
+
 export function handleTacticalMapClick(e) {
   if (!dom.tacticalMapCanvas) return;
   const rect = dom.tacticalMapCanvas.getBoundingClientRect();
