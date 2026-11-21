@@ -824,6 +824,22 @@ export function toggleTacticalMap(forceState) {
   }
 }
 
+export function toggleQuickGuide(forceState) {
+  if (!dom.quickGuideModal) return;
+  gameState.quickGuideOpen = forceState !== undefined ? forceState : !gameState.quickGuideOpen;
+  if (gameState.quickGuideOpen) {
+    dom.quickGuideModal.classList.remove('hidden');
+    if (document.pointerLockElement === dom.canvas) {
+      document.exitPointerLock();
+    }
+  } else {
+    dom.quickGuideModal.classList.add('hidden');
+    if (gameState.mission !== MISSION_STATE.INTRO && gameState.mission !== MISSION_STATE.GAME_OVER) {
+      dom.canvas.requestPointerLock();
+    }
+  }
+}
+
 export function handleTacticalMapClick(e) {
   if (!dom.tacticalMapCanvas) return;
   const rect = dom.tacticalMapCanvas.getBoundingClientRect();

@@ -42,8 +42,10 @@
         <div id="mission-sub" class="mission-sub">Explore a cidade, atravesse a Golden Gate ou pise em um marcador de missão</div>
       </div>
 
-      <div class="hud-panel status-panel">
-        <div class="panel-label">SISTEMA // DEDSEC_OS</div>
+      <div class="hud-top-right">
+        <button id="btn-quick-guide" class="quick-guide-btn" type="button">[H] GUIA RÁPIDO</button>
+        <div class="hud-panel status-panel">
+          <div class="panel-label">SISTEMA // DEDSEC_OS</div>
         <div class="status-row">
           <span>MODO:</span>
           <span id="status-mode" class="neon-cyan">FURTIVO</span>
@@ -90,6 +92,7 @@
         <div class="status-row">
           <span>CLIMA:</span>
           <button id="btn-rain" class="mute-btn" type="button">CHUVA: ON</button>
+        </div>
         </div>
       </div>
     </div>
@@ -297,6 +300,53 @@
         <button id="btn-clear-gps" type="button" class="cyber-btn">LIMPAR GPS</button>
         <button id="btn-close-map" type="button" class="cyber-btn danger-btn">FECHAR MAPA [TAB]</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Overlay de Guia Rápido (H) -->
+  <div id="quick-guide-modal" class="overlay-screen hidden">
+    <div class="terminal-card quick-guide-card">
+      <div class="brand-tag">DEDSEC_OS // MANUAL DE CAMPO</div>
+      <h2 class="status-title neon-cyan">GUIA RÁPIDO — 4 PILARES</h2>
+      <div class="guide-pillars">
+        <div class="guide-pillar">
+          <h3>01 // MOBILIDADE &amp; EXPLORAÇÃO</h3>
+          <ul>
+            <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Mover · <kbd>Shift</kbd> Correr / Nitro</li>
+            <li><kbd>F</kbd> Entrar/roubar carros ou pilotar lanchas</li>
+            <li><kbd>P</kbd> Alternar câmera <strong>1ª / 3ª Pessoa</strong> (Cockpit)</li>
+            <li><kbd>Tab</kbd> Mapa Tático &amp; GPS · Visite o <strong>Mirante Sul</strong></li>
+          </ul>
+        </div>
+        <div class="guide-pillar">
+          <h3>02 // HACKING ctOS &amp; DRONE</h3>
+          <ul>
+            <li><kbd>V</kbd> <strong>Visão NetHack</strong> &amp; Profiler ctOS</li>
+            <li><kbd>Q</kbd> <strong>Drone DedSec</strong> (<kbd>Space</kbd>/<kbd>Ctrl</kbd> altura, <kbd>V+E</kbd> hack remoto)</li>
+            <li><kbd>C</kbd> Câmeras (<kbd>R</kbd> sobrecarregar) · <kbd>E</kbd> Portões / Semáforos</li>
+            <li><kbd>B</kbd> <strong>Blackout Geral</strong> (apaga postes e câmeras laser)</li>
+          </ul>
+        </div>
+        <div class="guide-pillar">
+          <h3>03 // COMBATE &amp; FURTIVIDADE</h3>
+          <ul>
+            <li><kbd>Ctrl</kbd> Agachar para cobertura e furtividade</li>
+            <li><kbd>1</kbd>–<kbd>5</kbd> Arsenal: Taser, Silenciada, Rifle, EMP, Escopeta</li>
+            <li><kbd>Clique</kbd> Disparar arma equipada</li>
+            <li>Neutralize testemunhas ou fuja <kbd>15s</kbd> da polícia</li>
+          </ul>
+        </div>
+        <div class="guide-pillar">
+          <h3>04 // CONTRATOS &amp; LOJAS</h3>
+          <ul>
+            <li><kbd>E</kbd> nas lojas: <strong>DedSec Style</strong>, <strong>SF Motors</strong> e <strong>HackShop</strong></li>
+            <li>Missões principais: <strong>Complexo ctOS</strong> &amp; <strong>Docas da Baía</strong></li>
+            <li>Contratos VIP: roube e entregue na <strong>Garagem Sul</strong></li>
+            <li><kbd>M</kbd> Áudio · <kbd>H</kbd> Abrir/fechar este guia</li>
+          </ul>
+        </div>
+      </div>
+      <button id="btn-close-guide" type="button" class="cyber-btn danger-btn">FECHAR GUIA [H / ESC]</button>
     </div>
   </div>
 

@@ -22,6 +22,7 @@ import {
   acceptPendingMission,
   closeShopModal,
   toggleTacticalMap,
+  toggleQuickGuide,
   handleTacticalMapClick,
   renderTacticalMap,
   toggleRain,
@@ -111,6 +112,16 @@ function setupInputs() {
 
     if (gameState.tacticalMapOpen) {
       if (code === 'Escape') toggleTacticalMap(false);
+      return;
+    }
+
+    if (code === 'KeyH') {
+      toggleQuickGuide();
+      return;
+    }
+
+    if (gameState.quickGuideOpen) {
+      if (code === 'Escape') toggleQuickGuide(false);
       return;
     }
 
@@ -234,6 +245,12 @@ function setupInputs() {
   }
   if (dom.btnCloseMap) {
     dom.btnCloseMap.addEventListener('click', () => toggleTacticalMap(false));
+  }
+  if (dom.btnQuickGuide) {
+    dom.btnQuickGuide.addEventListener('click', () => toggleQuickGuide());
+  }
+  if (dom.btnCloseGuide) {
+    dom.btnCloseGuide.addEventListener('click', () => toggleQuickGuide(false));
   }
   if (dom.btnClearGps) {
     dom.btnClearGps.addEventListener('click', () => {
