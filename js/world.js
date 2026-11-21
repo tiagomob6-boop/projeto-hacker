@@ -176,31 +176,77 @@ export const TextureGenerator = {
 
   getWaterTexture() {
     if (!this.cache.water) {
-      const c = this._makeCanvas(256, 256);
+      const c = this._makeCanvas(512, 512);
       const ctx = c.getContext('2d');
-      ctx.fillStyle = '#051a30';
-      ctx.fillRect(0, 0, 256, 256);
+      // Gradiente crepuscular profundo de São Francisco
+      const grad = ctx.createLinearGradient(0, 0, 512, 512);
+      grad.addColorStop(0, '#020d1c');
+      grad.addColorStop(0.45, '#051c36');
+      grad.addColorStop(1, '#092d4f');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 512, 512);
 
-      // Ondas e reflexos sutis
-      for (let y = 0; y < 256; y += 16) {
-        ctx.fillStyle = 'rgba(0, 175, 255, 0.12)';
+      // Reflexos duplos: ciano/magenta do entardecer de SF + espuma nas bordas + shimmer
+      for (let y = 0; y < 512; y += 10) {
+        // Ondas e reflexos ciano
+        ctx.fillStyle = 'rgba(0, 240, 255, 0.16)';
         ctx.beginPath();
-        ctx.ellipse((y * 7) % 256, y, 42, 4, 0, 0, Math.PI * 2);
+        ctx.ellipse((y * 9) % 512, y, 52, 4.5, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.fillStyle = 'rgba(255, 90, 160, 0.07)';
+        // Reflexos crepusculares magenta / twilight do pôr do sol
+        ctx.fillStyle = 'rgba(255, 40, 130, 0.12)';
         ctx.beginPath();
-        ctx.ellipse((y * 13 + 80) % 256, y + 6, 28, 3, 0, 0, Math.PI * 2);
+        ctx.ellipse((y * 17 + 140) % 512, y + 3, 36, 3.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Shimmer âmbar / dourado das luzes urbanas refletidas
+        ctx.fillStyle = 'rgba(255, 180, 70, 0.08)';
+        ctx.beginPath();
+        ctx.ellipse((y * 23 + 280) % 512, y + 6, 26, 2.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Espuma fina e caústicas nas cristas das ondas
+        ctx.fillStyle = 'rgba(230, 250, 255, 0.22)';
+        ctx.beginPath();
+        ctx.ellipse((y * 31 + 60) % 512, y + 1, 18, 1.8, 0, 0, Math.PI * 2);
         ctx.fill();
       }
 
       const tex = new THREE.CanvasTexture(c);
       tex.wrapS = THREE.RepeatWrapping;
       tex.wrapT = THREE.RepeatWrapping;
-      tex.repeat.set(42, 42);
+      tex.repeat.set(64, 64);
       this.cache.water = tex;
     }
     return this.cache.water;
+  },
+
+  getWaterBumpMap() {
+    if (!this.cache.waterBump) {
+      const c = this._makeCanvas(256, 256);
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#808080';
+      ctx.fillRect(0, 0, 256, 256);
+
+      // Normal/bump map procedural com ondulações horizontais e cruzadas
+      for (let y = 0; y < 256; y += 6) {
+        const val = Math.floor(128 + Math.sin(y * 0.22) * 48);
+        ctx.fillStyle = `rgb(${val}, ${val}, ${val})`;
+        ctx.fillRect(0, y, 256, 3);
+      }
+      for (let x = 0; x < 256; x += 10) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+        ctx.fillRect(x, 0, 4, 256);
+      }
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(48, 48);
+      this.cache.waterBump = tex;
+    }
+    return this.cache.waterBump;
   },
 
   getSunsetSkyTexture() {
@@ -362,22 +408,67 @@ export function buildMap() {
   refs.rainPoints.visible = gameState.rainEnabled;
   refs.worldGroup.add(refs.rainPoints);
 
-  // Água da Baía de São Francisco cobrindo todo o mundo aberto 50x (WORLD_BOUNDS: -30000..30000)
+  // Água de alta definição da Baía de São Francisco (64x64 segmentos para ondas 3D reais nos vértices)
   refs.waterTexture = TextureGenerator.getWaterTexture();
-  refs.waterTexture.repeat.set(900, 900);
+  refs.waterTexture.repeat.set(48, 56);
+  refs.waterBumpMap = TextureGenerator.getWaterBumpMap();
+  refs.waterBumpMap.repeat.set(48, 56);
+
+  const bayWaterGeo = new THREE.PlaneGeometry(2500, 2900, 64, 64);
+  bayWaterGeo.userData = {
+    basePositions: new Float32Array(bayWaterGeo.attributes.position.array)
+  };
+  refs.bayWaterGeo = bayWaterGeo;
+
   const bayWaterMat = new THREE.MeshStandardMaterial({
-    color: 0x0b3a66,
+    color: 0x093a68,
     map: refs.waterTexture,
-    emissive: 0x06294a,
+    bumpMap: refs.waterBumpMap,
+    bumpScale: 0.08,
+    emissive: 0x06284a,
     emissiveMap: refs.waterTexture,
     emissiveIntensity: 0.85,
     roughness: 0.14,
     metalness: 0.82
   });
-  refs.waterMesh = new THREE.Mesh(new THREE.PlaneGeometry(60000, 60000), bayWaterMat);
+  refs.waterMesh = new THREE.Mesh(bayWaterGeo, bayWaterMat);
   refs.waterMesh.rotation.x = -Math.PI / 2;
-  refs.waterMesh.position.set(0, -0.55, 0);
+  refs.waterMesh.position.set(240, -0.55, 170);
   refs.worldGroup.add(refs.waterMesh);
+
+  // Plano infinito do oceano além da baía
+  const oceanInfiniteMat = new THREE.MeshStandardMaterial({
+    color: 0x05213d,
+    emissive: 0x03182d,
+    emissiveIntensity: 0.75,
+    roughness: 0.22,
+    metalness: 0.78
+  });
+  const oceanInfiniteMesh = new THREE.Mesh(new THREE.PlaneGeometry(60000, 60000), oceanInfiniteMat);
+  oceanInfiniteMesh.rotation.x = -Math.PI / 2;
+  oceanInfiniteMesh.position.set(0, -0.62, 0);
+  refs.worldGroup.add(oceanInfiniteMesh);
+
+  // Espumas / ondulações animadas ao redor dos pilares das pontes e píeres
+  refs.waterFoamRings = [];
+  const foamMat = new THREE.MeshBasicMaterial({
+    color: 0x88eeff,
+    transparent: true,
+    opacity: 0.38,
+    side: THREE.DoubleSide
+  });
+  const pillarSpots = [
+    [105, 35, 3.2], [145, 35, 3.2], [170, 35, 4.6], [240, 35, 3.2], [310, 35, 4.6], [335, 35, 3.2], [375, 35, 3.2],
+    [165, 320, 3.6], [240, 320, 3.6], [315, 320, 3.6],
+    [79.5, 62, 4.0], [79.5, 220, 4.0], [398.5, 62, 4.0], [398.5, -120, 4.0]
+  ];
+  pillarSpots.forEach(([px, pz, rad]) => {
+    const ring = new THREE.Mesh(new THREE.RingGeometry(rad * 0.45, rad, 20), foamMat.clone());
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(px, -0.52, pz);
+    refs.worldGroup.add(ring);
+    refs.waterFoamRings.push(ring);
+  });
 
   // Setor 1: Distrito Downtown & Financial + Complexo ctOS
   buildEnvironment(MAPS_CONFIG.COMPLEXO_CTOS);
@@ -2260,9 +2351,30 @@ export function buildDocksEnvironment(cfg) {
   grid.material.transparent = true;
   refs.worldGroup.add(grid);
 
-  // Muro oeste dividido em duas partes (Z: -25..24 e Z: 46..84), deixando abertura ampla de 22m (Z: 24..46) na saída da ponte
+  // Muro oeste dividido em três partes, deixando passagem ampla de 22m (Z: 24..46) na saída da ponte e vão livre de 20m (Z: 52..72) conectando o Píer ao pátio
   addStaticBox(1.2, 3.6, 49, dx - 44, 1.8, -0.5, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.4 });
-  addStaticBox(1.2, 3.6, 38, dx - 44, 1.8, 65, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.4 });
+  addStaticBox(1.2, 3.6, 6, dx - 44, 1.8, 49, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.4 });
+  addStaticBox(1.2, 3.6, 12, dx - 44, 1.8, 78, 0x1b2236, { edgesColor: 0x00f0ff, edgesOpacity: 0.4 });
+
+  // Sinalização e pórtico luminoso de acesso do Píer (Z = 52..72)
+  addStaticBox(1.4, 5.0, 1.4, dx - 44, 2.5, 52, 0x222c42, { edgesColor: 0x00ff88, edgesOpacity: 0.8 });
+  addStaticBox(1.4, 5.0, 1.4, dx - 44, 2.5, 72, 0x222c42, { edgesColor: 0x00ff88, edgesOpacity: 0.8 });
+  addStaticBox(1.4, 0.7, 21.4, dx - 44, 5.35, 62, 0x182436, {
+    collide: false,
+    occlude: false,
+    emissive: 0x00ff88,
+    emissiveIntensity: 0.75,
+    edgesColor: 0x00ff88,
+    edgesOpacity: 0.9
+  });
+
+  // Rampa suave de conexão do píer de lanchas (X: 396..404, Z: 62) diretamente ao pátio das Docas
+  addStaticBox(12.0, 0.25, 20.0, dx - 41, -0.125, 62, 0x1c2538, {
+    collide: false,
+    occlude: false,
+    edgesColor: 0x00ff88,
+    edgesOpacity: 0.55
+  });
   // Pórtico luminoso na entrada das Docas (Z = 24..46)
   addStaticBox(1.4, 6.0, 1.4, dx - 44, 3.0, 24, 0x222c42, { edgesColor: 0x00f0ff, edgesOpacity: 0.65 });
   addStaticBox(1.4, 6.0, 1.4, dx - 44, 3.0, 46, 0x222c42, { edgesColor: 0x00f0ff, edgesOpacity: 0.65 });
@@ -2291,7 +2403,8 @@ export function buildDocksEnvironment(cfg) {
   addStaticBox(40, 4.8, 1.2, dx + 23.5, 2.4, -24, 0x1b2236, { edgesColor: 0xff0055, edgesOpacity: 0.45 });
 
   radarWalls.push(
-    { x1: dx - 44, z1: 84, x2: dx - 44, z2: 46 },
+    { x1: dx - 44, z1: 84, x2: dx - 44, z2: 72 },
+    { x1: dx - 44, z1: 52, x2: dx - 44, z2: 46 },
     { x1: dx - 44, z1: 24, x2: dx - 44, z2: -25 },
     { x1: dx + 44, z1: 84, x2: dx + 44, z2: -25 },
     { x1: dx - 43, z1: 18, x2: dx - 3.5, z2: 18 },
@@ -3213,7 +3326,21 @@ export function buildBoatMesh(color, neonTrim) {
   const motorNeon = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.16, 0.2), trimMat);
   motorNeon.position.set(0, 0.72, -2.55);
 
-  boatGroup.add(hull, bow, bowTip, cabin, motor, motorNeon);
+  // Espuma / ondulação suave ao redor do casco na linha da água
+  const hullFoam = new THREE.Mesh(
+    new THREE.RingGeometry(1.6, 2.7, 24),
+    new THREE.MeshBasicMaterial({
+      color: 0x99f0ff,
+      transparent: true,
+      opacity: 0.42,
+      side: THREE.DoubleSide
+    })
+  );
+  hullFoam.rotation.x = -Math.PI / 2;
+  hullFoam.position.set(0, -0.05, 0.4);
+  hullFoam.name = 'hullFoam';
+
+  boatGroup.add(hull, bow, bowTip, cabin, motor, motorNeon, hullFoam);
   return boatGroup;
 }
 
@@ -3827,13 +3954,42 @@ export function updateVisualEffects(dt, nowSec) {
     refs.extractionBeam.material.opacity = 0.13 + Math.sin(nowSec * 3.2) * 0.04;
   }
 
+  if (refs.bayWaterGeo) {
+    const posAttr = refs.bayWaterGeo.attributes.position;
+    const base = refs.bayWaterGeo.userData.basePositions;
+    for (let i = 0; i < posAttr.count; i++) {
+      const u = base[i * 3];
+      const v = base[i * 3 + 1];
+      // Ondas suaves e cristas móveis nos vértices 3D da baía
+      posAttr.setZ(
+        i,
+        base[i * 3 + 2] +
+          Math.sin(u * 0.016 + nowSec * 1.5) * 0.09 +
+          Math.cos(v * 0.014 + nowSec * 1.2) * 0.07
+      );
+    }
+    posAttr.needsUpdate = true;
+  }
+
   if (refs.waterMesh) {
-    refs.waterMesh.position.y = -0.55 + Math.sin(nowSec * 1.4) * 0.05;
-    refs.waterMesh.material.emissiveIntensity = 0.78 + Math.sin(nowSec * 2.0) * 0.1;
+    refs.waterMesh.position.y = -0.55 + Math.sin(nowSec * 1.2) * 0.04;
+    refs.waterMesh.material.emissiveIntensity = 0.80 + Math.sin(nowSec * 1.8) * 0.08;
   }
   if (refs.waterTexture) {
-    refs.waterTexture.offset.x += dt * 0.035;
-    refs.waterTexture.offset.y += dt * 0.022;
+    refs.waterTexture.offset.x += dt * 0.024;
+    refs.waterTexture.offset.y += dt * 0.018;
+  }
+  if (refs.waterBumpMap) {
+    refs.waterBumpMap.offset.x -= dt * 0.016;
+    refs.waterBumpMap.offset.y += dt * 0.022;
+  }
+
+  if (refs.waterFoamRings) {
+    refs.waterFoamRings.forEach((ring, idx) => {
+      const s = 1.0 + Math.sin(nowSec * 2.4 + idx * 0.8) * 0.08;
+      ring.scale.set(s, s, 1);
+      ring.material.opacity = 0.28 + Math.sin(nowSec * 2.8 + idx * 0.6) * 0.12;
+    });
   }
 
   for (let i = impactFlashes.length - 1; i >= 0; i--) {

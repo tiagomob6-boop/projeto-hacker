@@ -393,6 +393,9 @@ export function createAgentMesh(config = {}) {
     rifleMesh,
     empMesh,
     shotgunMesh,
+    weaponMount,
+    swimRipple: null,
+    swimPhase: 0,
     jacketMat,
     innerMat,
     pantsMat,
@@ -407,6 +410,22 @@ export function createAgentMesh(config = {}) {
   };
 
   agentGroup.add(legLeft.hip, legRight.hip, upperBody);
+
+  // Suave anel de ondulação/espuma ao redor do pescoço na linha da água ao nadar
+  const swimRipple = new THREE.Mesh(
+    new THREE.RingGeometry(0.32, 0.58, 24),
+    new THREE.MeshBasicMaterial({
+      color: 0x88eeff,
+      transparent: true,
+      opacity: 0.5,
+      side: THREE.DoubleSide
+    })
+  );
+  swimRipple.rotation.x = -Math.PI / 2;
+  swimRipple.position.y = 0.60;
+  swimRipple.visible = false;
+  agentGroup.add(swimRipple);
+  parts.swimRipple = swimRipple;
   if (config.label) {
     agentGroup.add(createAgentNameTag(config.label));
   }
@@ -1145,10 +1164,12 @@ export function toggleDriveDedsecCar() {
     return;
   }
 
-  // Verificar embarque em lancha DedSec
+  // Verificar embarque em lancha DedSec (diretamente da água ou píer)
   for (const boat of boats) {
-    if (refs.playerGroup.position.distanceTo(boat.mesh.position) < 5.8) {
+    const dH = Math.hypot(refs.playerGroup.position.x - boat.mesh.position.x, refs.playerGroup.position.z - boat.mesh.position.z);
+    if (dH < 5.8) {
       gameState.drivingBoat = boat;
+      gameState.isSwimming = false;
       gameState.isCrouching = false;
       gameState.isSprinting = false;
       refs.playerGroup.visible = false;
@@ -1710,6 +1731,15 @@ export function updatePlayer(dt) {
     boat.mesh.position.y = -0.42 + Math.sin(gameState.elapsedTime * 2.5 + boat.id) * 0.05;
     refs.playerGroup.position.copy(boat.mesh.position);
 
+    // Espuma / ondulação dinâmica ao redor do casco
+    const hullFoam = boat.mesh.getObjectByName('hullFoam');
+    if (hullFoam) {
+      const speedNorm = Math.min(1, Math.abs(boat.speed) / 18);
+      const pulse = Math.sin(gameState.elapsedTime * 3.5);
+      hullFoam.scale.set(1.0 + speedNorm * 0.45 + pulse * 0.05, 1.0 + speedNorm * 1.1 + pulse * 0.05, 1);
+      hullFoam.material.opacity = 0.35 + speedNorm * 0.45;
+    }
+
     // Rastro ciano na popa
     if (boat.wakePoints) {
       boat.wakePoints.visible = Math.abs(boat.speed) > 1.0;
@@ -1898,6 +1928,13 @@ export function updatePlayer(dt) {
     refs.camera.updateProjectionMatrix();
   }
 
+  const pos = refs.playerGroup.position;
+  const onElevatedBridge =
+    (pos.z >= 26.5 && pos.z <= 43.5 && pos.x >= 78 && pos.x <= 402) ||
+    (pos.z >= 312 && pos.z <= 328 && pos.x >= 78 && pos.x <= 402);
+  const inWater = isWaterForBoats(pos.x, pos.z) && !isPierArea(pos.x, pos.z) && !onElevatedBridge;
+  gameState.isSwimming = inWater;
+
   let inputZ = 0;
   let inputX = 0;
   if (gameState.keys['KeyW'] || gameState.keys['ArrowUp']) inputZ += 1;
@@ -1906,22 +1943,27 @@ export function updatePlayer(dt) {
   if (gameState.keys['KeyD'] || gameState.keys['ArrowRight']) inputX += 1;
 
   const isMoving = inputX !== 0 || inputZ !== 0;
-  gameState.isCrouching = !!(gameState.keys['ControlLeft'] || gameState.keys['ControlRight']);
+  gameState.isCrouching = !gameState.isSwimming && !!(gameState.keys['ControlLeft'] || gameState.keys['ControlRight']);
   gameState.isSprinting = !!(gameState.keys['ShiftLeft'] || gameState.keys['ShiftRight']) && !gameState.isCrouching && isMoving;
 
   if (!gameState.netHackActive && gameState.activeCamIndex < 0) {
-    dom.statusMode.textContent = gameState.isCrouching
+    dom.statusMode.textContent = gameState.isSwimming
+      ? 'NADANDO'
+      : gameState.isCrouching
       ? 'AGACHADO'
       : gameState.isSprinting
       ? 'CORRENDO'
       : 'FURTIVO';
   }
 
-  const currentSpeed = gameState.isCrouching
+  const baseSpeed = gameState.isCrouching
     ? PLAYER_CROUCH_SPEED
     : gameState.isSprinting
     ? PLAYER_SPRINT_SPEED
     : PLAYER_SPEED;
+  const currentSpeed = gameState.isSwimming
+    ? (gameState.isSprinting ? 7.2 : 4.0)
+    : baseSpeed;
 
   if (isMoving) {
     const yaw = gameState.cameraYaw;
@@ -1939,21 +1981,17 @@ export function updatePlayer(dt) {
     const stepX = moveX * currentSpeed * dt;
     const stepZ = moveZ * currentSpeed * dt;
 
-    // Tentativa separada nos eixos X e Z para deslizar suavemente nas paredes e bloquear água
-    const pos = refs.playerGroup.position;
-    const canWalkX = !isWaterArea(pos.x + stepX, pos.z) || isPierArea(pos.x + stepX, pos.z);
-    if (!checkCollision(pos.x + stepX, pos.z) && canWalkX) {
+    // Movimentação livre no chão, calçadas, píeres e água (sem paredes invisíveis de água)
+    if (!checkCollision(pos.x + stepX, pos.z, PLAYER_RADIUS, null, pos.y, 1.8)) {
       pos.x += stepX;
     }
-    const canWalkZ = !isWaterArea(pos.x, pos.z + stepZ) || isPierArea(pos.x, pos.z + stepZ);
-    if (!checkCollision(pos.x, pos.z + stepZ) && canWalkZ) {
+    if (!checkCollision(pos.x, pos.z + stepZ, PLAYER_RADIUS, null, pos.y, 1.8)) {
       pos.z += stepZ;
     }
 
-    // Limites do mundo aberto unificado e altura da superfície (chão ou Ponte Golden Gate)
+    // Limites do mundo aberto unificado
     pos.x = THREE.MathUtils.clamp(pos.x, WORLD_BOUNDS.minX, WORLD_BOUNDS.maxX);
     pos.z = THREE.MathUtils.clamp(pos.z, WORLD_BOUNDS.minZ, WORLD_BOUNDS.maxZ);
-    pos.y = getSurfaceHeight(pos.x, pos.z);
 
     // Rotação suave na direção do movimento (ou para frente da mira se atirando)
     const targetRot =
@@ -1970,47 +2008,112 @@ export function updatePlayer(dt) {
     refs.playerGroup.rotation.y += diff * Math.min(1, dt * 16);
   }
 
-  // Animações esqueléticas fluidas (caminhada, corrida, agachamento real nos joelhos/tronco e mira)
+  // Altura da superfície: submerge a pos.y = -1.15 ao nadar mantendo cabeça/ombros fora da água (-0.55) ou ajusta ao chão
+  const targetY = inWater ? -1.15 : getSurfaceHeight(pos.x, pos.z);
+  pos.y = THREE.MathUtils.lerp(pos.y, targetY, Math.min(1, dt * 10));
+
   const p = refs.playerParts;
-  p.aimTimer = Math.max(0, p.aimTimer - dt);
-  p.crouchBlend = THREE.MathUtils.lerp(p.crouchBlend, gameState.isCrouching ? 1 : 0, Math.min(1, dt * 12));
-  p.moveBlend = THREE.MathUtils.lerp(p.moveBlend, isMoving ? 1 : 0, Math.min(1, dt * 12));
-  p.aimBlend = THREE.MathUtils.lerp(p.aimBlend, p.aimTimer > 0 ? 1 : 0, Math.min(1, dt * 16));
-
-  const strideFreq = gameState.isSprinting ? 14.5 : gameState.isCrouching ? 7.5 : 9.8;
-  if (isMoving) {
-    p.walkPhase += dt * strideFreq;
+  // Ocultar armas durante o nado e atualizar anel de ondulação/espuma ao redor do pescoço
+  if (p.weaponMount) {
+    p.weaponMount.visible = !gameState.isSwimming;
   }
-  const strideAmp = (gameState.isSprinting ? 0.62 : gameState.isCrouching ? 0.34 : 0.44) * p.moveBlend;
-  const sinW = Math.sin(p.walkPhase);
+  if (p.swimRipple) {
+    p.swimRipple.visible = gameState.isSwimming;
+    if (gameState.isSwimming) {
+      const pulse = Math.sin(gameState.elapsedTime * 4.2);
+      const s = 1.0 + pulse * 0.12 + (isMoving ? 0.35 : 0);
+      p.swimRipple.scale.set(s, s, 1);
+      p.swimRipple.material.opacity = 0.45 + pulse * 0.15;
+    }
+  }
 
-  // Agachamento real: abaixa o quadril/tronco e dobra os joelhos
-  const hipY = 0.88 - 0.27 * p.crouchBlend;
-  p.hipL.position.y = hipY;
-  p.hipR.position.y = hipY;
-  p.upperBody.position.y = hipY;
-  p.upperBody.rotation.x = 0.36 * p.crouchBlend + (gameState.isSprinting ? 0.16 * p.moveBlend : 0);
-  p.headGroup.rotation.x = -0.24 * p.crouchBlend;
+  if (gameState.isSwimming) {
+    p.swimPhase = (p.swimPhase || 0) + dt * (gameState.isSprinting ? 9.5 : 5.8);
+    const sPhase = p.swimPhase;
+    p.crouchBlend = 0;
+    p.aimBlend = 0;
+    p.aimTimer = 0;
 
-  const legSwingL = sinW * strideAmp;
-  const legSwingR = -sinW * strideAmp;
-  p.hipL.rotation.x = legSwingL - 0.68 * p.crouchBlend;
-  p.hipR.rotation.x = legSwingR - 0.68 * p.crouchBlend;
-  p.kneeL.rotation.x = 1.28 * p.crouchBlend + Math.max(0, -sinW) * 0.58 * p.moveBlend;
-  p.kneeR.rotation.x = 1.28 * p.crouchBlend + Math.max(0, sinW) * 0.58 * p.moveBlend;
+    const hipY = 0.88;
+    p.hipL.position.y = hipY;
+    p.hipR.position.y = hipY;
+    p.upperBody.position.y = hipY;
+    p.upperBody.rotation.x = isMoving ? 0.32 : 0.08;
+    p.headGroup.rotation.x = isMoving ? -0.28 : 0.0;
 
-  // Braço esquerdo (balanço natural)
-  p.shoulderL.rotation.x = -legSwingL * 0.85 - 0.12 * p.crouchBlend;
-  p.elbowL.rotation.x = -0.28 - (gameState.isSprinting ? 0.55 * p.moveBlend : 0);
+    if (isMoving) {
+      // Braçadas alternadas de nado crawl (braço esquerdo e braço direito com offset PI)
+      p.shoulderL.rotation.x = Math.cos(sPhase) * 1.5 - 0.5;
+      p.elbowL.rotation.x = -Math.abs(Math.sin(sPhase)) * 1.15;
+      p.shoulderL.rotation.z = -0.22 + Math.sin(sPhase) * 0.2;
 
-  // Braço direito (postura tática baixa ao caminhar -> ergue reto na mira ao disparar + leve recuo)
-  const walkShoulderR = -legSwingR * 0.75 - 0.18;
-  const walkElbowR = -0.45 - (gameState.isSprinting ? 0.45 * p.moveBlend : 0);
-  const recoilKick = (gameState.recoilTimer / 0.12) * 0.26;
-  const aimShoulderR = -1.38 - recoilKick;
-  const aimElbowR = -0.16;
-  p.shoulderR.rotation.x = THREE.MathUtils.lerp(walkShoulderR, aimShoulderR, p.aimBlend);
-  p.elbowR.rotation.x = THREE.MathUtils.lerp(walkElbowR, aimElbowR, p.aimBlend);
+      p.shoulderR.rotation.x = Math.cos(sPhase + Math.PI) * 1.5 - 0.5;
+      p.elbowR.rotation.x = -Math.abs(Math.sin(sPhase + Math.PI)) * 1.15;
+      p.shoulderR.rotation.z = 0.22 - Math.sin(sPhase + Math.PI) * 0.2;
+
+      // Batimento de pernas crawl (flutter kick)
+      p.hipL.rotation.x = Math.sin(sPhase * 2.2) * 0.32;
+      p.hipR.rotation.x = -Math.sin(sPhase * 2.2) * 0.32;
+      p.kneeL.rotation.x = Math.max(0, Math.sin(sPhase * 2.2)) * 0.42;
+      p.kneeR.rotation.x = Math.max(0, -Math.sin(sPhase * 2.2)) * 0.42;
+    } else {
+      // Flutuação suave (treading water)
+      const t = gameState.elapsedTime;
+      p.shoulderL.rotation.x = -0.3 + Math.sin(t * 2.5) * 0.16;
+      p.shoulderR.rotation.x = -0.3 - Math.sin(t * 2.5) * 0.16;
+      p.shoulderL.rotation.z = -0.35 + Math.cos(t * 2.5) * 0.12;
+      p.shoulderR.rotation.z = 0.35 - Math.cos(t * 2.5) * 0.12;
+      p.elbowL.rotation.x = -0.35;
+      p.elbowR.rotation.x = -0.35;
+      p.hipL.rotation.x = Math.sin(t * 2.8) * 0.12;
+      p.hipR.rotation.x = -Math.sin(t * 2.8) * 0.12;
+      p.kneeL.rotation.x = 0.22;
+      p.kneeR.rotation.x = 0.22;
+    }
+  } else {
+    // Animações esqueléticas fluidas em terra (caminhada, corrida, agachamento real nos joelhos/tronco e mira)
+    p.aimTimer = Math.max(0, p.aimTimer - dt);
+    p.crouchBlend = THREE.MathUtils.lerp(p.crouchBlend, gameState.isCrouching ? 1 : 0, Math.min(1, dt * 12));
+    p.moveBlend = THREE.MathUtils.lerp(p.moveBlend, isMoving ? 1 : 0, Math.min(1, dt * 12));
+    p.aimBlend = THREE.MathUtils.lerp(p.aimBlend, p.aimTimer > 0 ? 1 : 0, Math.min(1, dt * 16));
+
+    const strideFreq = gameState.isSprinting ? 14.5 : gameState.isCrouching ? 7.5 : 9.8;
+    if (isMoving) {
+      p.walkPhase += dt * strideFreq;
+    }
+    const strideAmp = (gameState.isSprinting ? 0.62 : gameState.isCrouching ? 0.34 : 0.44) * p.moveBlend;
+    const sinW = Math.sin(p.walkPhase);
+
+    // Agachamento real: abaixa o quadril/tronco e dobra os joelhos
+    const hipY = 0.88 - 0.27 * p.crouchBlend;
+    p.hipL.position.y = hipY;
+    p.hipR.position.y = hipY;
+    p.upperBody.position.y = hipY;
+    p.upperBody.rotation.x = 0.36 * p.crouchBlend + (gameState.isSprinting ? 0.16 * p.moveBlend : 0);
+    p.headGroup.rotation.x = -0.24 * p.crouchBlend;
+
+    const legSwingL = sinW * strideAmp;
+    const legSwingR = -sinW * strideAmp;
+    p.hipL.rotation.x = legSwingL - 0.68 * p.crouchBlend;
+    p.hipR.rotation.x = legSwingR - 0.68 * p.crouchBlend;
+    p.kneeL.rotation.x = 1.28 * p.crouchBlend + Math.max(0, -sinW) * 0.58 * p.moveBlend;
+    p.kneeR.rotation.x = 1.28 * p.crouchBlend + Math.max(0, sinW) * 0.58 * p.moveBlend;
+
+    // Braço esquerdo (balanço natural)
+    p.shoulderL.rotation.x = -legSwingL * 0.85 - 0.12 * p.crouchBlend;
+    p.elbowL.rotation.x = -0.28 - (gameState.isSprinting ? 0.55 * p.moveBlend : 0);
+    p.shoulderL.rotation.z = 0;
+
+    // Braço direito (postura tática baixa ao caminhar -> ergue reto na mira ao disparar + leve recuo)
+    const walkShoulderR = -legSwingR * 0.75 - 0.18;
+    const walkElbowR = -0.45 - (gameState.isSprinting ? 0.45 * p.moveBlend : 0);
+    const recoilKick = (gameState.recoilTimer / 0.12) * 0.26;
+    const aimShoulderR = -1.38 - recoilKick;
+    const aimElbowR = -0.16;
+    p.shoulderR.rotation.x = THREE.MathUtils.lerp(walkShoulderR, aimShoulderR, p.aimBlend);
+    p.elbowR.rotation.x = THREE.MathUtils.lerp(walkElbowR, aimElbowR, p.aimBlend);
+    p.shoulderR.rotation.z = 0;
+  }
 }
 
 export function toggleFirstPerson() {
@@ -2778,7 +2881,8 @@ export function updateInteractionsAndMission(dt) {
       promptText = '[F] SAIR DO CARRO DEDSEC';
     } else {
       for (const boat of boats) {
-        if (pPos.distanceTo(boat.mesh.position) < 5.8) {
+        const dH = Math.hypot(pPos.x - boat.mesh.position.x, pPos.z - boat.mesh.position.z);
+        if (dH < 5.8) {
           promptText = '[F] PILOTAR LANCHA DEDSEC';
           break;
         }

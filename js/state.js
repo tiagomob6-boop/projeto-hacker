@@ -324,6 +324,9 @@ export const refs = {
   serverParticles: null,
   waterMesh: null,
   waterTexture: null,
+  waterBumpMap: null,
+  bayWaterGeo: null,
+  waterFoamRings: [],
   dedsecCar: null,
   activeHeadlight: null,
   showroomTurntable: null,
@@ -427,6 +430,7 @@ export const gameState = {
   activeCamIndex: -1, // -1 = câmera 3ª pessoa do jogador
   drivingCar: null,
   drivingBoat: null,
+  isSwimming: false,
   targetCar: null,
   deliveryPos: [-120, 0.06, 320],
   equippedWeapon: WEAPON_TYPE.TASER,

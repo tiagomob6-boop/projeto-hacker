@@ -209,7 +209,17 @@ export function toggleNetHack(forceState) {
     refs.scene.fog.density = 0.00085;
     refs.ambientLight.intensity = BASE_AMBIENT_INTENSITY;
     dom.nethackOverlay.classList.add('hidden');
-    dom.statusMode.textContent = gameState.activeCamIndex >= 0 ? 'CÂMERA' : 'FURTIVO';
+    dom.statusMode.textContent = gameState.activeCamIndex >= 0
+      ? 'CÂMERA'
+      : gameState.drivingBoat
+      ? 'LANCHA'
+      : gameState.drivingCar
+      ? 'VEÍCULO'
+      : gameState.isSwimming
+      ? 'NADANDO'
+      : gameState.droneActive
+      ? 'DRONE'
+      : 'FURTIVO';
     refs.networkLinesGroup.visible = false;
   }
 

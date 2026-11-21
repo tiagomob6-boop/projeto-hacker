@@ -188,6 +188,7 @@ export function damageGuard(guard, dmg) {
 }
 
 export function fireEquippedWeapon() {
+  if (gameState.isSwimming) return;
   if (gameState.equippedWeapon === WEAPON_TYPE.EMP) {
     fireEmpPulse();
     return;
@@ -255,6 +256,7 @@ export function fireEquippedWeapon() {
 }
 
 export function fireEmpPulse() {
+  if (gameState.isSwimming) return;
   if (gameState.empCooldown > 0) return;
   gameState.empCooldown = WEAPON_CONFIG.EMP.cooldown;
   AudioManager.playEmpPulse();
