@@ -4,6 +4,7 @@ import {
   GUARD_STATE,
   WEAPON_TYPE,
   WEAPON_CONFIG,
+  SKINS_CATALOG,
   MAPS_CONFIG,
   HACK_CODES,
   FIREWALL_CODES,
@@ -28,6 +29,7 @@ import {
   boats,
   netHackTagItems,
   missionMarkers,
+  stores,
   formatTime
 } from './state.js';
 import { AudioManager } from './audio.js';
@@ -294,12 +296,14 @@ export function updateWeaponHUD() {
 }
 
 export function updateHpHUD() {
+  const maxHp = gameState.maxHp || 100;
+  const pct = THREE.MathUtils.clamp((gameState.hp / maxHp) * 100, 0, 100);
   if (dom.statusHp) {
-    dom.statusHp.textContent = `${Math.ceil(gameState.hp)}%`;
-    dom.statusHp.className = gameState.hp > 50 ? 'neon-green' : gameState.hp > 25 ? 'neon-cyan' : 'neon-magenta';
+    dom.statusHp.textContent = `${Math.ceil(gameState.hp)}/${maxHp}`;
+    dom.statusHp.className = pct > 50 ? 'neon-green' : pct > 25 ? 'neon-cyan' : 'neon-magenta';
   }
   if (dom.hpBar) {
-    dom.hpBar.style.width = `${THREE.MathUtils.clamp(gameState.hp, 0, 100)}%`;
+    dom.hpBar.style.width = `${pct}%`;
   }
 }
 
@@ -377,6 +381,153 @@ export function acceptPendingMission() {
   gameState.missionModalOpen = false;
   if (dom.missionModal) dom.missionModal.classList.add('hidden');
   refs.onAcceptMission?.(mKey);
+}
+
+export function openShopModal(storeType) {
+  if (!dom.shopModal || !dom.shopItems) return;
+  gameState.shopOpen = true;
+  const isStyle = storeType === 'STYLE';
+  if (dom.shopTitle) {
+    dom.shopTitle.textContent = isStyle ? 'DEDSEC STYLE // ROUPAS & SKINS' : 'HACKSHOP ARMORY // ARMAS & TÁTICA';
+    dom.shopTitle.className = isStyle ? 'status-title neon-magenta' : 'status-title neon-cyan';
+  }
+  if (dom.shopSubtitle) {
+    dom.shopSubtitle.textContent = isStyle
+      ? 'Compre e equipe visuais completos para alterar seu agente em tempo real.'
+      : 'Adquira blindagem extra, recarga rápida e armamento pesado DedSec.';
+  }
+
+  const renderShop = () => {
+    if (dom.shopMoney) dom.shopMoney.textContent = `$${gameState.money.toLocaleString('pt-BR')}`;
+    dom.shopItems.innerHTML = '';
+
+    if (isStyle) {
+      SKINS_CATALOG.forEach((skin) => {
+        const owned = gameState.ownedSkins.includes(skin.id);
+        const equipped = gameState.equippedSkin === skin.id;
+        const canAfford = gameState.money >= skin.price;
+
+        const row = document.createElement('div');
+        row.className = 'shop-item';
+        row.innerHTML = `
+          <div class="shop-item-info">
+            <div class="shop-item-title">${skin.name}</div>
+            <div class="shop-item-desc">${skin.price === 0 ? 'Padrão DedSec' : `Visual completo ($${skin.price})`}</div>
+          </div>
+        `;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `cyber-btn shop-item-btn ${equipped ? 'green-btn' : ''}`;
+        if (equipped) {
+          btn.textContent = 'EQUIPADO';
+          btn.disabled = true;
+        } else if (owned) {
+          btn.textContent = 'EQUIPAR';
+          btn.addEventListener('click', () => {
+            gameState.equippedSkin = skin.id;
+            refs.onApplySkin?.(skin.id);
+            AudioManager.playTerminalSuccess();
+            renderShop();
+          });
+        } else {
+          btn.textContent = `COMPRAR $${skin.price}`;
+          btn.disabled = !canAfford;
+          btn.addEventListener('click', () => {
+            if (gameState.money < skin.price) return;
+            gameState.money -= skin.price;
+            gameState.ownedSkins.push(skin.id);
+            gameState.equippedSkin = skin.id;
+            updateMoneyHUD();
+            refs.onApplySkin?.(skin.id);
+            AudioManager.playTerminalSuccess();
+            renderShop();
+          });
+        }
+        row.appendChild(btn);
+        dom.shopItems.appendChild(row);
+      });
+    } else {
+      const armoryItems = [
+        {
+          id: 'armor',
+          title: 'Colete Balístico DedSec',
+          desc: '+50 HP máximo (150 HP) e restaura toda a vida.',
+          price: 300,
+          owned: gameState.maxHp >= 150 && gameState.hp >= gameState.maxHp,
+          buy: () => {
+            gameState.maxHp = 150;
+            gameState.hp = 150;
+            updateHpHUD();
+          }
+        },
+        {
+          id: 'reload',
+          title: 'Melhoria de Recarga Rápida',
+          desc: 'Reduz em 45% o tempo de recarga de todas as armas.',
+          price: 700,
+          owned: gameState.hasRapidReload,
+          buy: () => {
+            gameState.hasRapidReload = true;
+          }
+        },
+        {
+          id: 'shotgun',
+          title: '[5] Escopeta Tática DedSec',
+          desc: 'Dispara 5 projéteis em leque de curto alcance com alto dano.',
+          price: 1200,
+          owned: gameState.hasShotgun,
+          buy: () => {
+            gameState.hasShotgun = true;
+            refs.onSelectWeapon?.(WEAPON_TYPE.SHOTGUN);
+          }
+        }
+      ];
+
+      armoryItems.forEach((item) => {
+        const row = document.createElement('div');
+        row.className = 'shop-item';
+        row.innerHTML = `
+          <div class="shop-item-info">
+            <div class="shop-item-title">${item.title}</div>
+            <div class="shop-item-desc">${item.desc}</div>
+          </div>
+        `;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `cyber-btn shop-item-btn ${item.owned ? 'green-btn' : ''}`;
+        if (item.owned) {
+          btn.textContent = 'ADQUIRIDO';
+          btn.disabled = true;
+        } else {
+          btn.textContent = `COMPRAR $${item.price}`;
+          btn.disabled = gameState.money < item.price;
+          btn.addEventListener('click', () => {
+            if (gameState.money < item.price) return;
+            gameState.money -= item.price;
+            item.buy();
+            updateMoneyHUD();
+            AudioManager.playTerminalSuccess();
+            renderShop();
+          });
+        }
+        row.appendChild(btn);
+        dom.shopItems.appendChild(row);
+      });
+    }
+  };
+
+  renderShop();
+  dom.shopModal.classList.remove('hidden');
+  if (document.pointerLockElement === dom.canvas) {
+    document.exitPointerLock();
+  }
+}
+
+export function closeShopModal() {
+  gameState.shopOpen = false;
+  gameState.shopCooldown = 3.5;
+  if (dom.shopModal) dom.shopModal.classList.add('hidden');
+  dom.canvas.requestPointerLock();
 }
 
 export function triggerGameOver(
@@ -506,6 +657,16 @@ export function updateRadar() {
     ctx.arc(garPos.x, garPos.y, 9, 0, Math.PI * 2);
     ctx.stroke();
   }
+
+  // Lojas interativas no radar
+  stores.forEach((st) => {
+    const sp = toRadar(st.pos.x, st.pos.z);
+    ctx.fillStyle = st.type === 'STYLE' ? '#d946ef' : '#ffaa00';
+    ctx.fillRect(sp.x - 4, sp.y - 4, 8, 8);
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(sp.x - 4, sp.y - 4, 8, 8);
+  });
 
   // Marcadores de missão no radar
   missionMarkers.forEach((m) => {

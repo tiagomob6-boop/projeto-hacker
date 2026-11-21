@@ -33,6 +33,7 @@ import {
   blinkingLights,
   sirenLights,
   missionMarkers,
+  stores,
   missionServers,
   missionExtractions,
   serverParticleData,
@@ -288,6 +289,7 @@ export function buildMap() {
   blinkingLights.length = 0;
   sirenLights.length = 0;
   missionMarkers.length = 0;
+  stores.length = 0;
   refs.waterMesh = null;
   refs.dedsecCar = null;
 
@@ -323,8 +325,9 @@ export function buildMap() {
   // Elementos repetitivos otimizados via THREE.InstancedMesh (60 FPS)
   buildInstancedWorldElements();
 
-  // Marcadores Holográficos de Missão no Mapa
+  // Marcadores Holográficos de Missão e Lojas Interativas no Mapa
   buildMissionMarkers();
+  buildStores();
 
   // Veículos, Tráfego, Pedestres e Barcos do Mundo Aberto
   buildCars();
@@ -730,6 +733,93 @@ export function buildMissionMarkers() {
   refs.vehicleDeliveryGroup = delivGroup;
   refs.vehicleDeliveryRing = delivRing;
   refs.vehicleDeliveryBeam = delivBeam;
+}
+
+export function buildStores() {
+  const storeConfigs = [
+    { type: 'STYLE', name: 'DEDSEC STYLE', x: -32, z: 68, color: 0xd946ef },
+    { type: 'ARMORY', name: 'HACKSHOP ARMORY', x: 32, z: 68, color: 0xffaa00 }
+  ];
+
+  storeConfigs.forEach((st) => {
+    const w = 13;
+    const d = 11;
+    const h = 4.4;
+    const doorW = 4.6;
+    const frontZ = st.z - d / 2;
+    const backZ = st.z + d / 2;
+    const segW = (w - doorW) / 2;
+
+    // Piso interno iluminado
+    addStaticBox(w - 0.6, 0.12, d - 0.6, st.x, 0.12, st.z, 0x11192c, {
+      collide: false,
+      occlude: false,
+      edgesColor: st.color,
+      edgesOpacity: 0.45
+    });
+
+    // Paredes laterais, fundo e fachada frontal com porta dupla aberta (voltada para -Z / rua)
+    addStaticBox(0.55, h, d, st.x - w / 2, h / 2, st.z, 0x182136, { edgesColor: st.color, edgesOpacity: 0.55 });
+    addStaticBox(0.55, h, d, st.x + w / 2, h / 2, st.z, 0x182136, { edgesColor: st.color, edgesOpacity: 0.55 });
+    addStaticBox(w, h, 0.55, st.x, h / 2, backZ, 0x182136, { edgesColor: st.color, edgesOpacity: 0.55 });
+    addStaticBox(segW, h, 0.55, st.x - (doorW / 2 + segW / 2), h / 2, frontZ, 0x182136, { edgesColor: st.color, edgesOpacity: 0.65 });
+    addStaticBox(segW, h, 0.55, st.x + (doorW / 2 + segW / 2), h / 2, frontZ, 0x182136, { edgesColor: st.color, edgesOpacity: 0.65 });
+    // Teto e marquise frontal com letreiro neon
+    addStaticBox(w + 0.6, 0.45, d + 0.6, st.x, h + 0.22, st.z, 0x101726, { collide: false, occlude: false, edgesColor: st.color, edgesOpacity: 0.7 });
+    addStaticBox(6.8, 0.7, 0.25, st.x, h - 0.35, frontZ - 0.35, st.color, {
+      collide: false,
+      occlude: false,
+      emissive: st.color,
+      emissiveIntensity: 1.25
+    });
+
+    // Decoração interna específica de cada loja
+    if (st.type === 'STYLE') {
+      // Manequins neon no interior
+      [-3.8, 3.8].forEach((mx, idx) => {
+        const ped = addStaticBox(1.2, 0.35, 1.2, st.x + mx, 0.3, st.z + 2.2, 0x1e293b, { occlude: false, edgesColor: 0xd946ef });
+        const manMat = new THREE.MeshBasicMaterial({ color: idx === 0 ? 0x00f0ff : 0xd946ef, wireframe: true });
+        const manBody = new THREE.Mesh(new THREE.CapsuleGeometry(0.22, 0.7, 6, 10), manMat);
+        manBody.position.set(st.x + mx, 1.25, st.z + 2.2);
+        const manHead = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 10), manMat);
+        manHead.position.set(st.x + mx, 1.92, st.z + 2.2);
+        refs.worldGroup.add(manBody, manHead);
+        void ped;
+      });
+    } else {
+      // Vitrines de armas no interior
+      [-3.8, 3.8].forEach((wx) => {
+        addStaticBox(1.8, 1.1, 0.9, st.x + wx, 0.7, st.z + 2.4, 0x1b2538, { occlude: false, edgesColor: 0xffaa00 });
+        addStaticBox(1.2, 0.22, 0.25, st.x + wx, 1.38, st.z + 2.4, 0xffaa00, {
+          collide: false,
+          occlude: false,
+          emissive: 0xffaa00,
+          emissiveIntensity: 1.0
+        });
+      });
+    }
+
+    // Anel luminoso de ativação dentro da loja
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(1.4, 1.85, 28),
+      new THREE.MeshBasicMaterial({ color: st.color, side: THREE.DoubleSide, transparent: true, opacity: 0.9 })
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(st.x, 0.2, st.z - 0.5);
+    refs.worldGroup.add(ring);
+
+    const shopLight = new THREE.PointLight(st.color, 1.8, 14);
+    shopLight.position.set(st.x, 3.4, st.z);
+    refs.worldGroup.add(shopLight);
+
+    stores.push({
+      type: st.type,
+      name: st.name,
+      pos: new THREE.Vector3(st.x, 0, st.z - 0.5),
+      ring,
+      color: st.color
+    });
+  });
 }
 
 export function setupLighting() {
@@ -2233,7 +2323,7 @@ export function buildNetworkLines() {
 
 export function resetWorldState(keepPlayerPos = false) {
   gameState.elapsedTime = 0;
-  gameState.hp = 100;
+  gameState.hp = gameState.maxHp || 100;
   gameState.damageFlashTimer = 0;
   gameState.baseAlert = false;
   gameState.mouseDown = false;

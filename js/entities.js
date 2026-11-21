@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import {
   MISSION_STATE,
   GUARD_STATE,
+  WEAPON_CONFIG,
+  SKINS_CATALOG,
   WORLD_BOUNDS,
   PLAYER_RADIUS,
   PLAYER_SPEED,
@@ -28,6 +30,7 @@ import {
   fleeingDrivers,
   boats,
   missionMarkers,
+  stores,
   getSurfaceHeight,
   createHackableDevice,
   isWaterArea,
@@ -39,6 +42,7 @@ import {
   closeGateTerminal,
   setMissionState,
   openMissionModal,
+  openShopModal,
   triggerGameOver,
   triggerVictory,
   updateMoneyHUD,
@@ -300,6 +304,22 @@ export function buildPlayer() {
   empMesh.visible = false;
   weaponMount.add(empMesh);
 
+  // [5] Escopeta Tática DedSec
+  const shotgunMesh = new THREE.Group();
+  const sgBody = new THREE.Mesh(
+    new THREE.BoxGeometry(0.10, 0.14, 0.64),
+    new THREE.MeshStandardMaterial({ color: 0x1e2433, roughness: 0.4, metalness: 0.7 })
+  );
+  sgBody.position.set(0, 0.04, 0.22);
+  const sgAccent = new THREE.Mesh(
+    new THREE.BoxGeometry(0.11, 0.04, 0.28),
+    new THREE.MeshBasicMaterial({ color: 0xff3366 })
+  );
+  sgAccent.position.set(0, 0.07, 0.30);
+  shotgunMesh.add(sgBody, sgAccent);
+  shotgunMesh.visible = false;
+  weaponMount.add(shotgunMesh);
+
   refs.playerParts = {
     upperBody,
     headGroup,
@@ -316,6 +336,13 @@ export function buildPlayer() {
     pistolMesh,
     rifleMesh,
     empMesh,
+    shotgunMesh,
+    jacketMat,
+    innerMat,
+    pantsMat,
+    capMat,
+    cyanMat,
+    magentaMat,
     walkPhase: 0,
     crouchBlend: 0,
     moveBlend: 0,
@@ -325,6 +352,19 @@ export function buildPlayer() {
 
   refs.playerGroup.add(legLeft.hip, legRight.hip, upperBody);
   refs.scene.add(refs.playerGroup);
+  applyPlayerSkin(gameState.equippedSkin || 'classic');
+}
+
+export function applyPlayerSkin(skinId) {
+  const skin = SKINS_CATALOG.find((s) => s.id === skinId) || SKINS_CATALOG[0];
+  const p = refs.playerParts;
+  if (!skin || !p) return;
+  if (p.jacketMat) p.jacketMat.color.setHex(skin.jacket);
+  if (p.innerMat) p.innerMat.color.setHex(skin.inner);
+  if (p.pantsMat) p.pantsMat.color.setHex(skin.pants);
+  if (p.capMat) p.capMat.color.setHex(skin.cap);
+  if (p.cyanMat) p.cyanMat.color.setHex(skin.primary);
+  if (p.magentaMat) p.magentaMat.color.setHex(skin.secondary);
 }
 
 // ==========================================
@@ -616,6 +656,14 @@ export function handleInteractPress() {
     if (!g.unlocked && pPos.distanceTo(g.panelMesh.position) < 3.6) {
       gameState.activeGateIndex = i;
       openTerminal('GATE');
+      return;
+    }
+  }
+
+  // 1b. Checar lojas interativas (DedSec Style / HackShop Armory)
+  for (const st of stores) {
+    if (pPos.distanceTo(st.pos) < 3.6) {
+      openShopModal(st.type);
       return;
     }
   }
@@ -1693,6 +1741,23 @@ export function updateInteractionsAndMission(dt) {
       if (distMarker < 2.8) {
         openMissionModal(m.key);
         return;
+      }
+    }
+  }
+
+  // Checar lojas interativas (DedSec Style / HackShop Armory)
+  if (gameState.shopCooldown > 0) {
+    gameState.shopCooldown = Math.max(0, gameState.shopCooldown - dt);
+  }
+  if (!gameState.drivingCar && !gameState.drivingBoat && !gameState.shopOpen && gameState.activeCamIndex < 0) {
+    for (const st of stores) {
+      const dStore = Math.hypot(pPos.x - st.pos.x, pPos.z - st.pos.z);
+      if (dStore < 2.2 && gameState.shopCooldown <= 0) {
+        openShopModal(st.type);
+        return;
+      }
+      if (!promptText && dStore < 3.6) {
+        promptText = `[E] ACESSAR ${st.name}`;
       }
     }
   }

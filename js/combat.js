@@ -23,11 +23,13 @@ import { AudioManager } from './audio.js';
 import { updateWeaponHUD, updateHpHUD, updateVehicleHpHUD, triggerGameOver } from './ui.js';
 
 export function selectWeapon(weaponType) {
+  if (weaponType === WEAPON_TYPE.SHOTGUN && !gameState.hasShotgun) return;
   gameState.equippedWeapon = weaponType;
   if (refs.playerParts.taserMesh) refs.playerParts.taserMesh.visible = weaponType === WEAPON_TYPE.TASER;
   if (refs.playerParts.pistolMesh) refs.playerParts.pistolMesh.visible = weaponType === WEAPON_TYPE.PISTOL;
   if (refs.playerParts.rifleMesh) refs.playerParts.rifleMesh.visible = weaponType === WEAPON_TYPE.RIFLE;
   if (refs.playerParts.empMesh) refs.playerParts.empMesh.visible = weaponType === WEAPON_TYPE.EMP;
+  if (refs.playerParts.shotgunMesh) refs.playerParts.shotgunMesh.visible = weaponType === WEAPON_TYPE.SHOTGUN;
   updateWeaponHUD();
   if (refs.playerParts) refs.playerParts.aimTimer = 0.45;
 }
@@ -137,48 +139,59 @@ export function fireEquippedWeapon() {
   if (gameState.weaponCooldown > 0) return;
 
   const cfg = WEAPON_CONFIG[gameState.equippedWeapon];
-  gameState.weaponCooldown = cfg.cooldown;
+  gameState.weaponCooldown = gameState.hasRapidReload ? cfg.cooldown * 0.55 : cfg.cooldown;
   updateWeaponHUD();
   if (refs.playerParts) refs.playerParts.aimTimer = 0.45;
 
   if (gameState.equippedWeapon === WEAPON_TYPE.TASER) AudioManager.playTaserShot();
   else if (gameState.equippedWeapon === WEAPON_TYPE.PISTOL) AudioManager.playSilencedShot();
-  else if (gameState.equippedWeapon === WEAPON_TYPE.RIFLE) AudioManager.playRifleShot();
+  else if (gameState.equippedWeapon === WEAPON_TYPE.RIFLE || gameState.equippedWeapon === WEAPON_TYPE.SHOTGUN) {
+    AudioManager.playRifleShot();
+  }
 
-  const dir = new THREE.Vector3();
-  refs.camera.getWorldDirection(dir);
-  dir.y = THREE.MathUtils.clamp(dir.y, -0.35, 0.35);
-  dir.normalize();
+  const baseDir = new THREE.Vector3();
+  refs.camera.getWorldDirection(baseDir);
+  baseDir.y = THREE.MathUtils.clamp(baseDir.y, -0.35, 0.35);
+  baseDir.normalize();
 
   const startPos = refs.playerGroup.position.clone().add(new THREE.Vector3(0, gameState.isCrouching ? 0.92 : 1.35, 0));
-  startPos.addScaledVector(dir, 0.75);
+  startPos.addScaledVector(baseDir, 0.75);
 
-  const boltMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(0.1, 0.1, 0.55),
-    new THREE.MeshBasicMaterial({ color: cfg.color })
-  );
-  boltMesh.position.copy(startPos);
-  boltMesh.lookAt(startPos.clone().add(dir));
-  refs.scene.add(boltMesh);
+  const angles =
+    gameState.equippedWeapon === WEAPON_TYPE.SHOTGUN
+      ? [-0.14, -0.07, 0, 0.07, 0.14]
+      : [0];
+  const life = gameState.equippedWeapon === WEAPON_TYPE.SHOTGUN ? 0.45 : 1.1;
 
-  const trailGeo = new THREE.BufferGeometry().setFromPoints([startPos.clone(), startPos.clone()]);
-  const trailLine = new THREE.Line(
-    trailGeo,
-    new THREE.LineBasicMaterial({ color: cfg.color, transparent: true, opacity: 0.85 })
-  );
-  refs.scene.add(trailLine);
+  angles.forEach((ang) => {
+    const dir = baseDir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), ang);
+    const boltMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.1, 0.1, 0.55),
+      new THREE.MeshBasicMaterial({ color: cfg.color })
+    );
+    boltMesh.position.copy(startPos);
+    boltMesh.lookAt(startPos.clone().add(dir));
+    refs.scene.add(boltMesh);
 
-  projectiles.push({
-    mesh: boltMesh,
-    line: trailLine,
-    origin: startPos.clone(),
-    pos: startPos.clone(),
-    dir,
-    speed: cfg.speed,
-    damage: cfg.damage,
-    isTaser: gameState.equippedWeapon === WEAPON_TYPE.TASER,
-    color: cfg.color,
-    life: 1.1
+    const trailGeo = new THREE.BufferGeometry().setFromPoints([startPos.clone(), startPos.clone()]);
+    const trailLine = new THREE.Line(
+      trailGeo,
+      new THREE.LineBasicMaterial({ color: cfg.color, transparent: true, opacity: 0.85 })
+    );
+    refs.scene.add(trailLine);
+
+    projectiles.push({
+      mesh: boltMesh,
+      line: trailLine,
+      origin: startPos.clone(),
+      pos: startPos.clone(),
+      dir,
+      speed: cfg.speed,
+      damage: cfg.damage,
+      isTaser: gameState.equippedWeapon === WEAPON_TYPE.TASER,
+      color: cfg.color,
+      life
+    });
   });
 
   alertGuardsByNoise(refs.playerGroup.position, cfg.noiseRadius);

@@ -27,15 +27,25 @@ export const WEAPON_TYPE = {
   TASER: 'TASER',
   PISTOL: 'PISTOL',
   RIFLE: 'RIFLE',
-  EMP: 'EMP'
+  EMP: 'EMP',
+  SHOTGUN: 'SHOTGUN'
 };
 
 export const WEAPON_CONFIG = {
   TASER: { key: 'TASER', label: '[1] TASER', cooldown: 1.5, damage: 0, speed: 46, color: 0x00f0ff, noiseRadius: 10 },
   PISTOL: { key: 'PISTOL', label: '[2] 9MM SIL.', cooldown: 0.35, damage: 50, speed: 60, color: 0x88ffff, noiseRadius: 0 },
   RIFLE: { key: 'RIFLE', label: '[3] RIFLE', cooldown: 0.14, damage: 35, speed: 66, color: 0xffaa00, noiseRadius: 26 },
-  EMP: { key: 'EMP', label: '[4] EMP', cooldown: 12.0, damage: 0, speed: 0, color: 0x00f0ff, noiseRadius: 22 }
+  EMP: { key: 'EMP', label: '[4] EMP', cooldown: 12.0, damage: 0, speed: 0, color: 0x00f0ff, noiseRadius: 22 },
+  SHOTGUN: { key: 'SHOTGUN', label: '[5] ESCOPETA', cooldown: 0.95, damage: 28, speed: 58, color: 0xff3366, noiseRadius: 28 }
 };
+
+export const SKINS_CATALOG = [
+  { id: 'classic', name: 'Hacker Clássico Ciano', price: 0, jacket: 0x161c2e, inner: 0x0c111d, pants: 0x121826, cap: 0x151c2d, primary: 0x00f0ff, secondary: 0xff0055 },
+  { id: 'samurai', name: 'Cyber Samurai Vermelho & Preto', price: 400, jacket: 0x140b10, inner: 0x2a0810, pants: 0x0d0d12, cap: 0x991b1b, primary: 0xff1144, secondary: 0xffaa00 },
+  { id: 'ghost', name: 'Fantasma Branco & Dourado', price: 800, jacket: 0xe2e8f0, inner: 0xcbd5e1, pants: 0x334155, cap: 0xf8fafc, primary: 0xfbbf24, secondary: 0xffffff },
+  { id: 'toxic', name: 'Infiltrador Tóxico Verde Neon', price: 650, jacket: 0x0f1f18, inner: 0x071510, pants: 0x111a16, cap: 0x14532d, primary: 0x00ff88, secondary: 0xa3e635 },
+  { id: 'shadow', name: 'Operativo Shadow Roxo/Magenta', price: 1000, jacket: 0x1a102b, inner: 0x0e071a, pants: 0x120b20, cap: 0x3b0764, primary: 0xd946ef, secondary: 0x8b5cf6 }
+];
 
 export const TASER_COOLDOWN = WEAPON_CONFIG.TASER.cooldown;
 export const EMP_COOLDOWN = WEAPON_CONFIG.EMP.cooldown;
@@ -217,6 +227,12 @@ export const dom = {
   missionModalDesc: document.getElementById('mission-modal-desc'),
   btnAcceptMission: document.getElementById('btn-accept-mission'),
   btnCancelMission: document.getElementById('btn-cancel-mission'),
+  shopModal: document.getElementById('shop-modal'),
+  shopTitle: document.getElementById('shop-title'),
+  shopSubtitle: document.getElementById('shop-subtitle'),
+  shopMoney: document.getElementById('shop-money'),
+  shopItems: document.getElementById('shop-items'),
+  btnCloseShop: document.getElementById('btn-close-shop'),
   finalReward: document.getElementById('final-reward'),
   hpBar: document.getElementById('hp-bar'),
   statusWeapon: document.getElementById('status-weapon'),
@@ -284,7 +300,9 @@ export const refs = {
   vehicleDeliveryRing: null,
   vehicleDeliveryBeam: null,
   onFirewallDisabled: null,
-  onAcceptMission: null
+  onAcceptMission: null,
+  onApplySkin: null,
+  onSelectWeapon: null
 };
 
 export const serverParticleData = [];
@@ -314,6 +332,7 @@ export const blinkingLights = [];  // { mat, phase }
 export const sirenLights = [];     // { blueMat, redMat, phase }
 export const netHackTagItems = []; // { el, getPos, getText }
 export const missionMarkers = [];  // { key, ring, beam }
+export const stores = [];          // { type: 'STYLE'|'ARMORY', name, pos, ring, color }
 export const missionServers = {};  // { COMPLEXO_CTOS: { mesh, core, particles, particleData }, DOCAS_BAIA_SF: ... }
 export const missionExtractions = {}; // { COMPLEXO_CTOS: { group, ring, beam }, DOCAS_BAIA_SF: ... }
 
@@ -330,6 +349,13 @@ export const gameState = {
   activeGateIndex: 0,
   elapsedTime: 0,
   hp: 100,
+  maxHp: 100,
+  ownedSkins: ['classic'],
+  equippedSkin: 'classic',
+  hasRapidReload: false,
+  hasShotgun: false,
+  shopOpen: false,
+  shopCooldown: 0,
   damageFlashTimer: 0,
   baseAlert: false,
   mouseDown: false,

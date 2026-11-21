@@ -18,6 +18,7 @@ import {
   setMissionState,
   closeMissionModal,
   acceptPendingMission,
+  closeShopModal,
   updateMoneyHUD,
   updateHpHUD,
   updateRadar
@@ -35,6 +36,7 @@ import {
   overloadActiveCamera,
   handleInteractPress,
   toggleDriveDedsecCar,
+  applyPlayerSkin,
   updatePlayer,
   updateCars,
   updateCamera,
@@ -55,6 +57,8 @@ import {
 // Registrar callbacks para evitar dependências circulares entre ui.js, combat.js e world.js
 refs.onFirewallDisabled = triggerBaseAlert;
 refs.onAcceptMission = startContract;
+refs.onApplySkin = applyPlayerSkin;
+refs.onSelectWeapon = selectWeapon;
 
 function setupInputs() {
   window.addEventListener('keydown', (e) => {
@@ -75,6 +79,11 @@ function setupInputs() {
 
     if (gameState.missionModalOpen) {
       if (code === 'Escape') closeMissionModal();
+      return;
+    }
+
+    if (gameState.shopOpen) {
+      if (code === 'Escape') closeShopModal();
       return;
     }
 
@@ -102,6 +111,8 @@ function setupInputs() {
       selectWeapon(WEAPON_TYPE.RIFLE);
     } else if (code === 'Digit4' || code === 'Numpad4') {
       selectWeapon(WEAPON_TYPE.EMP);
+    } else if (code === 'Digit5' || code === 'Numpad5') {
+      selectWeapon(WEAPON_TYPE.SHOTGUN);
     } else if (code === 'KeyR' && gameState.activeCamIndex >= 0) {
       overloadActiveCamera();
     }
@@ -173,6 +184,7 @@ function setupInputs() {
   dom.btnRetryVictory.addEventListener('click', returnToFreeRoam);
   if (dom.btnAcceptMission) dom.btnAcceptMission.addEventListener('click', acceptPendingMission);
   if (dom.btnCancelMission) dom.btnCancelMission.addEventListener('click', closeMissionModal);
+  if (dom.btnCloseShop) dom.btnCloseShop.addEventListener('click', closeShopModal);
   if (dom.btnMute) {
     dom.btnMute.addEventListener('click', () => AudioManager.toggleMute());
   }

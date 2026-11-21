@@ -693,3 +693,57 @@ kbd {
   font-size: 0.78rem;
   color: var(--text-muted);
 }
+
+/* Lojas DedSec Style & HackShop Armory */
+.shop-card {
+  max-width: 560px;
+}
+
+.shop-balance {
+  margin-bottom: 14px;
+  font-size: 0.95rem;
+  letter-spacing: 1px;
+}
+
+.shop-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 18px;
+  max-height: 310px;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.shop-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: rgba(10, 18, 34, 0.85);
+  border: 1px solid rgba(0, 240, 255, 0.25);
+}
+
+.shop-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.shop-item-title {
+  font-weight: bold;
+  font-size: 0.92rem;
+  color: var(--text);
+}
+
+.shop-item-desc {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.shop-item-btn {
+  padding: 7px 14px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
