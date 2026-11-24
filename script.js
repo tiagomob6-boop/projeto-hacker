@@ -373,6 +373,10 @@ function animate() {
   const nowSec = refs.clock.elapsedTime;
 
   updateVisualEffects(dt, nowSec);
+  // Atualiza projéteis e ondas EMP em todos os frames para nunca deixar malhas congeladas no ar
+  updateProjectiles(dt);
+  updateGuardProjectiles(dt);
+  updateEmpWaves(dt);
 
   const isContract =
     gameState.mission === MISSION_STATE.INFILTRATE ||
@@ -390,9 +394,6 @@ function animate() {
 
     updatePlayer(dt);
     updateCars(dt);
-    updateProjectiles(dt);
-    updateGuardProjectiles(dt);
-    updateEmpWaves(dt);
     updateElectricBoxes(dt);
     updatePedestrians(dt);
     updateGuards(dt);

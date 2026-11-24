@@ -47,10 +47,16 @@ function getSharedBoltMat(colorHex) {
 }
 
 function disposePlayerProjectile(p) {
-  refs.scene.remove(p.mesh);
-  refs.scene.remove(p.line);
-  if (p.line?.geometry) p.line.geometry.dispose();
-  if (p.line?.material) p.line.material.dispose();
+  if (p.mesh) {
+    if (p.mesh.parent) p.mesh.parent.remove(p.mesh);
+    else refs.scene.remove(p.mesh);
+  }
+  if (p.line) {
+    if (p.line.parent) p.line.parent.remove(p.line);
+    else refs.scene.remove(p.line);
+    if (p.line.geometry) p.line.geometry.dispose();
+    if (p.line.material) p.line.material.dispose();
+  }
 }
 
 export function selectWeapon(weaponType) {
@@ -231,13 +237,13 @@ export function fireEquippedWeapon() {
       : [0];
   const life = gameState.equippedWeapon === WEAPON_TYPE.SHOTGUN ? 0.45 : 1.1;
 
-  angles.forEach((ang) => {
+  angles.forEach((ang, idx) => {
     const dir = baseDir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), ang);
     const boltMesh = new THREE.Mesh(sharedPlayerBoltGeo, getSharedBoltMat(cfg.color));
     boltMesh.position.copy(startPos);
     boltMesh.lookAt(startPos.clone().add(dir));
     refs.scene.add(boltMesh);
-    if (p === 0) refs.onBroadcastShoot?.(startPos, dir, cfg.color);
+    if (idx === 0) refs.onBroadcastShoot?.(startPos, dir, cfg.color);
 
     const trailGeo = new THREE.BufferGeometry().setFromPoints([startPos.clone(), startPos.clone()]);
     const trailLine = new THREE.Line(
@@ -317,10 +323,17 @@ export function updateProjectiles(dt) {
     gameState.mouseDown &&
     gameState.equippedWeapon === WEAPON_TYPE.RIFLE &&
     gameState.weaponCooldown === 0 &&
-    document.pointerLockElement === dom.canvas &&
+    (document.pointerLockElement === dom.canvas || gameState.touchEnabled) &&
+    !gameState.authOpen &&
+    !gameState.touchEditMode &&
     !gameState.terminalOpen &&
+    !gameState.missionModalOpen &&
+    !gameState.shopOpen &&
+    !gameState.tacticalMapOpen &&
+    !gameState.quickGuideOpen &&
     gameState.activeCamIndex < 0 &&
-    !gameState.drivingCar
+    !gameState.drivingCar &&
+    !gameState.drivingBoat
   ) {
     fireEquippedWeapon();
   }
@@ -400,14 +413,21 @@ export function updateProjectiles(dt) {
     }
 
     // Quebra de janelas e vitrines de vidro ao impacto de projéteis
+    let hitGlass = false;
     for (let wIdx = 0; wIdx < breakableWindows.length; wIdx++) {
       const win = breakableWindows[wIdx];
       if (win.broken || !win.box) continue;
       if (_tmpBox.copy(win.box).expandByScalar(0.28).containsPoint(p.pos)) {
         refs.onShatterWindow?.(win, p.dir);
         spawnTaserFlash(p.pos, 0x7dd3fc);
+        hitGlass = true;
         break;
       }
+    }
+    if (hitGlass) {
+      disposePlayerProjectile(p);
+      projectiles.splice(i, 1);
+      continue;
     }
 
     // Acerto no gerador das celas de resgate (destruir gerador liberta o prisioneiro)
@@ -427,7 +447,7 @@ export function updateProjectiles(dt) {
         AudioManager.playExplosion();
         _tmpVec1.copy(hitGenCell.genMesh.position);
         _tmpVec1.y += 0.8;
-        spawnImpactFlash(_tmpVec1, 0xff5500);
+        spawnTaserFlash(_tmpVec1, 0xff5500);
         refs.onFreeRescueCell?.(hitGenCell);
       }
       disposePlayerProjectile(p);
@@ -458,8 +478,10 @@ export function updateProjectiles(dt) {
       continue;
     }
 
-    if (hitObs.length > 0 || p.life <= 0) {
+    const groundY = getSurfaceHeight(p.pos.x, p.pos.z, p.pos.y);
+    if (hitObs.length > 0 || p.pos.y <= groundY + 0.04 || p.life <= 0) {
       if (hitObs.length > 0) spawnTaserFlash(hitObs[0].point, p.color);
+      else if (p.pos.y <= groundY + 0.04) spawnTaserFlash(p.pos, p.color);
       disposePlayerProjectile(p);
       projectiles.splice(i, 1);
     }
@@ -557,7 +579,7 @@ export function explodeCar(car) {
 
   AudioManager.playExplosion();
   panicPedestrians(car.mesh.position, 32);
-  spawnImpactFlash(car.mesh.position.clone().add(new THREE.Vector3(0, 1.3, 0)), 0xff5500);
+  spawnTaserFlash(car.mesh.position.clone().add(new THREE.Vector3(0, 1.3, 0)), 0xff5500);
 
   const ringGeo = new THREE.RingGeometry(0.6, 1.4, 32);
   const ringMat = new THREE.MeshBasicMaterial({
@@ -610,7 +632,8 @@ export function updateEmpWaves(dt) {
     w.mesh.scale.set(w.radius, w.radius, 1);
     w.mat.opacity = Math.max(0, 0.85 * (1 - w.radius / w.maxRadius));
     if (w.radius >= w.maxRadius) {
-      refs.scene.remove(w.mesh);
+      if (w.mesh.parent) w.mesh.parent.remove(w.mesh);
+      else refs.scene.remove(w.mesh);
       if (w.mesh.geometry) w.mesh.geometry.dispose();
       if (w.mat) w.mat.dispose();
       empWaves.splice(i, 1);

@@ -588,8 +588,11 @@ export function buildMap() {
       cameras: [
         { name: 'STREET_CAM_01 // ESQUINA OESTE', pos: [-26, 5.2, 26], baseYaw: 0.72, basePitch: -0.35 },
         { name: 'STREET_CAM_02 // ESQUINA LESTE', pos: [26, 5.2, 26], baseYaw: -0.72, basePitch: -0.35 },
-        { name: 'STREET_CAM_03 // AVENIDA SUL OESTE', pos: [-24, 5.2, 62], baseYaw: 2.5, basePitch: -0.35 },
-        { name: 'STREET_CAM_04 // AVENIDA SUL LESTE', pos: [24, 5.2, 62], baseYaw: -2.5, basePitch: -0.35 }
+        { name: 'STREET_CAM_03 // FACHADA DEDSEC STYLE', pos: [-32, 4.6, 60.4], baseYaw: Math.PI, basePitch: -0.35, wallMount: true },
+        { name: 'STREET_CAM_04 // FACHADA HACKSHOP', pos: [32, 4.6, 60.4], baseYaw: Math.PI, basePitch: -0.35, wallMount: true },
+        { name: 'FACADE_CAM_05 // BAY MED CLINIC', pos: [44.2, 4.7, 42], baseYaw: -Math.PI / 2, basePitch: -0.35, wallMount: true },
+        { name: 'FACADE_CAM_06 // GRAND SF HOTEL', pos: [-44.2, 4.7, 42], baseYaw: Math.PI / 2, basePitch: -0.35, wallMount: true },
+        { name: 'FACADE_CAM_07 // BLUME TOWER', pos: [44.2, 4.7, 16], baseYaw: -Math.PI / 2, basePitch: -0.35, wallMount: true }
       ]
     },
     'STREET'

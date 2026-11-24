@@ -335,8 +335,8 @@ export const MAPS_CONFIG = {
     serverPos: [50.0, 16.2 + 1.65, 16.0],
     gates: [],
     cameras: [
-      { name: 'CAM_BLUME_3F // 3º ANDAR', pos: [46.2, 11.4, 10.5], baseYaw: 2.35, basePitch: -0.35 },
-      { name: 'CAM_BLUME_5F // COBERTURA', pos: [46.2, 19.4, 21.5], baseYaw: 0.78, basePitch: -0.35 }
+      { name: 'CAM_BLUME_3F // 3º ANDAR', pos: [46.2, 11.2, 10.5], baseYaw: 0.78, basePitch: -0.35, wallMount: true },
+      { name: 'CAM_BLUME_5F // COBERTURA', pos: [46.2, 19.2, 21.5], baseYaw: 2.35, basePitch: -0.35, wallMount: true }
     ],
     electricBoxes: [
       { name: 'CAIXA_BLUME_3F', pos: [52.5, 8.2 + 0.85, 10.5] }
@@ -367,8 +367,8 @@ export const MAPS_CONFIG = {
     escapeDir: [1, 0],
     gates: [],
     cameras: [
-      { name: 'CAM_HOTEL_3F // CORREDOR 3º', pos: [-46.2, 11.4, 35.8], baseYaw: -2.35, basePitch: -0.35 },
-      { name: 'CAM_HOTEL_4F // SUÍTE PRES.', pos: [-46.2, 15.4, 48.2], baseYaw: -0.78, basePitch: -0.35 }
+      { name: 'CAM_HOTEL_3F // CORREDOR 3º', pos: [-46.2, 11.2, 35.8], baseYaw: -0.78, basePitch: -0.35, wallMount: true },
+      { name: 'CAM_HOTEL_4F // SUÍTE PRES.', pos: [-46.2, 15.2, 48.2], baseYaw: -2.35, basePitch: -0.35, wallMount: true }
     ],
     electricBoxes: [
       { name: 'CAIXA_HOTEL_4F', pos: [-52.5, 12.2 + 0.85, 36.2] }

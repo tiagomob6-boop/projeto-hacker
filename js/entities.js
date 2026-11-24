@@ -802,12 +802,18 @@ export function buildSecurityCameras(cfg, missionKey = 'COMPLEXO_CTOS') {
     mesh.userData.normalMaterial = normalMat;
     mesh.userData.nethackMaterial = nethackMat;
 
-    // Poste/suporte metálico físico sustentando a câmera até o solo (y = 0..pos.y)
-    const poleH = Math.max(1.0, pos.y);
+    // Suporte metálico: braço horizontal curto em fachadas/paredes (wallMount) ou poste até o solo
     const poleMat = new THREE.MeshStandardMaterial({ color: 0x1b2438, roughness: 0.65, metalness: 0.45 });
-    const poleMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, poleH, 8), poleMat);
-    poleMesh.position.set(pos.x, poleH / 2, pos.z);
-    refs.worldGroup.add(poleMesh);
+    if (camCfg.wallMount) {
+      const bracketArm = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.65), poleMat);
+      bracketArm.position.set(0, 0.08, -0.45);
+      mesh.add(bracketArm);
+    } else {
+      const poleH = Math.max(1.0, pos.y);
+      const poleMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, poleH, 8), poleMat);
+      poleMesh.position.set(pos.x, poleH / 2, pos.z);
+      refs.worldGroup.add(poleMesh);
+    }
 
     // Feixe laser vermelho semitransparente de varredura
     const laserMat = new THREE.MeshBasicMaterial({
@@ -845,6 +851,7 @@ export function buildSecurityCameras(cfg, missionKey = 'COMPLEXO_CTOS') {
       visionHalfAngle: Math.atan(CAM_CONE_RADIUS / CAM_CONE_LENGTH),
       disabledTimer: 0,
       alertCooldown: 0,
+      wallMount: !!camCfg.wallMount,
       sweepPhase: idx * 1.5,
       currentYaw: camCfg.baseYaw
     });
@@ -2882,7 +2889,8 @@ export function updateSecurityCameras(dt, playerPos, playerCenter) {
     } else {
       const sweepSpeed = DIFFICULTY_PRESETS[gameState.difficulty].camSweepSpeed;
       camObj.sweepPhase += dt * sweepSpeed;
-      yaw = camObj.baseYaw + Math.sin(camObj.sweepPhase) * 0.42;
+      const sweepAmp = camObj.wallMount ? 0.34 : 0.42;
+      yaw = camObj.baseYaw + Math.sin(camObj.sweepPhase) * sweepAmp;
     }
     camObj.currentYaw = yaw;
     camObj.mesh.rotation.y = yaw;
@@ -2891,8 +2899,19 @@ export function updateSecurityCameras(dt, playerPos, playerCenter) {
     const cosP = Math.cos(CAM_CONE_PITCH);
     const sinY = Math.sin(yaw);
     const cosY = Math.cos(yaw);
-    _tmpV1.set(sinY * cosP, -Math.sin(CAM_CONE_PITCH), cosY * cosP);
-    _tmpV2.set(camObj.pos.x + sinY * 0.4, camObj.pos.y, camObj.pos.z + cosY * 0.4);
+    _tmpV1.set(sinY * cosP, -Math.sin(CAM_CONE_PITCH), cosY * cosP).normalize();
+    _tmpV2.set(camObj.pos.x + sinY * 0.45, camObj.pos.y, camObj.pos.z + cosY * 0.45);
+
+    // Recorta o comprimento do cone laser vermelho se encontrar parede/marquise/teto à frente
+    if (camObj.laserMesh) {
+      raycaster.set(_tmpV2, _tmpV1);
+      raycaster.far = camObj.visionRange;
+      const coneBlock = raycaster.intersectObjects(occluders, false);
+      const effectiveLen = coneBlock.length > 0 ? Math.max(0.5, coneBlock[0].distance) : camObj.visionRange;
+      const scaleRatio = effectiveLen / camObj.visionRange;
+      camObj.laserMesh.scale.set(scaleRatio, scaleRatio, scaleRatio);
+    }
+
     _tmpV3.copy(playerCenter).sub(_tmpV2);
     const dist = _tmpV3.length();
 
@@ -2900,9 +2919,9 @@ export function updateSecurityCameras(dt, playerPos, playerCenter) {
       _tmpV3.divideScalar(dist);
       const angle = Math.acos(THREE.MathUtils.clamp(_tmpV1.dot(_tmpV3), -1, 1));
       if (angle <= camObj.visionHalfAngle) {
-        _tmpV4.copy(playerCenter).sub(camObj.pos).normalize();
-        raycaster.set(camObj.pos, _tmpV4);
-        raycaster.far = Math.max(0.1, camObj.pos.distanceTo(playerCenter) - 0.3);
+        _tmpV4.copy(playerCenter).sub(_tmpV2).normalize();
+        raycaster.set(_tmpV2, _tmpV4);
+        raycaster.far = Math.max(0.1, dist - 0.3);
         const blocked = raycaster.intersectObjects(occluders, false);
         if (blocked.length === 0) {
           camSpotted = true;
