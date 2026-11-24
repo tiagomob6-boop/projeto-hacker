@@ -38,6 +38,7 @@ import {
   supplyBoxes,
   policeCars,
   rescueCells,
+  steamPipes,
   remotePlayers,
   playersMap,
   colliders,
@@ -71,6 +72,7 @@ import {
   stunGuard,
   triggerBaseAlert,
   fireGuardBullet,
+  damageCar,
   reportCrimeToCivilians,
   spawnTaserFlash
 } from './combat.js';
@@ -1040,8 +1042,22 @@ export function handleInteractPress() {
     }
   }
 
-  // 3b. Checar semáforos, carros hackeáveis ou pedestres (Profiler +$75) na Visão NetHack (V)
+  // 3b. Checar tubulações de vapor (V+E), semáforos, carros hackeáveis ou pedestres (Profiler +$75) na Visão NetHack (V)
   if (gameState.netHackActive) {
+    for (const sp of steamPipes) {
+      if (sp.cooldown > 0 || sp.activeTimer > 0) continue;
+      const distSp = pPos.distanceTo(sp.pos);
+      const toSp = sp.pos.clone().add(new THREE.Vector3(0, 0.5, 0)).sub(refs.camera.position).normalize();
+      if ((distSp < 42 && camDir.dot(toSp) > 0.86) || (gameState.drivingCar && distSp < 14)) {
+        sp.activeTimer = 4.5;
+        sp.cooldown = 16.0;
+        if (sp.steamPoints) sp.steamPoints.visible = true;
+        gameState.hacksUsed += 1;
+        AudioManager.playExplosion();
+        return;
+      }
+    }
+
     for (const tl of trafficLights) {
       if (tl.hackedTimer > 0) continue;
       const distTl = pPos.distanceTo(tl.pos);
@@ -1437,34 +1453,39 @@ export function disembarkPoliceCar(car) {
 // MOVIMENTAÇÃO, COLISÃO, CARROS E CÂMERA
 // ==========================================
 function checkCarHitPedestrians(car, isPlayerCar = false) {
-  if (!car || car.destroyed || Math.abs(car.speed) < 5.0) return;
+  if (!car || car.destroyed || Math.abs(car.speed) < 4.5) return;
   const cPos = car.mesh.position;
   const moveSign = Math.sign(car.speed) || 1;
   const fwdX = Math.sin(car.mesh.rotation.y) * moveSign;
   const fwdZ = Math.cos(car.mesh.rotation.y) * moveSign;
   const rightX = Math.cos(car.mesh.rotation.y);
   const rightZ = -Math.sin(car.mesh.rotation.y);
-  const impactSpeed = Math.abs(car.speed);
 
   for (const ped of pedestrians) {
     if (ped.stunnedTimer > 0) continue;
     const dx = ped.mesh.position.x - cPos.x;
     const dz = ped.mesh.position.z - cPos.z;
     const dist = Math.hypot(dx, dz);
-    if (dist < 1.85 && Math.abs(ped.mesh.position.y - cPos.y) < 2.0) {
+    if (dist < 1.9 && Math.abs(ped.mesh.position.y - cPos.y) < 2.0) {
+      // Empurra o pedestre lateralmente (+2.2m perpendicular ao carro) para nunca sumir dentro da malha nem travar o veículo
       const latSign = dx * rightX + dz * rightZ >= 0 ? 1 : -1;
-      const launch = Math.min(13.5, Math.max(6.5, impactSpeed * 0.72));
-      ped.stunnedTimer = 14.0;
+      const pushX = cPos.x + rightX * latSign * 2.2;
+      const pushZ = cPos.z + rightZ * latSign * 2.2;
+      if (!checkCollision(pushX, pushZ, 0.35) && !isWaterArea(pushX, pushZ)) {
+        ped.mesh.position.x = pushX;
+        ped.mesh.position.z = pushZ;
+      }
+      ped.mesh.position.y = getSurfaceHeight(ped.mesh.position.x, ped.mesh.position.z) + 0.2;
+      ped.mesh.visible = true;
+      ped.stunnedTimer = 10.0;
       ped.callingPolice = false;
       if (ped.phoneIcon) ped.phoneIcon.visible = false;
-      ped.knockTimer = 0.55;
-      ped.knockVx = fwdX * launch + rightX * latSign * 3.4;
-      ped.knockVz = fwdZ * launch + rightZ * latSign * 3.4;
-      ped.knockVy = 3.8;
+      ped.knockTimer = 0.35;
+      ped.knockVx = fwdX * 3.5 + rightX * latSign * 4.5;
+      ped.knockVz = fwdZ * 3.5 + rightZ * latSign * 4.5;
+      ped.knockVy = 2.6;
       ped.mesh.rotation.x = -Math.PI / 2;
       AudioManager.playMetalCrash();
-      // Leve desaceleração sem travar o carro como se fosse um muro
-      car.speed *= 0.96;
       if (isPlayerCar) {
         reportCrimeToCivilians(ped.mesh.position, 24, 2);
       } else {
@@ -1475,6 +1496,35 @@ function checkCarHitPedestrians(car, isPlayerCar = false) {
 }
 
 export function updateCars(dt) {
+  if (gameState.callVehicleCooldown > 0) {
+    gameState.callVehicleCooldown = Math.max(0, gameState.callVehicleCooldown - dt);
+  }
+
+  // Atualizar colunas de vapor das tubulações hackeadas (imobilizam e danificam viaturas policiais)
+  steamPipes.forEach((sp) => {
+    if (sp.cooldown > 0) sp.cooldown = Math.max(0, sp.cooldown - dt);
+    if (sp.activeTimer > 0) {
+      sp.activeTimer = Math.max(0, sp.activeTimer - dt);
+      if (sp.steamPoints) {
+        sp.steamPoints.visible = sp.activeTimer > 0;
+        const posAttr = sp.steamPoints.geometry.getAttribute('position');
+        for (let i = 0; i < sp.steamData.length; i++) {
+          let sy = posAttr.getY(i) + sp.steamData[i].speed * dt;
+          if (sy > 6.2) sy = 0.1;
+          posAttr.setY(i, sy);
+        }
+        posAttr.needsUpdate = true;
+      }
+      policeCars.forEach((pc) => {
+        if (!pc || pc.destroyed) return;
+        if (Math.hypot(pc.mesh.position.x - sp.pos.x, pc.mesh.position.z - sp.pos.z) < 5.2) {
+          pc.speed = 0;
+          pc.hackedTimer = Math.max(pc.hackedTimer || 0, 3.0);
+          damageCar(pc, 48 * dt);
+        }
+      });
+    }
+  });
   // Atualizar timers de semáforos hackeados
   trafficLights.forEach((tl, idx) => {
     if (tl.hackedTimer > 0) {
@@ -1593,7 +1643,9 @@ export function updateCars(dt) {
         }
       }
 
-      if (!blocked) {
+      car.bypassTrafficTimer = Math.max(0, (car.bypassTrafficTimer || 0) - dt);
+
+      if (!blocked && car.bypassTrafficTimer <= 0) {
         for (const other of cars) {
           if (other === car || other.destroyed) continue;
           const ox = other.mesh.position.x - car.mesh.position.x;
@@ -1610,12 +1662,33 @@ export function updateCars(dt) {
         }
       }
 
+      // Timer anti-travamento: se ficar parado > 2.5s atrás de outro carro, faz leve desvio e ignora tráfego por 1.5s
+      if (blocked || car.speed < 0.8) {
+        car.stuckTimer = (car.stuckTimer || 0) + dt;
+        if (car.stuckTimer >= 2.5) {
+          car.stuckTimer = 0;
+          car.bypassTrafficTimer = 1.5;
+          blocked = false;
+          const rx = Math.cos(car.mesh.rotation.y);
+          const rz = -Math.sin(car.mesh.rotation.y);
+          const nudgeX = car.mesh.position.x + rx * 1.4;
+          const nudgeZ = car.mesh.position.z + rz * 1.4;
+          if (!checkCarCollision(nudgeX, nudgeZ, car.mesh.rotation.y, car, true)) {
+            car.mesh.position.x = nudgeX;
+            car.mesh.position.z = nudgeZ;
+          }
+        }
+      } else {
+        car.stuckTimer = 0;
+      }
+
       const targetSpeed = blocked ? 0 : car.baseSpeed;
       car.speed = THREE.MathUtils.lerp(car.speed, targetSpeed, Math.min(1, dt * (blocked ? 6.0 : 2.5)));
       if (car.speed > 0.15) {
         const nx = car.mesh.position.x + fwdX * car.speed * dt;
         const nz = car.mesh.position.z + fwdZ * car.speed * dt;
-        if (!checkCarCollision(nx, nz, car.mesh.rotation.y, car)) {
+        const ignoreTraffic = car.bypassTrafficTimer > 0;
+        if (!checkCarCollision(nx, nz, car.mesh.rotation.y, car, ignoreTraffic)) {
           car.mesh.position.x = nx;
           car.mesh.position.z = nz;
           car.mesh.position.y = getSurfaceHeight(nx, nz);
@@ -1623,7 +1696,6 @@ export function updateCars(dt) {
           car.colliderObj.box.setFromObject(car.mesh);
           updateCarPitch(car, dt);
         } else {
-          // Frear e aguardar atrás do bloqueio em vez de pular waypoint e sair da faixa
           car.speed = 0;
         }
       }
@@ -2135,9 +2207,31 @@ export function updatePlayer(dt) {
     refs.playerGroup.rotation.y += diff * Math.min(1, dt * 16);
   }
 
-  // Altura da superfície: submerge a pos.y = -1.15 ao nadar mantendo cabeça/ombros fora da água (-0.55) ou ajusta ao chão
-  const targetY = inWater ? -1.15 : getSurfaceHeight(pos.x, pos.z);
-  pos.y = THREE.MathUtils.lerp(pos.y, targetY, Math.min(1, dt * 10));
+  // Pulo real do jogador a pé (Space estando no chão, fora da água/veículos/drone)
+  if (!inWater) {
+    if (gameState.keys['Space'] && gameState.isGrounded && !gameState.isCrouching) {
+      gameState.playerVelY = 7.8;
+      gameState.isGrounded = false;
+    }
+    const groundY = getSurfaceHeight(pos.x, pos.z);
+    if (!gameState.isGrounded || gameState.playerVelY > 0) {
+      gameState.playerVelY -= 20.0 * dt;
+      pos.y += gameState.playerVelY * dt;
+      if (pos.y <= groundY) {
+        pos.y = groundY;
+        gameState.playerVelY = 0;
+        gameState.isGrounded = true;
+      }
+    } else {
+      pos.y = THREE.MathUtils.lerp(pos.y, groundY, Math.min(1, dt * 12));
+      gameState.isGrounded = true;
+    }
+  } else {
+    // Altura da superfície na água: submerge a pos.y = -1.15 mantendo cabeça/ombros fora da água
+    gameState.playerVelY = 0;
+    gameState.isGrounded = false;
+    pos.y = THREE.MathUtils.lerp(pos.y, -1.15, Math.min(1, dt * 10));
+  }
 
   const p = refs.playerParts;
   // Ocultar armas durante o nado e atualizar anel de ondulação/espuma ao redor do pescoço
@@ -2221,10 +2315,18 @@ export function updatePlayer(dt) {
 
     const legSwingL = sinW * strideAmp;
     const legSwingR = -sinW * strideAmp;
-    p.hipL.rotation.x = legSwingL - 0.68 * p.crouchBlend;
-    p.hipR.rotation.x = legSwingR - 0.68 * p.crouchBlend;
-    p.kneeL.rotation.x = 1.28 * p.crouchBlend + Math.max(0, -sinW) * 0.58 * p.moveBlend;
-    p.kneeR.rotation.x = 1.28 * p.crouchBlend + Math.max(0, sinW) * 0.58 * p.moveBlend;
+    if (!gameState.isGrounded) {
+      // Pose de salto no ar (pernas dobradas e braços levemente erguidos)
+      p.hipL.rotation.x = -0.55;
+      p.hipR.rotation.x = 0.35;
+      p.kneeL.rotation.x = 0.85;
+      p.kneeR.rotation.x = 0.55;
+    } else {
+      p.hipL.rotation.x = legSwingL - 0.68 * p.crouchBlend;
+      p.hipR.rotation.x = legSwingR - 0.68 * p.crouchBlend;
+      p.kneeL.rotation.x = 1.28 * p.crouchBlend + Math.max(0, -sinW) * 0.58 * p.moveBlend;
+      p.kneeR.rotation.x = 1.28 * p.crouchBlend + Math.max(0, sinW) * 0.58 * p.moveBlend;
+    }
 
     // Braço esquerdo (balanço natural)
     p.shoulderL.rotation.x = -legSwingL * 0.85 - 0.12 * p.crouchBlend;
@@ -3148,6 +3250,18 @@ export function updateInteractionsAndMission(dt) {
     refs.camera.getWorldDirection(camDir);
 
     if (gameState.netHackActive) {
+      for (const sp of steamPipes) {
+        if (sp.cooldown > 0 || sp.activeTimer > 0) continue;
+        const distSp = activePos.distanceTo(sp.pos);
+        const toSp = sp.pos.clone().add(new THREE.Vector3(0, 0.5, 0)).sub(refs.camera.position).normalize();
+        if ((distSp < 42 && camDir.dot(toSp) > 0.86) || (gameState.drivingCar && distSp < 14)) {
+          promptText = '[E] DETONAR TUBULAÇÃO DE VAPOR (IMOBILIZAR VIATURAS)';
+          break;
+        }
+      }
+    }
+
+    if (!promptText && gameState.netHackActive) {
       for (const tl of trafficLights) {
         if (tl.hackedTimer > 0) continue;
         const distTl = activePos.distanceTo(tl.pos);

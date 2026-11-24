@@ -406,6 +406,7 @@ export const dom = {
   hpBar: document.getElementById('hp-bar'),
   statusWeapon: document.getElementById('status-weapon'),
   statusCamera: document.getElementById('status-camera'),
+  statusRadio: document.getElementById('status-radio'),
   wantedStars: document.getElementById('wanted-stars'),
   wantedStatus: document.getElementById('wanted-status'),
   ctosRevealBanner: document.getElementById('ctos-reveal-banner'),
@@ -539,6 +540,7 @@ export const trafficLights = [];   // Semáforos hackeáveis nos cruzamentos (V 
 export const supplyBoxes = [];     // Caixas de suprimentos (+$100 ou +25 HP) nos interiores acessíveis
 export const policeCars = [];      // Viaturas de reforço policial ctOS spawnadas dinamicamente
 export const rescueCells = [];     // Celas de contenção de prisioneiros (RESCUE_01, RESCUE_02)
+export const steamPipes = [];      // Tubulações subterrâneas de vapor nas avenidas (V + E)
 export const remotePlayers = new Map(); // Jogadores remotos (id -> { group, parts, targetPos, targetYaw })
 export const playersMap = new Map();    // Todos os agentes ativos ('local' + remotos)
 export const missionServers = {};  // { COMPLEXO_CTOS: { mesh, core, particles, particleData }, DOCAS_BAIA_SF: ... }
@@ -566,6 +568,8 @@ export const gameState = {
   hasBlackout: false,
   blackoutTimer: 0,
   blackoutCooldown: 0,
+  callVehicleCooldown: 0,
+  radioStation: 'OFF',
   droneActive: false,
   droneYaw: 0,
   dronePitch: 0.12,
@@ -612,6 +616,8 @@ export const gameState = {
   hacksUsed: 0,
   isSprinting: false,
   isCrouching: false,
+  playerVelY: 0,
+  isGrounded: true,
   firstPerson: false,
   networkMode: 'OFFLINE_SOLO',
   localPlayerId: 'local',
@@ -753,10 +759,11 @@ export function isWaterArea(x, z) {
   return isWaterForLand(x, z);
 }
 
-export function checkCollision(x, z, radius = PLAYER_RADIUS, ignoreCar = null, y = null, height = 1.8) {
+export function checkCollision(x, z, radius = PLAYER_RADIUS, ignoreCar = null, y = null, height = 1.8, ignoreTraffic = false) {
   const entityY = y !== null ? y : getSurfaceHeight(x, z);
   for (const col of colliders) {
     if (ignoreCar && col === ignoreCar.colliderObj) continue;
+    if (ignoreTraffic && col.isTrafficCar) continue;
     const b = col.box;
     if (b.max.y <= entityY + 0.05 || b.min.y >= entityY + height) continue;
     const closestX = THREE.MathUtils.clamp(x, b.min.x, b.max.x);
@@ -770,7 +777,7 @@ export function checkCollision(x, z, radius = PLAYER_RADIUS, ignoreCar = null, y
   return false;
 }
 
-export function checkCarCollision(x, z, yaw, ignoreCar = null) {
+export function checkCarCollision(x, z, yaw, ignoreCar = null, ignoreTraffic = false) {
   const fwdX = Math.sin(yaw);
   const fwdZ = Math.cos(yaw);
   const rightX = Math.cos(yaw);
@@ -790,7 +797,7 @@ export function checkCarCollision(x, z, yaw, ignoreCar = null) {
 
   for (const [px, pz] of samplePoints) {
     if (isWaterForLand(px, pz)) return true;
-    if (checkCollision(px, pz, 0.42, ignoreCar)) return true;
+    if (checkCollision(px, pz, 0.42, ignoreCar, null, 1.8, ignoreTraffic)) return true;
   }
   return false;
 }

@@ -291,6 +291,69 @@ export const AudioManager = {
     }
   },
 
+  radioStation: 'OFF',
+  radioTimer: null,
+  radioStep: 0,
+
+  cycleRadioStation() {
+    this.init();
+    const order = ['OFF', 'DEDSEC FM', 'BAY NIGHT'];
+    const next = order[(order.indexOf(this.radioStation) + 1) % order.length];
+    this.setRadioStation(next);
+    return next;
+  },
+
+  setRadioStation(station = 'OFF') {
+    this.stopRadio();
+    this.radioStation = station;
+    if (dom.statusRadio) {
+      dom.statusRadio.textContent = `[N] ${station}`;
+      dom.statusRadio.className =
+        station === 'DEDSEC FM' ? 'neon-magenta' : station === 'BAY NIGHT' ? 'neon-green' : 'neon-cyan';
+    }
+    if (station === 'OFF') return;
+
+    this.radioStep = 0;
+    const isDedsec = station === 'DEDSEC FM';
+    const stepMs = isDedsec ? 130 : 155; // ~115 BPM vs ~97 BPM (semicolcheias)
+    const bassSeq = isDedsec
+      ? [55.0, 55.0, 110.0, 55.0, 43.65, 43.65, 87.31, 43.65, 49.0, 49.0, 98.0, 49.0, 65.41, 65.41, 58.27, 49.0]
+      : [73.42, 73.42, 146.83, 73.42, 58.27, 58.27, 116.54, 58.27, 65.41, 65.41, 130.81, 65.41, 55.0, 55.0, 110.0, 65.41];
+    const leadSeq = isDedsec
+      ? [440, 0, 523.25, 659.25, 587.33, 0, 523.25, 440, 392, 0, 493.88, 587.33, 659.25, 0, 523.25, 493.88]
+      : [293.66, 349.23, 440, 0, 523.25, 440, 349.23, 0, 329.63, 392, 493.88, 0, 440, 392, 349.23, 329.63];
+
+    this.radioTimer = setInterval(() => {
+      if (!this.ctx || this.muted) return;
+      const idx = this.radioStep % 16;
+      const bass = bassSeq[idx];
+      const lead = leadSeq[idx];
+      // Kick synth no tempo forte
+      if (idx % 4 === 0) {
+        this._tone(110, 36, 0.11, 'sine', 0.12, 220);
+      }
+      // Baixo synthwave pulsante
+      this._tone(bass, bass, 0.11, 'sawtooth', isDedsec ? 0.055 : 0.045, isDedsec ? 420 : 320);
+      // Melodia / Arpeggio
+      if (lead > 0) {
+        this._tone(lead, lead, isDedsec ? 0.11 : 0.18, isDedsec ? 'square' : 'triangle', isDedsec ? 0.036 : 0.042, isDedsec ? 1600 : 1200);
+      }
+      this.radioStep = (this.radioStep + 1) % 16;
+    }, stepMs);
+  },
+
+  stopRadio() {
+    if (this.radioTimer) {
+      clearInterval(this.radioTimer);
+      this.radioTimer = null;
+    }
+    this.radioStation = 'OFF';
+    if (dom.statusRadio) {
+      dom.statusRadio.textContent = '[N] OFF';
+      dom.statusRadio.className = 'neon-cyan';
+    }
+  },
+
   engineOsc: null,
   engineGain: null,
 

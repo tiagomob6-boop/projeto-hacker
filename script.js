@@ -65,6 +65,7 @@ import {
   returnToFreeRoam,
   startMission,
   spawnPurchasedVehicle,
+  callRemoteDedsecVehicle,
   spawnPoliceReinforcement,
   updateVisualEffects
 } from './js/world.js';
@@ -132,6 +133,7 @@ function setupInputs() {
       gameState.mission === MISSION_STATE.INFILTRATE ||
       gameState.mission === MISSION_STATE.STEAL_DATA ||
       gameState.mission === MISSION_STATE.STEAL_CAR ||
+      gameState.mission === MISSION_STATE.RESCUE_PRISONER ||
       gameState.mission === MISSION_STATE.ESCAPE;
     if (!activeMode) return;
 
@@ -143,6 +145,12 @@ function setupInputs() {
       handleInteractPress();
     } else if (code === 'KeyF') {
       toggleDriveDedsecCar();
+    } else if (code === 'KeyG') {
+      callRemoteDedsecVehicle();
+    } else if (code === 'KeyN') {
+      if (gameState.drivingCar || gameState.drivingBoat) {
+        gameState.radioStation = AudioManager.cycleRadioStation();
+      }
     } else if (code === 'KeyP') {
       toggleFirstPerson();
     } else if (code === 'KeyQ') {

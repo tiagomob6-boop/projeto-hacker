@@ -38,18 +38,20 @@ Explore livremente o mapa contínuo (`-30000..30000`) com `$500` iniciais e ativ
 | :--- | :--- |
 | `W` `A` `S` `D` (ou Setas) | Movimentar o personagem a pé, nadar na água (`MODO: NADANDO`) ou pilotar carros/lanchas |
 | `Shift` | Correr mais rápido a pé, nadar mais rápido (crawl) ou ativar **Nitro** no **Interceptor Hyper-X** |
-| `Space` | Subir com o Drone (`Q`) ou ativar **Drift / Freio de Mão** dirigindo carros em alta velocidade |
+| `Space` | **Pular (a pé)** sobre muretas/obstáculos, subir com o Drone (`Q`) ou ativar **Drift / Freio de Mão** dirigindo carros |
 | `Ctrl` | Agachar (reduz altura para cobertura atrás de caixas e diminui detecção) |
 | `Mouse` (Pointer Lock) | Orbitar câmera em 3ª pessoa / Olhar em 1ª pessoa / Girar câmera de segurança |
 | `P` | Alternar câmera entre **3ª Pessoa** e **1ª Pessoa** (a pé com arma visível ou visão de **Cockpit** no carro) |
 | `Tab` | Abrir / fechar o **Mapa Tático Completo** (clique para marcar um destino GPS no Radar DedSec) |
-| `V` | Alternar **Visão NetHack** (muros wireframe, rede ctOS e **Profiler** de pedestres a pé ou no Drone) |
+| `V` | Alternar **Visão NetHack** (muros wireframe, rede ctOS, **Tubulações de Vapor** e **Profiler** de pedestres) |
 | `C` | Hackear / alternar entre **Câmeras de Segurança** e voltar ao agente |
 | `R` | Sobrecarregar e desativar por `15s` a câmera controlada no momento |
-| `E` | Hackear Portão / Firewall, Caixa Elétrica, Semáforo, Câmera (`V+E`), Carro, Pedestre (`+$75`) ou acessar **Lojas / SF Motors** |
+| `E` | Hackear Portão / Cela / Firewall, **Tubulação de Vapor (`V+E`)**, Caixa Elétrica, Semáforo, Câmera, Pedestre (`+$75`) ou **Lojas** |
 | `Q` | Lançar / recolher o **Drone Quadricóptero DedSec** (`WASD` voar, `Space`/`Ctrl` subir/descer, `P` lente/3ª pessoa, `V+E` hack remoto, alcance `90m`) |
 | `B` | Ativar **Blackout Geral da Cidade** (`12s`, apaga postes, desativa câmeras laser e reduz visão inimiga em `50%`) |
 | `F` | Roubar/entrar em qualquer carro (ejetando o motorista) ou pilotar / desembarcar da **Lancha DedSec** (`WASD`) |
+| `G` | **Chamada Remota de Veículo DedSec** (a pé em terra firme, cooldown `20s`) |
+| `N` | Alternar **Rádio Synthwave Procedural** nos veículos e lanchas (`DEDSEC FM` / `BAY NIGHT` / `OFF`) |
 | `1` a `5` | Selecionar arma: `[1]` Taser, `[2]` 9mm Silenciada, `[3]` Rifle Automático, `[4]` Pulso EMP, `[5]` Escopeta Tática (HackShop) |
 | `Clique Esquerdo` | Disparar arma equipada (segurar para rajada automática no Rifle `[3]`) |
 | `H` | Abrir / fechar o **Guia Rápido & Ajustes** (resumo de controles, sombras e sensibilidade) |

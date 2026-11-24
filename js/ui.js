@@ -33,6 +33,7 @@ import {
   stores,
   trafficLights,
   rescueCells,
+  steamPipes,
   formatTime,
   saveProgress,
   getSurfaceHeight
@@ -125,6 +126,19 @@ export function buildNetHackLabels() {
           ? `SEMÁFORO_${idx + 1} CAOS (${Math.ceil(tl.hackedTimer)}s)`
           : `[E] HACKEAR SEMÁFORO`,
       36
+    );
+  });
+
+  steamPipes.forEach((sp, idx) => {
+    registerTag(
+      () => sp.pos.clone().add(new THREE.Vector3(0, 1.0, 0)),
+      () =>
+        sp.activeTimer > 0
+          ? `VAPOR_${idx + 1} ATIVO!`
+          : sp.cooldown > 0
+          ? `TUBULAÇÃO_${idx + 1} (${Math.ceil(sp.cooldown)}s)`
+          : `[E] TUBULAÇÃO DE VAPOR`,
+      42
     );
   });
 
@@ -1063,6 +1077,7 @@ export function triggerVictory() {
   if (dom.ctosRevealBanner) dom.ctosRevealBanner.classList.add('hidden');
   AudioManager.stopMusic();
   AudioManager.stopEngineSound();
+  AudioManager.stopRadio();
   AudioManager.playVictoryChime();
   if (document.pointerLockElement === dom.canvas) {
     document.exitPointerLock();

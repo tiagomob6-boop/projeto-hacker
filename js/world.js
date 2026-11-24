@@ -39,13 +39,16 @@ import {
   supplyBoxes,
   policeCars,
   rescueCells,
+  steamPipes,
   missionServers,
   missionExtractions,
   serverParticleData,
   getSurfaceHeight,
   disposeHierarchy,
   isWaterArea,
+  isWaterForLand,
   checkCollision,
+  checkCarCollision,
   createHackableDevice
 } from './state.js';
 import { AudioManager } from './audio.js';
@@ -406,6 +409,7 @@ export function buildMap() {
   supplyBoxes.length = 0;
   policeCars.length = 0;
   rescueCells.length = 0;
+  steamPipes.length = 0;
   refs.waterMesh = null;
   refs.dedsecCar = null;
   refs.showroomTurntable = null;
@@ -514,8 +518,9 @@ export function buildMap() {
   // Elementos repetitivos otimizados via THREE.InstancedMesh (60 FPS)
   buildInstancedWorldElements();
 
-  // Marcadores Holográficos de Missão e Lojas Interativas no Mapa
+  // Marcadores Holográficos de Missão, Tubulações de Vapor e Lojas Interativas no Mapa
   buildMissionMarkers();
+  buildSteamPipes();
   buildStores();
 
   // Veículos, Tráfego, Pedestres e Barcos do Mundo Aberto
@@ -1992,6 +1997,73 @@ export function buildMissionMarkers() {
   refs.vehicleDeliveryBeam = delivBeam;
 }
 
+export function buildSteamPipes() {
+  const pipeCoords = [
+    [0, 35],
+    [-32, 35],
+    [32, 35],
+    [-24, 58],
+    [24, 58],
+    [-60, 140],
+    [-120, 240],
+    [0, 320],
+    [DOCKS_OFFSET_X, 35],
+    [DOCKS_OFFSET_X + 30, 110]
+  ];
+
+  pipeCoords.forEach(([px, pz], idx) => {
+    const py = getSurfaceHeight(px, pz);
+    const normalMat = new THREE.MeshStandardMaterial({
+      color: 0x1e2636,
+      roughness: 0.7,
+      metalness: 0.5
+    });
+    const nethackMat = new THREE.MeshBasicMaterial({
+      color: 0xff6600,
+      wireframe: false
+    });
+    const grate = new THREE.Mesh(new THREE.CylinderGeometry(1.15, 1.25, 0.08, 16), normalMat);
+    grate.position.set(px, py + 0.04, pz);
+    grate.userData.normalMaterial = normalMat;
+    grate.userData.nethackMaterial = nethackMat;
+    refs.worldGroup.add(grate);
+    hackableMeshes.push(grate);
+
+    const pCount = 48;
+    const pPos = new Float32Array(pCount * 3);
+    const steamData = [];
+    for (let i = 0; i < pCount; i++) {
+      pPos[i * 3] = (Math.random() - 0.5) * 1.6;
+      pPos[i * 3 + 1] = Math.random() * 5.5;
+      pPos[i * 3 + 2] = (Math.random() - 0.5) * 1.6;
+      steamData.push({ speed: 6.5 + Math.random() * 5.0 });
+    }
+    const sGeo = new THREE.BufferGeometry();
+    sGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+    const sMat = new THREE.PointsMaterial({
+      color: 0xdff9ff,
+      size: 0.95,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false
+    });
+    const steamPoints = new THREE.Points(sGeo, sMat);
+    steamPoints.position.set(px, py + 0.1, pz);
+    steamPoints.visible = false;
+    refs.worldGroup.add(steamPoints);
+
+    steamPipes.push({
+      id: idx,
+      pos: new THREE.Vector3(px, py, pz),
+      mesh: grate,
+      steamPoints,
+      steamData,
+      activeTimer: 0,
+      cooldown: 0
+    });
+  });
+}
+
 export function buildStores() {
   const storeConfigs = [
     { type: 'STYLE', name: 'DEDSEC STYLE', x: -32, z: 68, w: 13, d: 11, color: 0xd946ef },
@@ -3436,18 +3508,18 @@ export function buildCars() {
 
 export function buildTrafficCars() {
   const routes = [
-    // Rota 0: Avenida Principal Centro / Complexo ctOS & Lojas (Sentido Horário)
-    [[-36, 17], [36, 17], [36, 59], [-36, 59]],
-    // Rota 1: Avenida Principal Centro / Complexo ctOS & Lojas (Sentido Anti-Horário)
-    [[36, 24], [-36, 24], [-36, 54], [36, 54]],
-    // Rota 2: Golden Gate <-> Docas (Leste Z=31 / Oeste Z=39)
-    [[24, 31], [420, 31], [472, 31], [472, 39], [420, 39], [24, 39]],
-    // Rota 3: Downtown <-> Golden Gate (Retorno Oeste/Leste)
-    [[460, 39], [60, 39], [-32, 39], [-32, 31], [60, 31], [460, 31]],
-    // Rota 4: Avenida Oeste Downtown <-> Distrito Sul <-> Ponte Sul
-    [[-68, -24], [-68, 316], [436, 316], [436, 324], [-60, 324], [-60, -24]],
-    // Rota 5: Circuito Distrito Sul <-> Garagem DedSec <-> Ponte Sul
-    [[416, 324], [-60, 324], [-60, 190], [-126, 190], [-126, 316], [416, 316]]
+    // Rota 0: Avenida Principal Externa de Downtown (Sentido Horário, mãos separadas)
+    [[-36, 16], [36, 16], [36, 59], [-36, 59]],
+    // Rota 1: Avenida Principal Interna de Downtown (Sentido Anti-Horário, faixa distinta sem frente-a-frente)
+    [[28, 22], [-28, 22], [-28, 53], [28, 53]],
+    // Rota 2: Golden Gate <-> Docas (Ida Leste Z=30 / Volta Oeste Z=40)
+    [[20, 30], [422, 30], [472, 30], [472, 40], [422, 40], [20, 40]],
+    // Rota 3: Downtown <-> Golden Gate (Mesma mão direcional: Leste Z=30 / Oeste Z=40)
+    [[458, 40], [60, 40], [-30, 40], [-30, 30], [60, 30], [458, 30]],
+    // Rota 4: Avenida Oeste (Sul X=-68 / Norte X=-58) <-> Ponte Sul (Leste Z=316 / Oeste Z=324)
+    [[-68, -24], [-68, 316], [436, 316], [436, 324], [-58, 324], [-58, -24]],
+    // Rota 5: Circuito Distrito Sul <-> Garagem DedSec <-> Ponte Sul (Mesma mão direcional)
+    [[416, 324], [-58, 324], [-58, 186], [-126, 186], [-126, 316], [416, 316]]
   ];
 
   const baseConfigs = [
@@ -3522,7 +3594,7 @@ export function buildTrafficCars() {
 
     carGroup.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(carGroup);
-    const colliderObj = { box, mesh: bodyMesh, carIndex: cars.length };
+    const colliderObj = { box, mesh: bodyMesh, carIndex: cars.length, isTrafficCar: true };
     colliders.push(colliderObj);
     occluders.push(bodyMesh);
 
@@ -3612,16 +3684,17 @@ export function buildPedestrians() {
   const jacketColors = [0x00c8ff, 0xff2a85, 0x10b981, 0xf59e0b, 0x8b5cf6, 0xef4444, 0x38bdf8, 0xec4899];
   const pantsColors = [0x111827, 0x1e293b, 0x312e81, 0x27272a];
   const skinColors = [0xc89678, 0xe0b596, 0x8d5524, 0xf1c27d];
-  // Rotas ao longo das calçadas elevadas e praças de Downtown, Distrito Sul e Docas
+  // Rotas seguras exclusivamente nas calçadas elevadas, praças e parques (longe das faixas de rolamento)
   const sidewalkPaths = [
-    [[-42, 4], [-42, 61], [42, 61], [42, 4]],          // Calçada principal de Downtown e Lojas
-    [[-38, 60], [-10, 60], [10, 60], [38, 60]],        // Calçada sul (DedSec Style / SF Motors / HackShop)
-    [[-9, 41], [9, 41], [9, 55], [-9, 55]],            // Praça central da extração
-    [[-122, 78], [-102, 78], [-102, 94], [-122, 94]],  // Praça Verde Downtown Oeste
-    [[-12, 118], [12, 118], [12, 130], [-12, 130]],    // Praça Verde Sul
-    [[-138, 244], [-118, 244], [-118, 260], [-138, 260]], // Praça Distrito Sul
-    [[DOCKS_OFFSET_X - 36, 48], [DOCKS_OFFSET_X - 14, 48], [DOCKS_OFFSET_X - 14, 70], [DOCKS_OFFSET_X - 36, 70]], // Calçada Docas
-    [[DOCKS_OFFSET_X + 14, 46], [DOCKS_OFFSET_X + 36, 46], [DOCKS_OFFSET_X + 36, 68], [DOCKS_OFFSET_X + 14, 68]]
+    [[-44, 62], [-12, 62], [12, 62], [44, 62]],            // Calçada frontal das 3 Lojas (ao sul da pista Z=59)
+    [[-45, 4], [-45, 24], [-47, 24], [-47, 4]],            // Calçada Oeste Norte de Downtown
+    [[45, 4], [45, 24], [47, 24], [47, 4]],                // Calçada Leste Norte de Downtown
+    [[-12, 44], [12, 44], [12, 50], [-12, 50]],            // Praça central da extração (entre Z=40 e Z=53)
+    [[-122, 78], [-102, 78], [-102, 94], [-122, 94]],      // Parque Verde Downtown Oeste
+    [[-12, 118], [12, 118], [12, 130], [-12, 130]],        // Parque Verde Sul
+    [[-138, 244], [-118, 244], [-118, 260], [-138, 260]],  // Praça Distrito Sul
+    [[DOCKS_OFFSET_X - 36, 48], [DOCKS_OFFSET_X - 14, 48], [DOCKS_OFFSET_X - 14, 70], [DOCKS_OFFSET_X - 36, 70]], // Calçada Docas Oeste
+    [[DOCKS_OFFSET_X + 14, 48], [DOCKS_OFFSET_X + 36, 48], [DOCKS_OFFSET_X + 36, 70], [DOCKS_OFFSET_X + 14, 70]]  // Calçada Docas Leste
   ];
 
   profiles.forEach(([name, job], i) => {
@@ -3903,6 +3976,10 @@ export function resetWorldState(keepPlayerPos = false) {
   if (dom.baseAlertBanner) dom.baseAlertBanner.classList.add('hidden');
   gameState.isSprinting = false;
   gameState.isCrouching = false;
+  gameState.playerVelY = 0;
+  gameState.isGrounded = true;
+  gameState.callVehicleCooldown = 0;
+  AudioManager.stopRadio();
   gameState.cameraYaw = 0;
   gameState.cameraPitch = 0.34;
   gameState.keys = {};
@@ -4116,6 +4193,12 @@ export function resetWorldState(keepPlayerPos = false) {
     box.mesh.userData.normalMaterial.emissive.setHex(0xffaa00);
   });
 
+  steamPipes.forEach((sp) => {
+    sp.activeTimer = 0;
+    sp.cooldown = 0;
+    if (sp.steamPoints) sp.steamPoints.visible = false;
+  });
+
   // Restaurar celas de prisioneiros e geradores (RESCUE_01 / RESCUE_02)
   rescueCells.forEach((cell) => {
     cell.freed = false;
@@ -4311,6 +4394,104 @@ export function spawnPurchasedVehicle(vehCfg) {
     headlight
   });
   buildNetHackLabels();
+}
+
+export function callRemoteDedsecVehicle() {
+  if (
+    !refs.playerGroup ||
+    gameState.drivingCar ||
+    gameState.drivingBoat ||
+    gameState.droneActive ||
+    gameState.isSwimming ||
+    gameState.callVehicleCooldown > 0
+  ) {
+    return;
+  }
+  const pPos = refs.playerGroup.position;
+  if (isWaterForLand(pPos.x, pPos.z)) return;
+
+  const yaw = refs.playerGroup.rotation.y;
+  const rx = Math.cos(yaw);
+  const rz = -Math.sin(yaw);
+  const fx = Math.sin(yaw);
+  const fz = Math.cos(yaw);
+  const candidates = [
+    [rx * 5.2, rz * 5.2],
+    [-rx * 5.2, -rz * 5.2],
+    [fx * 6.0, fz * 6.0],
+    [-fx * 6.0, -fz * 6.0],
+    [rx * 8.0, rz * 8.0],
+    [-rx * 8.0, -rz * 8.0]
+  ];
+
+  let spawnX = null;
+  let spawnZ = null;
+  for (const [ox, oz] of candidates) {
+    const tx = pPos.x + ox;
+    const tz = pPos.z + oz;
+    if (!isWaterForLand(tx, tz) && !checkCarCollision(tx, tz, yaw)) {
+      spawnX = tx;
+      spawnZ = tz;
+      break;
+    }
+  }
+  if (spawnX === null) return;
+
+  const sy = getSurfaceHeight(spawnX, spawnZ);
+  let remoteCar = cars.find((c) => c.isRemoteCalled && c !== gameState.drivingCar);
+  if (remoteCar) {
+    remoteCar.mesh.position.set(spawnX, sy, spawnZ);
+    remoteCar.mesh.rotation.set(0, yaw, 0);
+    remoteCar.hp = remoteCar.maxHp;
+    remoteCar.destroyed = false;
+    remoteCar.speed = 0;
+    if (remoteCar.smokePoints) remoteCar.smokePoints.visible = false;
+    remoteCar.mesh.updateMatrixWorld(true);
+    remoteCar.colliderObj.box.setFromObject(remoteCar.mesh);
+    if (!colliders.includes(remoteCar.colliderObj)) colliders.push(remoteCar.colliderObj);
+  } else {
+    const { carGroup, bodyMesh, driverMesh } = buildCarMesh(0x101726, 0x00f0ff, false, 'SPORT', false);
+    carGroup.position.set(spawnX, sy, spawnZ);
+    carGroup.rotation.y = yaw;
+    refs.worldGroup.add(carGroup);
+    carGroup.updateMatrixWorld(true);
+    const colliderObj = { box: new THREE.Box3().setFromObject(carGroup), mesh: bodyMesh, carIndex: cars.length };
+    colliders.push(colliderObj);
+    occluders.push(bodyMesh);
+    remoteCar = {
+      id: 950 + cars.length,
+      mesh: carGroup,
+      bodyMesh,
+      driverMesh,
+      initialHasDriver: false,
+      hasDriver: false,
+      isRemoteCalled: true,
+      colliderObj,
+      initialPos: new THREE.Vector3(spawnX, sy, spawnZ),
+      initialYaw: yaw,
+      initialColor: 0x101726,
+      isDedsec: true,
+      isDrivable: true,
+      vipMissionKey: null,
+      maxHp: 140,
+      hp: 140,
+      maxSpeed: 28,
+      accel: 26,
+      turnRate: 2.5,
+      hasNitro: true,
+      destroyed: false,
+      smokePoints: null,
+      smokeData: [],
+      speed: 0,
+      hackedTimer: 0,
+      hackedUsed: false,
+      headlight: null
+    };
+    cars.push(remoteCar);
+  }
+  gameState.callVehicleCooldown = 20.0;
+  AudioManager.playHorn();
+  AudioManager.playTerminalSuccess();
 }
 
 export function spawnPoliceReinforcement() {
