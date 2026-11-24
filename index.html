@@ -33,8 +33,8 @@
   <div id="alert-vignette" class="screen-fx hidden"></div>
   <div id="damage-flash" class="screen-fx hidden"></div>
 
-  <!-- HUD DedSec / ctOS -->
-  <div id="hud">
+  <!-- HUD DedSec / ctOS (exibido após autenticação em #auth-screen) -->
+  <div id="hud" class="hidden">
     <div class="hud-top">
       <div class="hud-panel mission-panel">
         <div class="panel-label">ctOS // OBJETIVO ATUAL <span id="gps-distance" class="neon-green"></span></div>
@@ -46,6 +46,10 @@
         <button id="btn-quick-guide" class="quick-guide-btn" type="button">[H] AJUDA</button>
         <div class="hud-panel status-panel">
           <div class="panel-label">SISTEMA // DEDSEC_OS</div>
+        <div class="status-row agent-row">
+          <span>AGENTE: <strong id="status-agent" class="neon-cyan">CONVIDADO</strong></span>
+          <button id="btn-logout" class="mute-btn logout-btn" type="button">[SAIR]</button>
+        </div>
         <div class="status-row">
           <span>MODO:</span>
           <span id="status-mode" class="neon-cyan">FURTIVO</span>
@@ -187,6 +191,48 @@
       <span><kbd>1-5</kbd> Arsenal</span>
       <span><kbd>Click</kbd> Atirar</span>
       <span><kbd>M</kbd> Mudo</span>
+    </div>
+  </div>
+
+  <!-- Tela de Login e Cadastro DedSec (Neon.db + fallback localStorage) -->
+  <div id="auth-screen" class="overlay-screen">
+    <div class="terminal-card auth-card">
+      <div class="brand-tag">DEDSEC // REDE ctOS // AUTENTICAÇÃO DE AGENTE</div>
+      <h1 class="glitch-title auth-title">ACESSO DEDSEC</h1>
+      <div id="auth-db-badge" class="auth-db-badge">CONECTANDO AO SERVIDOR DEDSEC...</div>
+
+      <div class="auth-tabs">
+        <button id="auth-tab-login" class="auth-tab active" type="button">ENTRAR</button>
+        <button id="auth-tab-register" class="auth-tab" type="button">CRIAR CONTA</button>
+      </div>
+
+      <form id="auth-login-form" class="auth-form" autocomplete="off">
+        <label class="auth-label">USUÁRIO
+          <input id="auth-login-user" class="auth-input" type="text" placeholder="ex: marcus_h" required />
+        </label>
+        <label class="auth-label">SENHA
+          <input id="auth-login-pass" class="auth-input" type="password" placeholder="••••••••" required />
+        </label>
+        <button id="btn-auth-login" class="cyber-btn" type="submit">AUTENTICAR &amp; ENTRAR</button>
+      </form>
+
+      <form id="auth-register-form" class="auth-form hidden" autocomplete="off">
+        <label class="auth-label">NOME DO AGENTE
+          <input id="auth-reg-agent" class="auth-input" type="text" placeholder="ex: Marcus Holloway" required />
+        </label>
+        <label class="auth-label">USUÁRIO
+          <input id="auth-reg-user" class="auth-input" type="text" placeholder="ex: marcus_h" required />
+        </label>
+        <label class="auth-label">SENHA (MÍN. 4 CARACTERES)
+          <input id="auth-reg-pass" class="auth-input" type="password" placeholder="••••••••" minlength="4" required />
+        </label>
+        <button id="btn-auth-register" class="cyber-btn" type="submit">CRIAR CONTA DEDSEC</button>
+      </form>
+
+      <div id="auth-status" class="auth-status"></div>
+
+      <div class="auth-divider"><span>OU</span></div>
+      <button id="btn-guest-login" class="cyber-btn secondary-btn guest-btn" type="button">ENTRAR COMO CONVIDADO</button>
     </div>
   </div>
 

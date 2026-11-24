@@ -36,7 +36,12 @@ import {
   steamPipes,
   formatTime,
   saveProgress,
-  getSurfaceHeight
+  getSurfaceHeight,
+  initCloudDb,
+  registerAccount,
+  loginAccount,
+  loginAsGuest,
+  logoutAccount
 } from './state.js';
 import { AudioManager } from './audio.js';
 
@@ -480,6 +485,106 @@ export function updateMoneyHUD() {
     dom.statusMoney.textContent = `$${gameState.money.toLocaleString('pt-BR')}`;
   }
   saveProgress();
+}
+
+export function updateAgentHUD() {
+  if (dom.statusAgent) {
+    dom.statusAgent.textContent = (gameState.currentUser?.agentName || 'CONVIDADO').toUpperCase();
+  }
+}
+
+function setAuthStatus(msg, type = '') {
+  if (!dom.authStatus) return;
+  dom.authStatus.textContent = msg;
+  dom.authStatus.className = type ? `auth-status ${type}` : 'auth-status';
+}
+
+export function openAuthScreen() {
+  gameState.authOpen = true;
+  if (document.pointerLockElement) document.exitPointerLock();
+  if (dom.hud) dom.hud.classList.add('hidden');
+  if (dom.authScreen) dom.authScreen.classList.remove('hidden');
+  setAuthStatus('');
+}
+
+export function closeAuthScreen() {
+  gameState.authOpen = false;
+  if (dom.authScreen) dom.authScreen.classList.add('hidden');
+  if (dom.hud) dom.hud.classList.remove('hidden');
+  updateAgentHUD();
+  updateMoneyHUD();
+  updateHpHUD();
+  if (refs.rainPoints) refs.rainPoints.visible = gameState.rainEnabled;
+  if (dom.btnRain) dom.btnRain.textContent = gameState.rainEnabled ? 'CHUVA: ON' : 'CHUVA: OFF';
+  refs.onApplySkin?.(gameState.equippedSkin);
+  if (dom.canvas) dom.canvas.requestPointerLock?.();
+}
+
+export function setupAuthUI() {
+  if (!dom.authScreen) return;
+  openAuthScreen();
+
+  initCloudDb().then(({ online }) => {
+    if (!dom.authDbBadge) return;
+    if (online) {
+      dom.authDbBadge.textContent = '● NUVEM NEON.DB CONECTADA (SAVE SINCRONIZADO)';
+      dom.authDbBadge.classList.add('online');
+    } else {
+      dom.authDbBadge.textContent = '● MODO OFFLINE // SAVE LOCAL (LOCALSTORAGE)';
+      dom.authDbBadge.classList.remove('online');
+    }
+  });
+
+  const switchTab = (mode) => {
+    const isLogin = mode === 'LOGIN';
+    dom.authTabLogin?.classList.toggle('active', isLogin);
+    dom.authTabRegister?.classList.toggle('active', !isLogin);
+    dom.authLoginForm?.classList.toggle('hidden', !isLogin);
+    dom.authRegisterForm?.classList.toggle('hidden', isLogin);
+    setAuthStatus('');
+  };
+
+  dom.authTabLogin?.addEventListener('click', () => switchTab('LOGIN'));
+  dom.authTabRegister?.addEventListener('click', () => switchTab('REGISTER'));
+
+  dom.authLoginForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    setAuthStatus('> VERIFICANDO CREDENCIAIS ctOS...');
+    const res = await loginAccount(dom.authLoginUser?.value, dom.authLoginPass?.value);
+    if (!res.ok) {
+      setAuthStatus(`> ERRO: ${res.error}`, 'error');
+      return;
+    }
+    setAuthStatus(res.cloud ? '> ACESSO AUTORIZADO // SAVE CARREGADO DO NEON.DB' : '> ACESSO AUTORIZADO (LOCAL)', 'success');
+    setTimeout(() => closeAuthScreen(), 350);
+  });
+
+  dom.authRegisterForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    setAuthStatus('> REGISTRANDO NOVO AGENTE DEDSEC...');
+    const res = await registerAccount(dom.authRegAgent?.value, dom.authRegUser?.value, dom.authRegPass?.value);
+    if (!res.ok) {
+      setAuthStatus(`> ERRO: ${res.error}`, 'error');
+      return;
+    }
+    setAuthStatus(res.cloud ? '> CONTA CRIADA NA NUVEM NEON.DB!' : '> CONTA CRIADA LOCALMENTE!', 'success');
+    setTimeout(() => closeAuthScreen(), 350);
+  });
+
+  dom.btnGuestLogin?.addEventListener('click', () => {
+    loginAsGuest();
+    closeAuthScreen();
+  });
+
+  dom.btnLogout?.addEventListener('click', () => {
+    AudioManager.stopMusic();
+    AudioManager.stopEngineSound();
+    AudioManager.stopRadio();
+    logoutAccount();
+    if (dom.authLoginPass) dom.authLoginPass.value = '';
+    if (dom.authRegPass) dom.authRegPass.value = '';
+    openAuthScreen();
+  });
 }
 
 export function openMissionModal(missionKey) {

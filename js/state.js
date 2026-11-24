@@ -459,7 +459,22 @@ export const dom = {
   diffButtons: document.querySelectorAll('.diff-btn'),
   btnStart: document.getElementById('btn-start'),
   btnRetryGameover: document.getElementById('btn-retry-gameover'),
-  btnRetryVictory: document.getElementById('btn-retry-victory')
+  btnRetryVictory: document.getElementById('btn-retry-victory'),
+  authScreen: document.getElementById('auth-screen'),
+  authDbBadge: document.getElementById('auth-db-badge'),
+  authTabLogin: document.getElementById('auth-tab-login'),
+  authTabRegister: document.getElementById('auth-tab-register'),
+  authLoginForm: document.getElementById('auth-login-form'),
+  authRegisterForm: document.getElementById('auth-register-form'),
+  authLoginUser: document.getElementById('auth-login-user'),
+  authLoginPass: document.getElementById('auth-login-pass'),
+  authRegAgent: document.getElementById('auth-reg-agent'),
+  authRegUser: document.getElementById('auth-reg-user'),
+  authRegPass: document.getElementById('auth-reg-pass'),
+  authStatus: document.getElementById('auth-status'),
+  btnGuestLogin: document.getElementById('btn-guest-login'),
+  statusAgent: document.getElementById('status-agent'),
+  btnLogout: document.getElementById('btn-logout')
 };
 
 // Variáveis Three.js
@@ -570,6 +585,8 @@ export const gameState = {
   blackoutCooldown: 0,
   callVehicleCooldown: 0,
   radioStation: 'OFF',
+  authOpen: true,
+  currentUser: null,
   droneActive: false,
   droneYaw: 0,
   dronePitch: 0.12,
@@ -849,24 +866,252 @@ export function formatTime(seconds) {
 }
 
 export const SAVE_KEY = 'projeto_hacker_dedsec_save_v1';
+const LOCAL_ACCOUNTS_KEY = 'projeto_hacker_local_accounts_v1';
 
-export function saveProgress() {
+let _neonSql = null;
+let _cloudSaveTimer = null;
+
+export function isCloudDbReady() {
+  return !!_neonSql;
+}
+
+export async function sha256Hex(text) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(text)));
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+export function getSaveDataSnapshot() {
+  return {
+    money: gameState.money,
+    maxHp: gameState.maxHp,
+    ownedSkins: gameState.ownedSkins,
+    equippedSkin: gameState.equippedSkin,
+    ownedVehicles: gameState.ownedVehicles,
+    hasRapidReload: gameState.hasRapidReload,
+    hasShotgun: gameState.hasShotgun,
+    hasBlackout: gameState.hasBlackout,
+    rainEnabled: gameState.rainEnabled
+  };
+}
+
+export function resetSaveDefaults() {
+  gameState.money = 500;
+  gameState.maxHp = 100;
+  gameState.hp = 100;
+  gameState.ownedSkins = ['classic'];
+  gameState.equippedSkin = 'classic';
+  gameState.ownedVehicles = [];
+  gameState.hasRapidReload = false;
+  gameState.hasShotgun = false;
+  gameState.hasBlackout = true;
+  gameState.rainEnabled = true;
+}
+
+export function applySaveData(data) {
+  resetSaveDefaults();
+  if (!data || typeof data !== 'object') return;
+  if (typeof data.money === 'number') gameState.money = data.money;
+  if (typeof data.maxHp === 'number') {
+    gameState.maxHp = data.maxHp;
+    gameState.hp = data.maxHp;
+  }
+  if (Array.isArray(data.ownedSkins) && data.ownedSkins.length > 0) gameState.ownedSkins = data.ownedSkins;
+  if (typeof data.equippedSkin === 'string') gameState.equippedSkin = data.equippedSkin;
+  if (Array.isArray(data.ownedVehicles)) gameState.ownedVehicles = data.ownedVehicles;
+  if (typeof data.hasRapidReload === 'boolean') gameState.hasRapidReload = data.hasRapidReload;
+  if (typeof data.hasShotgun === 'boolean') gameState.hasShotgun = data.hasShotgun;
+  if (typeof data.hasBlackout === 'boolean') gameState.hasBlackout = data.hasBlackout;
+  if (typeof data.rainEnabled === 'boolean') gameState.rainEnabled = data.rainEnabled;
+}
+
+export async function initCloudDb() {
+  _neonSql = null;
+  let dbUrl = '';
   try {
-    if (typeof localStorage === 'undefined') return;
-    const data = {
-      money: gameState.money,
-      maxHp: gameState.maxHp,
-      ownedSkins: gameState.ownedSkins,
-      equippedSkin: gameState.equippedSkin,
-      ownedVehicles: gameState.ownedVehicles,
-      hasRapidReload: gameState.hasRapidReload,
-      hasShotgun: gameState.hasShotgun,
-      hasBlackout: gameState.hasBlackout,
-      rainEnabled: gameState.rainEnabled
-    };
-    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    const cfg = await import('./config.js');
+    dbUrl = (cfg?.NEON_DATABASE_URL || '').trim();
+  } catch {
+    // js/config.js ausente no GitHub Pages (está no .gitignore): segue no modo localStorage
+    dbUrl = '';
+  }
+  if (!dbUrl) return { online: false };
+
+  try {
+    const { neon } = await import('https://esm.sh/@neondatabase/serverless');
+    const sql = neon(dbUrl);
+    await sql`
+      CREATE TABLE IF NOT EXISTS dedsec_players (
+        id SERIAL PRIMARY KEY,
+        username TEXT UNIQUE NOT NULL,
+        agent_name TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        save_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+    _neonSql = sql;
+    return { online: true };
+  } catch (err) {
+    console.warn('[DedSec Cloud] Falha ao conectar ao Neon.db, usando fallback localStorage:', err);
+    _neonSql = null;
+    return { online: false };
+  }
+}
+
+function _readLocalAccounts() {
+  try {
+    return JSON.parse(localStorage.getItem(LOCAL_ACCOUNTS_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function _writeLocalAccounts(accounts) {
+  try {
+    localStorage.setItem(LOCAL_ACCOUNTS_KEY, JSON.stringify(accounts));
+  } catch {}
+}
+
+export async function registerAccount(agentName, username, password) {
+  const cleanUser = String(username || '').trim().toLowerCase();
+  const cleanAgent = String(agentName || '').trim();
+  if (!cleanAgent || !cleanUser || !password || password.length < 4) {
+    return { ok: false, error: 'Preencha todos os campos (senha mín. 4 caracteres).' };
+  }
+  const hash = await sha256Hex(password);
+  resetSaveDefaults();
+  const initialSave = getSaveDataSnapshot();
+
+  if (_neonSql) {
+    try {
+      const existing = await _neonSql`SELECT username FROM dedsec_players WHERE username = ${cleanUser} LIMIT 1`;
+      if (existing.length > 0) {
+        return { ok: false, error: 'Usuário já cadastrado na rede DedSec.' };
+      }
+      await _neonSql`
+        INSERT INTO dedsec_players (username, agent_name, password_hash, save_data)
+        VALUES (${cleanUser}, ${cleanAgent}, ${hash}, ${JSON.stringify(initialSave)}::jsonb)
+      `;
+      gameState.currentUser = { username: cleanUser, agentName: cleanAgent, isGuest: false };
+      saveProgress();
+      return { ok: true, cloud: true };
+    } catch (err) {
+      return { ok: false, error: `Erro no Neon.db: ${err?.message || 'falha de conexão'}` };
+    }
+  }
+
+  // Fallback localStorage
+  const accounts = _readLocalAccounts();
+  if (accounts[cleanUser]) {
+    return { ok: false, error: 'Usuário já cadastrado localmente.' };
+  }
+  accounts[cleanUser] = { username: cleanUser, agentName: cleanAgent, passwordHash: hash, saveData: initialSave };
+  _writeLocalAccounts(accounts);
+  gameState.currentUser = { username: cleanUser, agentName: cleanAgent, isGuest: false };
+  saveProgress();
+  return { ok: true, cloud: false };
+}
+
+export async function loginAccount(username, password) {
+  const cleanUser = String(username || '').trim().toLowerCase();
+  if (!cleanUser || !password) {
+    return { ok: false, error: 'Informe usuário e senha.' };
+  }
+  const hash = await sha256Hex(password);
+
+  if (_neonSql) {
+    try {
+      const rows = await _neonSql`
+        SELECT username, agent_name, password_hash, save_data
+        FROM dedsec_players
+        WHERE username = ${cleanUser}
+        LIMIT 1
+      `;
+      if (rows.length === 0) {
+        return { ok: false, error: 'Agente não encontrado.' };
+      }
+      const row = rows[0];
+      if (row.password_hash !== hash) {
+        return { ok: false, error: 'Senha incorreta.' };
+      }
+      const parsed = typeof row.save_data === 'string' ? JSON.parse(row.save_data) : row.save_data;
+      applySaveData(parsed);
+      gameState.currentUser = { username: row.username, agentName: row.agent_name, isGuest: false };
+      return { ok: true, cloud: true };
+    } catch (err) {
+      return { ok: false, error: `Erro no Neon.db: ${err?.message || 'falha de conexão'}` };
+    }
+  }
+
+  // Fallback localStorage
+  const accounts = _readLocalAccounts();
+  const acc = accounts[cleanUser];
+  if (!acc) return { ok: false, error: 'Agente não encontrado (modo local).' };
+  if (acc.passwordHash !== hash) return { ok: false, error: 'Senha incorreta.' };
+  applySaveData(acc.saveData);
+  gameState.currentUser = { username: acc.username, agentName: acc.agentName, isGuest: false };
+  return { ok: true, cloud: false };
+}
+
+export function loginAsGuest() {
+  gameState.currentUser = { username: 'guest', agentName: 'CONVIDADO', isGuest: true };
+  loadProgress();
+}
+
+export function logoutAccount() {
+  if (_cloudSaveTimer) {
+    clearTimeout(_cloudSaveTimer);
+    _cloudSaveTimer = null;
+  }
+  saveProgress(true);
+  gameState.currentUser = null;
+  gameState.authOpen = true;
+  resetSaveDefaults();
+}
+
+export function saveProgress(immediateCloud = false) {
+  const data = getSaveDataSnapshot();
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+      if (gameState.currentUser && !gameState.currentUser.isGuest && !_neonSql) {
+        const accounts = _readLocalAccounts();
+        if (accounts[gameState.currentUser.username]) {
+          accounts[gameState.currentUser.username].saveData = data;
+          _writeLocalAccounts(accounts);
+        }
+      }
+    }
   } catch {
     // Ignora falhas de quota/modo privado
+  }
+
+  // Sincronização na nuvem via Neon.db com debounce de 1.5s
+  if (_neonSql && gameState.currentUser && !gameState.currentUser.isGuest) {
+    const username = gameState.currentUser.username;
+    const flushCloud = async () => {
+      try {
+        await _neonSql`
+          UPDATE dedsec_players
+          SET save_data = ${JSON.stringify(getSaveDataSnapshot())}::jsonb, updated_at = NOW()
+          WHERE username = ${username}
+        `;
+      } catch (err) {
+        console.warn('[DedSec Cloud] Falha ao sincronizar save no Neon.db:', err);
+      }
+    };
+    if (_cloudSaveTimer) clearTimeout(_cloudSaveTimer);
+    if (immediateCloud) {
+      _cloudSaveTimer = null;
+      flushCloud();
+    } else {
+      _cloudSaveTimer = setTimeout(() => {
+        _cloudSaveTimer = null;
+        flushCloud();
+      }, 1500);
+    }
   }
 }
 
@@ -875,19 +1120,7 @@ export function loadProgress() {
     if (typeof localStorage === 'undefined') return;
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return;
-    const data = JSON.parse(raw);
-    if (typeof data.money === 'number') gameState.money = data.money;
-    if (typeof data.maxHp === 'number') {
-      gameState.maxHp = data.maxHp;
-      gameState.hp = data.maxHp;
-    }
-    if (Array.isArray(data.ownedSkins) && data.ownedSkins.length > 0) gameState.ownedSkins = data.ownedSkins;
-    if (typeof data.equippedSkin === 'string') gameState.equippedSkin = data.equippedSkin;
-    if (Array.isArray(data.ownedVehicles)) gameState.ownedVehicles = data.ownedVehicles;
-    if (typeof data.hasRapidReload === 'boolean') gameState.hasRapidReload = data.hasRapidReload;
-    if (typeof data.hasShotgun === 'boolean') gameState.hasShotgun = data.hasShotgun;
-    if (typeof data.hasBlackout === 'boolean') gameState.hasBlackout = data.hasBlackout;
-    if (typeof data.rainEnabled === 'boolean') gameState.rainEnabled = data.rainEnabled;
+    applySaveData(JSON.parse(raw));
   } catch {
     // Ignora JSON inválido
   }

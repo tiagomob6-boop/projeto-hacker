@@ -30,7 +30,8 @@ import {
   toggleRain,
   updateMoneyHUD,
   updateHpHUD,
-  updateRadar
+  updateRadar,
+  setupAuthUI
 } from './js/ui.js';
 import {
   selectWeapon,
@@ -82,6 +83,7 @@ networkManager.on('onPlayerMove', (packet) => upsertRemotePlayer(packet));
 
 function setupInputs() {
   window.addEventListener('keydown', (e) => {
+    if (gameState.authOpen) return;
     const code = e.code;
     gameState.keys[code] = true;
 
@@ -214,6 +216,7 @@ function setupInputs() {
       gameState.mission === MISSION_STATE.ESCAPE;
     if (
       playing &&
+      !gameState.authOpen &&
       !gameState.terminalOpen &&
       !gameState.missionModalOpen &&
       !gameState.shopOpen &&
@@ -231,6 +234,7 @@ function setupInputs() {
     gameState.mouseDown = true;
     if (document.pointerLockElement !== dom.canvas) return;
     if (
+      gameState.authOpen ||
       gameState.terminalOpen ||
       gameState.missionModalOpen ||
       gameState.shopOpen ||
@@ -355,7 +359,7 @@ function animate() {
     gameState.mission === MISSION_STATE.STEAL_CAR ||
     gameState.mission === MISSION_STATE.RESCUE_PRISONER ||
     gameState.mission === MISSION_STATE.ESCAPE;
-  const isPlaying = isContract || gameState.mission === MISSION_STATE.FREE_ROAM;
+  const isPlaying = !gameState.authOpen && (isContract || gameState.mission === MISSION_STATE.FREE_ROAM);
 
   if (isPlaying) {
     if (isContract) {
@@ -409,6 +413,7 @@ try {
   loadProgress();
   initThree();
   setupInputs();
+  setupAuthUI();
   setMissionState(MISSION_STATE.FREE_ROAM);
   updateMoneyHUD();
   updateHpHUD();
