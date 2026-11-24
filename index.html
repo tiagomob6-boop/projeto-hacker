@@ -108,6 +108,7 @@
     <!-- Banner de Alerta Geral da Base -->
     <div id="base-alert-banner" class="hidden">⚠ ALERTA GERAL DA BASE // FORÇA LETAL AUTORIZADA</div>
     <div id="ctos-reveal-banner" class="hidden">⚠ LOCALIZAÇÃO REVELADA PELO ctOS // REFORÇOS A CAMINHO</div>
+    <div id="coop-notification" class="hidden"></div>
 
     <!-- Barra de Detecção -->
     <div id="detection-container" class="hidden">
@@ -546,9 +547,12 @@
         <button id="btn-coop-join" class="cyber-btn" type="button">CONECTAR</button>
       </div>
 
-      <div class="modal-actions" style="margin-top:14px;">
-        <button id="btn-coop-disconnect" class="cyber-btn secondary-btn hidden" type="button">DESCONECTAR</button>
-        <button id="btn-close-coop" class="cyber-btn secondary-btn" type="button">FECHAR [ESC]</button>
+      <div class="modal-actions" style="margin-top:14px;display:flex;flex-direction:column;gap:8px;">
+        <button id="btn-coop-enter" class="cyber-btn green-btn hidden" type="button">ENTRAR NO JOGO AGORA</button>
+        <div style="display:flex;gap:8px;width:100%;">
+          <button id="btn-coop-disconnect" class="cyber-btn secondary-btn hidden" style="flex:1;" type="button">DESCONECTAR</button>
+          <button id="btn-close-coop" class="cyber-btn secondary-btn" style="flex:1;" type="button">FECHAR [ESC]</button>
+        </div>
       </div>
     </div>
   </div>

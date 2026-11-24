@@ -1120,6 +1120,19 @@ export function renderTacticalMap() {
   }
 }
 
+let _coopNoticeTimer = null;
+export function showCoopHUDNotice(text, type = 'info') {
+  const el = document.getElementById('coop-notification');
+  if (!el) return;
+  el.textContent = text;
+  el.className = type;
+  el.classList.remove('hidden');
+  clearTimeout(_coopNoticeTimer);
+  _coopNoticeTimer = setTimeout(() => {
+    el.classList.add('hidden');
+  }, 4500);
+}
+
 export function openCoopModal() {
   const modal = document.getElementById('coop-modal');
   if (!modal) return;
@@ -1145,8 +1158,11 @@ export function setupCoopUI(networkManager) {
   const statusEl = document.getElementById('coop-status');
   const btnDisc = document.getElementById('btn-coop-disconnect');
   const btnClose = document.getElementById('btn-close-coop');
+  const btnEnter = document.getElementById('btn-coop-enter');
 
-  networkManager.on('onStatusChange', ({ text, online, roomCode, error }) => {
+  let autoCloseTimer = null;
+
+  networkManager.on('onStatusChange', ({ text, online, roomCode, error, connected, disconnected }) => {
     if (statusEl) {
       statusEl.textContent = text;
       statusEl.classList.toggle('online', !!online);
@@ -1159,6 +1175,30 @@ export function setupCoopUI(networkManager) {
     if (btnDisc) {
       btnDisc.classList.toggle('hidden', networkManager.mode === 'OFFLINE_SOLO');
     }
+
+    if (connected) {
+      if (btnEnter) btnEnter.classList.remove('hidden');
+      if (statusEl) {
+        statusEl.textContent = '● CO-OP CONECTADO // ENTRANDO NO JOGO...';
+      }
+      showCoopHUDNotice(`DEDSEC CO-OP: AGENTE CONECTADO À SALA [${roomCode || networkManager.roomCode}]!`, 'success');
+      clearTimeout(autoCloseTimer);
+      autoCloseTimer = setTimeout(() => {
+        if (gameState.coopModalOpen) {
+          closeCoopModal();
+        }
+      }, 1200);
+    } else {
+      if (btnEnter) btnEnter.classList.add('hidden');
+      if (disconnected) {
+        showCoopHUDNotice('DEDSEC ALERTA: CONEXÃO CO-OP ENCERRADA // MODO SOLO ATIVADO', 'warning');
+      }
+    }
+  });
+
+  btnEnter?.addEventListener('click', () => {
+    clearTimeout(autoCloseTimer);
+    closeCoopModal();
   });
 
   btnCreate?.addEventListener('click', async () => {
@@ -1180,16 +1220,27 @@ export function setupCoopUI(networkManager) {
     }
   });
 
-  btnJoin?.addEventListener('click', () => {
-    networkManager.joinRoom(joinInput?.value);
+  const triggerJoin = () => {
+    const val = joinInput?.value;
+    if (val) networkManager.joinRoom(val);
+  };
+
+  btnJoin?.addEventListener('click', triggerJoin);
+  joinInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') triggerJoin();
   });
 
   btnDisc?.addEventListener('click', () => {
+    clearTimeout(autoCloseTimer);
     networkManager.disconnect();
     if (roomBox) roomBox.classList.add('hidden');
+    if (btnEnter) btnEnter.classList.add('hidden');
   });
 
-  btnClose?.addEventListener('click', () => closeCoopModal());
+  btnClose?.addEventListener('click', () => {
+    clearTimeout(autoCloseTimer);
+    closeCoopModal();
+  });
 }
 
 export function toggleTacticalMap(forceState) {

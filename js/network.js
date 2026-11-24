@@ -3,16 +3,42 @@ import { dom, refs, gameState } from './state.js';
 // ==========================================
 // MÓDULO DE REDE COOPERATIVO P2P (PEERJS VIA CDN)
 // ==========================================
+
+// Configuração WebRTC com servidores STUN públicos do Google para ultrapassar NATs/firewalls
+const PEER_CONFIG = {
+  debug: 1,
+  config: {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' },
+      { urls: 'stun:stun3.l.google.com:19302' },
+      { urls: 'stun:stun4.l.google.com:19302' }
+    ]
+  }
+};
+
+function normalizeRoomCode(raw) {
+  let code = String(raw || '').trim().toUpperCase().replace(/\s+/g, '-');
+  if (/^\d{4}$/.test(code)) {
+    code = `DEDSEC-${code}`;
+  }
+  return code;
+}
+
 export class NetworkManager {
   constructor() {
     this.mode = 'OFFLINE_SOLO'; // 'OFFLINE_SOLO' | 'COOP_WAITING' | 'COOP_CONNECTED'
     this.localId = 'local';
     this.roomCode = null;
+    this.isHost = false;
     this.peer = null;
     this.peerAdapter = null; // PeerJS DataConnection ativa
     this.remotePeerId = null;
     this.syncAccumulator = 0;
     this.syncInterval = 1 / 20; // 20 Hz de sincronização em tempo real
+    this.heartbeatInterval = null;
+    this.connectionTimeout = null;
     this.listeners = {
       onPlayerMove: [],
       onPlayerShoot: [],
@@ -39,11 +65,30 @@ export class NetworkManager {
     return mod.Peer || mod.default;
   }
 
+  _startHeartbeat() {
+    this._stopHeartbeat();
+    this.heartbeatInterval = setInterval(() => {
+      if (this.peerAdapter && this.peerAdapter.open) {
+        try {
+          this.peerAdapter.send({ type: 'PING' });
+        } catch {}
+      }
+    }, 3000);
+  }
+
+  _stopHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+  }
+
   async createRoom(retryCount = 0) {
     this.disconnect();
     const code = `DEDSEC-${Math.floor(1000 + Math.random() * 9000)}`;
     this.roomCode = code;
     this.localId = code;
+    this.isHost = true;
     gameState.localPlayerId = code;
     this.mode = 'COOP_WAITING';
     gameState.networkMode = this.mode;
@@ -52,14 +97,18 @@ export class NetworkManager {
 
     try {
       const PeerCtor = await this._loadPeerJS();
-      const peer = new PeerCtor(code);
+      const peer = new PeerCtor(code, PEER_CONFIG);
       this.peer = peer;
 
       peer.on('open', (id) => {
         this.localId = id;
         gameState.localPlayerId = id;
         this._updateModeButton();
-        this.emit('onStatusChange', { text: `SALA ${code} ABERTA // AGUARDANDO PARCEIRO...`, online: false, roomCode: code });
+        this.emit('onStatusChange', {
+          text: `SALA ${code} ABERTA // AGUARDANDO PARCEIRO...`,
+          online: false,
+          roomCode: code
+        });
       });
 
       peer.on('connection', (conn) => {
@@ -71,7 +120,11 @@ export class NetworkManager {
           this.createRoom(retryCount + 1);
           return;
         }
-        this.emit('onStatusChange', { text: `ERRO PEERJS: ${err?.type || err?.message || 'falha'}`, online: false, error: true });
+        this.emit('onStatusChange', {
+          text: `ERRO PEERJS: ${err?.type || err?.message || 'falha'}`,
+          online: false,
+          error: true
+        });
       });
 
       return code;
@@ -83,32 +136,54 @@ export class NetworkManager {
   }
 
   async joinRoom(rawCode) {
-    const code = String(rawCode || '').trim().toUpperCase();
+    const code = normalizeRoomCode(rawCode);
     if (!code) {
       this.emit('onStatusChange', { text: 'INFORME UM CÓDIGO DE SALA VÁLIDO', online: false, error: true });
       return false;
     }
     this.disconnect();
     this.roomCode = code;
+    this.isHost = false;
     this.mode = 'COOP_WAITING';
     gameState.networkMode = this.mode;
     this._updateModeButton();
     this.emit('onStatusChange', { text: `CONECTANDO À SALA ${code}...`, online: false });
 
+    // Timeout de 14s caso o host não esteja online ou o código seja inválido
+    this.connectionTimeout = setTimeout(() => {
+      if (this.mode !== 'COOP_CONNECTED') {
+        this.disconnect();
+        this.emit('onStatusChange', {
+          text: `TEMPO ESGOTADO // SALA ${code} NÃO RESPONDEU`,
+          online: false,
+          error: true
+        });
+      }
+    }, 14000);
+
     try {
       const PeerCtor = await this._loadPeerJS();
-      const peer = new PeerCtor();
+      const peer = new PeerCtor(PEER_CONFIG);
       this.peer = peer;
 
       peer.on('open', (id) => {
         this.localId = id;
         gameState.localPlayerId = id;
-        const conn = peer.connect(code, { reliable: false });
+        // Conexão garantida e ordenada para estabilidade do canal de jogo
+        const conn = peer.connect(code, { reliable: true });
         this._attachConnection(conn);
       });
 
       peer.on('error', (err) => {
-        this.emit('onStatusChange', { text: `FALHA AO CONECTAR: ${err?.type || err?.message || 'sala não encontrada'}`, online: false, error: true });
+        if (this.connectionTimeout) {
+          clearTimeout(this.connectionTimeout);
+          this.connectionTimeout = null;
+        }
+        const msg =
+          err?.type === 'peer-unavailable'
+            ? `SALA ${code} NÃO ENCONTRADA // VERIFIQUE O CÓDIGO`
+            : `FALHA AO CONECTAR: ${err?.type || err?.message || 'erro de rede'}`;
+        this.emit('onStatusChange', { text: msg, online: false, error: true });
       });
 
       return true;
@@ -125,34 +200,71 @@ export class NetworkManager {
     this.remotePeerId = conn.peer;
 
     conn.on('open', () => {
+      if (this.connectionTimeout) {
+        clearTimeout(this.connectionTimeout);
+        this.connectionTimeout = null;
+      }
       this.mode = 'COOP_CONNECTED';
       gameState.networkMode = this.mode;
       this._updateModeButton();
-      this.emit('onStatusChange', { text: `● CO-OP CONECTADO // SALA ${this.roomCode}`, online: true, roomCode: this.roomCode });
+      this._startHeartbeat();
+
+      this.emit('onStatusChange', {
+        text: `● CO-OP CONECTADO // SALA ${this.roomCode}`,
+        online: true,
+        connected: true,
+        roomCode: this.roomCode
+      });
+
+      // Dispara envio imediato do estado local para renderizar avatares na mesma hora
       this.broadcast('onPlayerMove', this.getLocalSyncPacket());
     });
 
     conn.on('data', (data) => {
-      if (data && data.payload && !this.remotePeerId && data.payload.id) {
+      if (!data) return;
+      // Trata keepalive silenciosamente
+      if (data.type === 'PING') {
+        try {
+          conn.send({ type: 'PONG' });
+        } catch {}
+        return;
+      }
+      if (data.type === 'PONG') {
+        return;
+      }
+      if (data.payload && !this.remotePeerId && data.payload.id) {
         this.remotePeerId = data.payload.id;
       }
       this.handleIncomingPacket(data);
     });
 
     conn.on('close', () => {
+      this._stopHeartbeat();
+      if (this.connectionTimeout) {
+        clearTimeout(this.connectionTimeout);
+        this.connectionTimeout = null;
+      }
       if (this.remotePeerId) {
         this.emit('onPeerDisconnected', this.remotePeerId);
         this.remotePeerId = null;
       }
       this.peerAdapter = null;
-      this.mode = this.peer ? 'COOP_WAITING' : 'OFFLINE_SOLO';
+      this.mode = this.isHost && this.peer ? 'COOP_WAITING' : 'OFFLINE_SOLO';
       gameState.networkMode = this.mode;
       this._updateModeButton();
-      this.emit('onStatusChange', { text: 'PARCEIRO DESCONECTADO // AGUARDANDO...', online: false });
+      this.emit('onStatusChange', {
+        text: this.isHost ? `PARCEIRO DESCONECTADO // SALA ${this.roomCode} AGUARDANDO...` : 'CONEXÃO ENCERRADA // MODO SOLO ATIVADO',
+        online: false,
+        disconnected: true
+      });
     });
 
-    conn.on('error', () => {
-      this.emit('onStatusChange', { text: 'CONEXÃO P2P INTERROMPIDA', online: false, error: true });
+    conn.on('error', (err) => {
+      this.emit('onStatusChange', {
+        text: `CONEXÃO P2P INTERROMPIDA: ${err?.type || 'erro de rede'}`,
+        online: false,
+        error: true
+      });
     });
   }
 
@@ -190,6 +302,11 @@ export class NetworkManager {
   }
 
   disconnect() {
+    this._stopHeartbeat();
+    if (this.connectionTimeout) {
+      clearTimeout(this.connectionTimeout);
+      this.connectionTimeout = null;
+    }
     if (this.remotePeerId) {
       this.emit('onPeerDisconnected', this.remotePeerId);
       this.remotePeerId = null;
@@ -203,6 +320,7 @@ export class NetworkManager {
     this.peerAdapter = null;
     this.peer = null;
     this.roomCode = null;
+    this.isHost = false;
     this.mode = 'OFFLINE_SOLO';
     gameState.networkMode = this.mode;
     this._updateModeButton();
