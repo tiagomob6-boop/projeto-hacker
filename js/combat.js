@@ -236,6 +236,7 @@ export function fireEquippedWeapon() {
     boltMesh.position.copy(startPos);
     boltMesh.lookAt(startPos.clone().add(dir));
     refs.scene.add(boltMesh);
+    if (p === 0) refs.onBroadcastShoot?.(startPos, dir, cfg.color);
 
     const trailGeo = new THREE.BufferGeometry().setFromPoints([startPos.clone(), startPos.clone()]);
     const trailLine = new THREE.Line(

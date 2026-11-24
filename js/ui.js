@@ -34,6 +34,7 @@ import {
   trafficLights,
   rescueCells,
   steamPipes,
+  remotePlayers,
   formatTime,
   saveProgress,
   getSurfaceHeight,
@@ -322,6 +323,7 @@ export function completeTerminalHack() {
   if (targetGate) {
     targetGate.unlocked = true;
     AudioManager.playGateMechanical();
+    refs.onBroadcastHack?.('GATE', { gateIndex: targetGate.index });
     targetGate.gateMesh.userData.normalMaterial.emissive.setHex(0x00ff88);
     if (targetGate.gateMesh.userData.edgesMaterial) {
       targetGate.gateMesh.userData.edgesMaterial.color.setHex(0x00ff88);
@@ -1062,6 +1064,78 @@ export function renderTacticalMap() {
   }
 }
 
+export function openCoopModal() {
+  const modal = document.getElementById('coop-modal');
+  if (!modal) return;
+  gameState.coopModalOpen = true;
+  modal.classList.remove('hidden');
+  if (document.pointerLockElement) document.exitPointerLock();
+}
+
+export function closeCoopModal() {
+  const modal = document.getElementById('coop-modal');
+  gameState.coopModalOpen = false;
+  if (modal) modal.classList.add('hidden');
+  if (!gameState.authOpen && dom.canvas) dom.canvas.requestPointerLock?.();
+}
+
+export function setupCoopUI(networkManager) {
+  const btnCreate = document.getElementById('btn-coop-create');
+  const roomBox = document.getElementById('coop-room-box');
+  const roomCodeInput = document.getElementById('coop-room-code');
+  const btnCopy = document.getElementById('btn-coop-copy');
+  const joinInput = document.getElementById('coop-join-code');
+  const btnJoin = document.getElementById('btn-coop-join');
+  const statusEl = document.getElementById('coop-status');
+  const btnDisc = document.getElementById('btn-coop-disconnect');
+  const btnClose = document.getElementById('btn-close-coop');
+
+  networkManager.on('onStatusChange', ({ text, online, roomCode, error }) => {
+    if (statusEl) {
+      statusEl.textContent = text;
+      statusEl.classList.toggle('online', !!online);
+      statusEl.style.color = error ? '#ff4d79' : '';
+    }
+    if (roomCode && roomBox && roomCodeInput) {
+      roomCodeInput.value = roomCode;
+      roomBox.classList.remove('hidden');
+    }
+    if (btnDisc) {
+      btnDisc.classList.toggle('hidden', networkManager.mode === 'OFFLINE_SOLO');
+    }
+  });
+
+  btnCreate?.addEventListener('click', async () => {
+    const code = await networkManager.createRoom();
+    if (code && roomBox && roomCodeInput) {
+      roomCodeInput.value = code;
+      roomBox.classList.remove('hidden');
+    }
+  });
+
+  btnCopy?.addEventListener('click', async () => {
+    if (!roomCodeInput?.value) return;
+    try {
+      await navigator.clipboard.writeText(roomCodeInput.value);
+      btnCopy.textContent = 'COPIADO!';
+      setTimeout(() => { btnCopy.textContent = 'COPIAR CÓDIGO'; }, 1400);
+    } catch {
+      roomCodeInput.select();
+    }
+  });
+
+  btnJoin?.addEventListener('click', () => {
+    networkManager.joinRoom(joinInput?.value);
+  });
+
+  btnDisc?.addEventListener('click', () => {
+    networkManager.disconnect();
+    if (roomBox) roomBox.classList.add('hidden');
+  });
+
+  btnClose?.addEventListener('click', () => closeCoopModal());
+}
+
 export function toggleTacticalMap(forceState) {
   if (!dom.tacticalMapModal) return;
   gameState.tacticalMapOpen = forceState !== undefined ? forceState : !gameState.tacticalMapOpen;
@@ -1482,6 +1556,18 @@ export function updateRadar() {
   ctx.beginPath();
   ctx.arc(ePos.x, ePos.y, 2.3 * scale, 0, Math.PI * 2);
   ctx.stroke();
+
+  // Parceiros Co-op remotos no Radar DedSec (marcador azul vibrante)
+  remotePlayers.forEach((entry) => {
+    const rp = toRadar(entry.group.position.x, entry.group.position.z);
+    ctx.fillStyle = '#38bdf8';
+    ctx.beginPath();
+    ctx.arc(rp.x, rp.y, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  });
 
   // Guardas no radar (sem cones artificiais no chão)
   guards.forEach((g) => {

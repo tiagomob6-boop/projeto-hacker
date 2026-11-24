@@ -451,6 +451,35 @@
     </div>
   </div>
 
+  <!-- Modal Co-op P2P (PeerJS) -->
+  <div id="coop-modal" class="overlay-screen hidden">
+    <div class="terminal-card auth-card">
+      <div class="brand-tag">DEDSEC // REDE P2P // COOPERATIVO</div>
+      <h2 class="modal-title neon-cyan">SALA CO-OP P2P</h2>
+      <div id="coop-status" class="auth-db-badge">MODO SOLO // PRONTO PARA CONECTAR</div>
+
+      <div class="auth-form">
+        <button id="btn-coop-create" class="cyber-btn" type="button">CRIAR SALA CO-OP</button>
+        <div id="coop-room-box" class="hidden" style="display:flex;gap:8px;align-items:center;">
+          <input id="coop-room-code" class="auth-input" type="text" readonly style="flex:1;text-align:center;font-weight:700;letter-spacing:2px;" />
+          <button id="btn-coop-copy" class="cyber-btn secondary-btn small-btn" type="button">COPIAR CÓDIGO</button>
+        </div>
+      </div>
+
+      <div class="auth-divider"><span>ENTRAR EM SALA</span></div>
+
+      <div class="auth-form">
+        <input id="coop-join-code" class="auth-input" type="text" placeholder="COLE O CÓDIGO (EX: DEDSEC-4821)" />
+        <button id="btn-coop-join" class="cyber-btn" type="button">CONECTAR</button>
+      </div>
+
+      <div class="modal-actions" style="margin-top:14px;">
+        <button id="btn-coop-disconnect" class="cyber-btn secondary-btn hidden" type="button">DESCONECTAR</button>
+        <button id="btn-close-coop" class="cyber-btn secondary-btn" type="button">FECHAR [ESC]</button>
+      </div>
+    </div>
+  </div>
+
   <script type="module" src="script.js"></script>
 </body>
 </html>

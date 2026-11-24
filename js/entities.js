@@ -572,14 +572,15 @@ export function toggleDrone() {
   }
 }
 
-export function triggerBlackout() {
+export function triggerBlackout(fromRemote = false) {
   const unlocked = gameState.hasBlackout || gameState.difficulty === 'DEDSEC_ELITE';
-  if (!unlocked || gameState.blackoutCooldown > 0) return;
+  if (!fromRemote && (!unlocked || gameState.blackoutCooldown > 0)) return;
 
   gameState.blackoutTimer = 12.0;
   gameState.blackoutCooldown = 35.0;
   gameState.hacksUsed += 1;
   AudioManager.playEmpPulse();
+  if (!fromRemote) refs.onBroadcastHack?.('BLACKOUT', {});
 
   // Apagar postes de luz e escurecer a iluminação ambiente
   if (lightPoles.length > 0 && lightPoles[0].headMesh?.material?.color) {
@@ -597,29 +598,164 @@ export function triggerBlackout() {
   });
 }
 
+function createFloatingNameSprite(label) {
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 64;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = 'rgba(6, 14, 28, 0.78)';
+  ctx.fillRect(10, 12, 236, 40);
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(10, 12, 236, 40);
+  ctx.fillStyle = '#e0f2fe';
+  ctx.font = 'bold 22px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(String(label || 'AGENTE').slice(0, 16).toUpperCase(), 128, 33);
+  const tex = new THREE.CanvasTexture(c);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(1.85, 0.46, 1);
+  sprite.position.set(0, 2.25, 0);
+  return sprite;
+}
+
+function applySkinToParts(parts, skinId) {
+  const skin = SKINS_CATALOG.find((s) => s.id === skinId) || SKINS_CATALOG[0];
+  if (!skin || !parts) return;
+  if (parts.jacketMat) parts.jacketMat.color.setHex(skin.jacket);
+  if (parts.innerMat) parts.innerMat.color.setHex(skin.inner);
+  if (parts.pantsMat) parts.pantsMat.color.setHex(skin.pants);
+  if (parts.capMat) parts.capMat.color.setHex(skin.cap);
+  if (parts.cyanMat) parts.cyanMat.color.setHex(skin.primary);
+  if (parts.magentaMat) parts.magentaMat.color.setHex(skin.secondary);
+}
+
 export function upsertRemotePlayer(packet) {
   if (!packet || !packet.id || packet.id === gameState.localPlayerId) return;
   let entry = remotePlayers.get(packet.id);
+  const label = packet.name || `AGENTE_${String(packet.id).slice(0, 6).toUpperCase()}`;
   if (!entry) {
     const { group, parts } = createAgentMesh({
       isLocal: false,
-      label: packet.name || `AGENTE_${String(packet.id).slice(0, 6).toUpperCase()}`,
+      label,
       pos: [packet.x || 0, packet.y || 0, packet.z || 0]
     });
+    const nameSprite = createFloatingNameSprite(label);
+    group.add(nameSprite);
     refs.scene.add(group);
-    entry = { group, parts, isLocal: false };
+    entry = {
+      group,
+      parts,
+      nameSprite,
+      name: label,
+      skin: packet.skin || 'classic',
+      targetPos: new THREE.Vector3(packet.x || 0, packet.y || 0, packet.z || 0),
+      targetRotY: packet.rotY || 0,
+      animState: packet.animState || 'WALK',
+      phase: 0,
+      isLocal: false
+    };
+    applySkinToParts(parts, entry.skin);
     remotePlayers.set(packet.id, entry);
     playersMap.set(packet.id, entry);
   }
-  entry.group.position.set(packet.x || 0, packet.y || 0, packet.z || 0);
-  entry.group.rotation.y = packet.rotY || 0;
+  if (packet.skin && packet.skin !== entry.skin) {
+    entry.skin = packet.skin;
+    applySkinToParts(entry.parts, entry.skin);
+  }
+  entry.targetPos.set(packet.x || 0, packet.y || 0, packet.z || 0);
+  entry.targetRotY = packet.rotY || 0;
+  entry.animState = packet.animState || 'WALK';
   entry.group.visible = packet.inCar === null || packet.inCar === undefined;
+}
+
+export function updateRemotePlayers(dt) {
+  if (remotePlayers.size === 0) return;
+  const lerpAlpha = Math.min(1, dt * 12);
+  remotePlayers.forEach((entry) => {
+    const pos = entry.group.position;
+    const prevX = pos.x;
+    const prevZ = pos.z;
+    pos.lerp(entry.targetPos, lerpAlpha);
+    let diff = entry.targetRotY - entry.group.rotation.y;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    entry.group.rotation.y += diff * lerpAlpha;
+
+    const moved = Math.hypot(pos.x - prevX, pos.z - prevZ) > 0.015;
+    const p = entry.parts;
+    if (!p) return;
+    const isSprint = entry.animState === 'SPRINT';
+    const isCrouch = entry.animState === 'CROUCH';
+    const isSwim = entry.animState === 'SWIM';
+    if (moved || isSwim) {
+      entry.phase += dt * (isSprint ? 14 : isSwim ? 8 : 9.5);
+      const sw = Math.sin(entry.phase) * (isSprint ? 0.6 : 0.42);
+      if (p.hipL) p.hipL.rotation.x = sw - (isCrouch ? 0.6 : 0);
+      if (p.hipR) p.hipR.rotation.x = -sw - (isCrouch ? 0.6 : 0);
+      if (p.shoulderL) p.shoulderL.rotation.x = isSwim ? Math.cos(entry.phase) * 1.4 - 0.5 : -sw * 0.8;
+      if (p.shoulderR) p.shoulderR.rotation.x = isSwim ? -Math.cos(entry.phase) * 1.4 - 0.5 : sw * 0.8;
+    } else {
+      if (p.hipL) p.hipL.rotation.x = isCrouch ? -0.6 : 0;
+      if (p.hipR) p.hipR.rotation.x = isCrouch ? -0.6 : 0;
+    }
+  });
+}
+
+export function spawnRemoteShotEffect(payload) {
+  if (!payload || !refs.scene) return;
+  const origin = new THREE.Vector3(payload.ox || 0, payload.oy || 1.3, payload.oz || 0);
+  const dir = new THREE.Vector3(payload.dx || 0, payload.dy || 0, payload.dz || 1).normalize();
+  const end = origin.clone().addScaledVector(dir, 26);
+  const lineGeo = new THREE.BufferGeometry().setFromPoints([origin, end]);
+  const lineMat = new THREE.LineBasicMaterial({ color: payload.color || 0x38bdf8, transparent: true, opacity: 0.9 });
+  const line = new THREE.Line(lineGeo, lineMat);
+  refs.scene.add(line);
+  spawnTaserFlash(origin, payload.color || 0x38bdf8);
+  AudioManager.playSilencedShot();
+  setTimeout(() => {
+    refs.scene.remove(line);
+    lineGeo.dispose();
+    lineMat.dispose();
+  }, 110);
+}
+
+export function applyRemoteHack(payload) {
+  if (!payload || !payload.hackType) return;
+  if (payload.hackType === 'BLACKOUT') {
+    triggerBlackout(true);
+  } else if (payload.hackType === 'CAMERA') {
+    const cam = securityCameras[payload.data?.camIndex];
+    if (cam) {
+      cam.disabledTimer = CAMERA_OVERLOAD_DURATION;
+      cam.mesh.userData.normalMaterial.emissive.setHex(0x334155);
+      if (cam.laserMesh) cam.laserMesh.visible = false;
+      AudioManager.playElectricZap();
+    }
+  } else if (payload.hackType === 'GATE') {
+    const g = gates[payload.data?.gateIndex];
+    if (g && !g.unlocked) {
+      g.unlocked = true;
+      AudioManager.playGateMechanical();
+      g.gateMesh.userData.normalMaterial.emissive.setHex(0x00ff88);
+      if (g.gateMesh.userData.edgesMaterial) g.gateMesh.userData.edgesMaterial.color.setHex(0x00ff88);
+      g.panelMesh.userData.normalMaterial.emissive.setHex(0x00ff88);
+      for (let i = colliders.length - 1; i >= 0; i--) {
+        if (colliders[i].isGate && colliders[i].gateIndex === g.index) colliders.splice(i, 1);
+      }
+      const occIdx = occluders.indexOf(g.gateMesh);
+      if (occIdx !== -1) occluders.splice(occIdx, 1);
+    }
+  }
 }
 
 export function removeRemotePlayer(id) {
   const entry = remotePlayers.get(id);
   if (!entry) return;
   refs.scene.remove(entry.group);
+  disposeHierarchy(entry.group);
   remotePlayers.delete(id);
   playersMap.delete(id);
 }
@@ -899,11 +1035,13 @@ export function cycleSecurityCamera(specificIndex = null) {
 
 export function overloadActiveCamera() {
   if (gameState.activeCamIndex < 0) return;
+  const camIdx = gameState.activeCamIndex;
   AudioManager.playElectricZap();
   gameState.hacksUsed += 1;
-  const camObj = securityCameras[gameState.activeCamIndex];
+  const camObj = securityCameras[camIdx];
   camObj.disabledTimer = CAMERA_OVERLOAD_DURATION;
   camObj.mesh.userData.normalMaterial.emissive.setHex(0x331111);
+  refs.onBroadcastHack?.('CAMERA', { camIndex: camIdx });
   cycleSecurityCamera(-1);
 }
 

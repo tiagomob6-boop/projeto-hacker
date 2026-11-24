@@ -31,7 +31,10 @@ import {
   updateMoneyHUD,
   updateHpHUD,
   updateRadar,
-  setupAuthUI
+  setupAuthUI,
+  openCoopModal,
+  closeCoopModal,
+  setupCoopUI
 } from './js/ui.js';
 import {
   selectWeapon,
@@ -51,6 +54,10 @@ import {
   triggerBlackout,
   applyPlayerSkin,
   upsertRemotePlayer,
+  updateRemotePlayers,
+  removeRemotePlayer,
+  spawnRemoteShotEffect,
+  applyRemoteHack,
   updatePlayer,
   updateCars,
   updateCamera,
@@ -78,8 +85,13 @@ refs.onApplySkin = applyPlayerSkin;
 refs.onSelectWeapon = selectWeapon;
 refs.onSpawnVehicle = spawnPurchasedVehicle;
 refs.onSpawnPolice = spawnPoliceReinforcement;
+refs.onBroadcastShoot = (origin, dir, color) => networkManager.broadcastShoot(origin, dir, color);
+refs.onBroadcastHack = (hackType, data) => networkManager.broadcastHack(hackType, data);
 
 networkManager.on('onPlayerMove', (packet) => upsertRemotePlayer(packet));
+networkManager.on('onPlayerShoot', (payload) => spawnRemoteShotEffect(payload));
+networkManager.on('onHackTriggered', (payload) => applyRemoteHack(payload));
+networkManager.on('onPeerDisconnected', (id) => removeRemotePlayer(id));
 
 function setupInputs() {
   window.addEventListener('keydown', (e) => {
@@ -101,6 +113,11 @@ function setupInputs() {
 
     if (gameState.missionModalOpen) {
       if (code === 'Escape') closeMissionModal();
+      return;
+    }
+
+    if (gameState.coopModalOpen) {
+      if (code === 'Escape') closeCoopModal();
       return;
     }
 
@@ -273,7 +290,7 @@ function setupInputs() {
     dom.btnMute.addEventListener('click', () => AudioManager.toggleMute());
   }
   if (dom.btnNetworkMode) {
-    dom.btnNetworkMode.addEventListener('click', () => networkManager.toggleMode());
+    dom.btnNetworkMode.addEventListener('click', () => openCoopModal());
   }
   if (dom.btnRain) {
     dom.btnRain.addEventListener('click', () => toggleRain());
@@ -376,6 +393,7 @@ function animate() {
     updatePedestrians(dt);
     updateGuards(dt);
     updateInteractionsAndMission(dt);
+    updateRemotePlayers(dt);
     networkManager.tick(dt);
 
     // Atualiza minimapa Radar e etiquetas NetHack a 20 Hz (a cada 0.05s) para liberar CPU
@@ -414,6 +432,7 @@ try {
   initThree();
   setupInputs();
   setupAuthUI();
+  setupCoopUI(networkManager);
   setMissionState(MISSION_STATE.FREE_ROAM);
   updateMoneyHUD();
   updateHpHUD();
