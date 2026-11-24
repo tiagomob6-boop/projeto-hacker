@@ -350,9 +350,9 @@ export function initThree() {
 
   refs.renderer = new THREE.WebGLRenderer({ canvas: dom.canvas, antialias: true });
   refs.renderer.setSize(window.innerWidth, window.innerHeight);
-  refs.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  refs.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   refs.renderer.shadowMap.enabled = true;
-  refs.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  refs.renderer.shadowMap.type = THREE.PCFShadowMap;
 
   refs.clock = new THREE.Clock();
   refs.worldGroup = new THREE.Group();
@@ -443,7 +443,7 @@ export function buildMap() {
   refs.waterBumpMap = TextureGenerator.getWaterBumpMap();
   refs.waterBumpMap.repeat.set(48, 56);
 
-  const bayWaterGeo = new THREE.PlaneGeometry(2500, 2900, 64, 64);
+  const bayWaterGeo = new THREE.PlaneGeometry(2500, 2900, 32, 32);
   bayWaterGeo.userData = {
     basePositions: new Float32Array(bayWaterGeo.attributes.position.array)
   };
@@ -2189,17 +2189,18 @@ export function setupLighting() {
   refs.scene.add(hemiLight);
 
   refs.dirLight = new THREE.DirectionalLight(0xffb899, 1.3);
-  refs.dirLight.position.set(18, 28, 16);
+  refs.dirLight.position.set(36, 64, 32);
   refs.dirLight.castShadow = true;
-  refs.dirLight.shadow.mapSize.set(2048, 2048);
+  refs.dirLight.shadow.mapSize.set(1024, 1024);
   refs.dirLight.shadow.camera.near = 2;
-  refs.dirLight.shadow.camera.far = 85;
-  const d = 32;
+  refs.dirLight.shadow.camera.far = 260;
+  const d = 110;
   refs.dirLight.shadow.camera.left = -d;
   refs.dirLight.shadow.camera.right = d;
   refs.dirLight.shadow.camera.top = d;
   refs.dirLight.shadow.camera.bottom = -d;
   refs.scene.add(refs.dirLight);
+  refs.scene.add(refs.dirLight.target);
 
   // Luzes neon de atmosfera cyberpunk (ciano e magenta)
   const streetNeonCyan = new THREE.PointLight(0x00f0ff, 2.4, 28);
@@ -2245,7 +2246,8 @@ export function addStaticBox(w, h, d, x, y, z, color, options = {}) {
 
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
   mesh.position.set(x, y, z);
-  mesh.castShadow = options.castShadow ?? true;
+  const isSmallProp = w < 1.2 && d < 1.2 && h < 3.2;
+  mesh.castShadow = options.castShadow ?? !isSmallProp;
   mesh.receiveShadow = options.receiveShadow ?? true;
   refs.worldGroup.add(mesh);
 
@@ -3376,7 +3378,7 @@ export function buildCarMesh(color, neonTrim, isPatrol = false, bodyType = 'SPOR
     const wheel = new THREE.Mesh(wheelGeo, wheelMat);
     wheel.rotation.z = Math.PI / 2;
     wheel.position.set(wx, wy, wz);
-    wheel.castShadow = true;
+    wheel.castShadow = false;
     registerPart(wheel, wheelMat);
 
     const rim = new THREE.Mesh(rimGeo, rimMat);
@@ -3725,15 +3727,12 @@ export function buildPedestrians() {
 
     const legL = new THREE.Mesh(new THREE.CapsuleGeometry(0.068, 0.44, 4, 8), pantsMat);
     legL.position.set(-0.10, 0.42, 0);
-    legL.castShadow = true;
     const legR = new THREE.Mesh(new THREE.CapsuleGeometry(0.068, 0.44, 4, 8), pantsMat);
     legR.position.set(0.10, 0.42, 0);
-    legR.castShadow = true;
 
     const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.34, 6, 10), jacketMat);
     torso.scale.set(1.1, 1.0, 0.75);
     torso.position.y = 1.12;
-    torso.castShadow = true;
 
     const armL = new THREE.Mesh(new THREE.CapsuleGeometry(0.05, 0.36, 4, 8), jacketMat);
     armL.position.set(-0.24, 1.12, 0);
@@ -3742,7 +3741,6 @@ export function buildPedestrians() {
 
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.145, 12, 10), skinMat);
     head.position.y = 1.56;
-    head.castShadow = true;
     const hair = new THREE.Mesh(
       new THREE.SphereGeometry(0.152, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55),
       hairMat
@@ -4615,6 +4613,18 @@ export function updateVisualEffects(dt, nowSec) {
   }
   if (refs.skyDome && refs.camera) {
     refs.skyDome.position.copy(refs.camera.position);
+  }
+  // Atualiza frustum da sombra direcional (±110m) acompanhando o jogador a cada 1s
+  if (refs.dirLight && refs.playerGroup) {
+    refs._shadowTimer = (refs._shadowTimer || 0) + dt;
+    if (refs._shadowTimer >= 1.0) {
+      refs._shadowTimer = 0;
+      const px = Math.round(refs.playerGroup.position.x);
+      const pz = Math.round(refs.playerGroup.position.z);
+      refs.dirLight.target.position.set(px, 0, pz);
+      refs.dirLight.position.set(px + 36, 64, pz + 32);
+      refs.dirLight.target.updateMatrixWorld();
+    }
   }
   if (refs.serverParticles) {
     const posAttr = refs.serverParticles.geometry.getAttribute('position');

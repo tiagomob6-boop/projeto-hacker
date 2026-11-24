@@ -25,6 +25,12 @@ import {
 import { AudioManager } from './audio.js';
 import { updateWeaponHUD, updateHpHUD, updateVehicleHpHUD, updateWantedHUD, triggerHitmarker, triggerGameOver } from './ui.js';
 
+// Temporários reutilizáveis (Zero-GC no loop de projéteis)
+const _tmpVec1 = new THREE.Vector3();
+const _tmpVec2 = new THREE.Vector3();
+const _tmpBox = new THREE.Box3();
+const _tmpTrailPts = [new THREE.Vector3(), new THREE.Vector3()];
+
 // Geometrias e materiais compartilhados para evitar memory leaks em WebGL
 const sharedPlayerBoltGeo = new THREE.BoxGeometry(0.1, 0.1, 0.55);
 const sharedGuardBulletGeo = new THREE.BoxGeometry(0.1, 0.1, 0.45);
@@ -331,8 +337,9 @@ export function updateProjectiles(dt) {
     p.pos.addScaledVector(p.dir, step);
     p.mesh.position.copy(p.pos);
 
-    const trailTail = p.pos.clone().addScaledVector(p.dir, -Math.min(2.4, p.pos.distanceTo(p.origin)));
-    p.line.geometry.setFromPoints([trailTail, p.pos.clone()]);
+    _tmpTrailPts[0].copy(p.pos).addScaledVector(p.dir, -Math.min(2.4, p.pos.distanceTo(p.origin)));
+    _tmpTrailPts[1].copy(p.pos);
+    p.line.geometry.setFromPoints(_tmpTrailPts);
 
     let hitGuard = null;
     for (const g of guards) {
@@ -394,7 +401,7 @@ export function updateProjectiles(dt) {
     let hitGenCell = null;
     for (const cell of rescueCells) {
       if (cell.freed || !cell.genBox) continue;
-      if (cell.genBox.clone().expandByScalar(0.28).containsPoint(p.pos)) {
+      if (_tmpBox.copy(cell.genBox).expandByScalar(0.28).containsPoint(p.pos)) {
         hitGenCell = cell;
         break;
       }
@@ -405,7 +412,9 @@ export function updateProjectiles(dt) {
       hitGenCell.genHp = Math.max(0, hitGenCell.genHp - (p.isTaser ? 15 : p.damage || 25));
       if (hitGenCell.genHp <= 0) {
         AudioManager.playExplosion();
-        spawnImpactFlash(hitGenCell.genMesh.position.clone().add(new THREE.Vector3(0, 0.8, 0)), 0xff5500);
+        _tmpVec1.copy(hitGenCell.genMesh.position);
+        _tmpVec1.y += 0.8;
+        spawnImpactFlash(_tmpVec1, 0xff5500);
         refs.onFreeRescueCell?.(hitGenCell);
       }
       disposePlayerProjectile(p);
@@ -417,7 +426,7 @@ export function updateProjectiles(dt) {
     let hitCar = null;
     for (const car of cars) {
       if (!car || car.destroyed || !car.colliderObj) continue;
-      if (car.colliderObj.box.clone().expandByScalar(0.2).containsPoint(p.pos)) {
+      if (_tmpBox.copy(car.colliderObj.box).expandByScalar(0.2).containsPoint(p.pos)) {
         hitCar = car;
         break;
       }
@@ -461,7 +470,7 @@ export function updateGuardProjectiles(dt) {
     let hitOtherCar = null;
     for (const car of cars) {
       if (!car || car.destroyed || !car.colliderObj || car === gameState.drivingCar) continue;
-      if (car.colliderObj.box.clone().expandByScalar(0.2).containsPoint(gp.pos)) {
+      if (_tmpBox.copy(car.colliderObj.box).expandByScalar(0.2).containsPoint(gp.pos)) {
         hitOtherCar = car;
         break;
       }
@@ -475,8 +484,7 @@ export function updateGuardProjectiles(dt) {
     }
 
     if (gameState.drivingCar && !gameState.drivingCar.destroyed) {
-      const carBox = gameState.drivingCar.colliderObj.box.clone().expandByScalar(0.35);
-      if (carBox.containsPoint(gp.pos)) {
+      if (_tmpBox.copy(gameState.drivingCar.colliderObj.box).expandByScalar(0.35).containsPoint(gp.pos)) {
         damageCar(gameState.drivingCar, 12);
         refs.scene.remove(gp.mesh);
         guardProjectiles.splice(i, 1);

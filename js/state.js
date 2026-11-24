@@ -761,10 +761,13 @@ export function isWaterArea(x, z) {
 
 export function checkCollision(x, z, radius = PLAYER_RADIUS, ignoreCar = null, y = null, height = 1.8, ignoreTraffic = false) {
   const entityY = y !== null ? y : getSurfaceHeight(x, z);
-  for (const col of colliders) {
+  for (let i = 0; i < colliders.length; i++) {
+    const col = colliders[i];
     if (ignoreCar && col === ignoreCar.colliderObj) continue;
     if (ignoreTraffic && col.isTrafficCar) continue;
     const b = col.box;
+    // Filtro espacial rápido (descarta caixas distantes > 25m antes do cálculo completo)
+    if (x < b.min.x - 25 || x > b.max.x + 25 || z < b.min.z - 25 || z > b.max.z + 25) continue;
     if (b.max.y <= entityY + 0.05 || b.min.y >= entityY + height) continue;
     const closestX = THREE.MathUtils.clamp(x, b.min.x, b.max.x);
     const closestZ = THREE.MathUtils.clamp(z, b.min.z, b.max.z);

@@ -340,6 +340,8 @@ function setupInputs() {
   });
 }
 
+let _hudTickAccum = 0;
+
 function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(refs.clock.getDelta(), 0.05);
@@ -351,6 +353,7 @@ function animate() {
     gameState.mission === MISSION_STATE.INFILTRATE ||
     gameState.mission === MISSION_STATE.STEAL_DATA ||
     gameState.mission === MISSION_STATE.STEAL_CAR ||
+    gameState.mission === MISSION_STATE.RESCUE_PRISONER ||
     gameState.mission === MISSION_STATE.ESCAPE;
   const isPlaying = isContract || gameState.mission === MISSION_STATE.FREE_ROAM;
 
@@ -370,9 +373,15 @@ function animate() {
     updateGuards(dt);
     updateInteractionsAndMission(dt);
     networkManager.tick(dt);
-    updateRadar();
-    if (gameState.netHackActive) {
-      updateNetHackLabels();
+
+    // Atualiza minimapa Radar e etiquetas NetHack a 20 Hz (a cada 0.05s) para liberar CPU
+    _hudTickAccum += dt;
+    if (_hudTickAccum >= 0.05) {
+      _hudTickAccum = 0;
+      updateRadar();
+      if (gameState.netHackActive) {
+        updateNetHackLabels();
+      }
     }
   }
 

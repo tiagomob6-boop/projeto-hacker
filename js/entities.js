@@ -78,6 +78,14 @@ import {
   spawnTaserFlash
 } from './combat.js';
 
+// Vetores temporários reutilizáveis (Zero-GC no loop principal)
+const _tmpV1 = new THREE.Vector3();
+const _tmpV2 = new THREE.Vector3();
+const _tmpV3 = new THREE.Vector3();
+const _tmpV4 = new THREE.Vector3();
+const _tmpV5 = new THREE.Vector3();
+const CULL_DIST_SQ = 160 * 160;
+
 function createAgentNameTag(labelText) {
   const c = document.createElement('canvas');
   c.width = 256;
@@ -1578,11 +1586,20 @@ export function updateCars(dt) {
       fleeingDrivers.splice(i, 1);
     }
   }
+  const camPos = refs.camera?.position;
   cars.forEach((car) => {
-    // Dano progressivo: fumaça branca leve <= 65% HP, fumaça preta espessa <= 35% HP
+    const farFromCam =
+      !!camPos &&
+      car !== gameState.drivingCar &&
+      !car.vipMissionKey &&
+      !car.isPoliceCar &&
+      (car.mesh.position.x - camPos.x) ** 2 + (car.mesh.position.z - camPos.z) ** 2 > CULL_DIST_SQ;
+    car.mesh.visible = !farFromCam;
+
+    // Dano progressivo: fumaça branca leve <= 65% HP, fumaça preta espessa <= 35% HP (suspensa se fora do culling)
     if (car.smokePoints) {
       const hpPct = car.hp / (car.maxHp || 100);
-      if (hpPct <= 0.65) {
+      if (!farFromCam && hpPct <= 0.65) {
         car.smokePoints.visible = true;
         if (car.smokePoints.material) {
           if (hpPct <= 0.35) {
@@ -2402,22 +2419,22 @@ export function updateCamera() {
       refs.camera.position.set(dPos.x + lookX * 0.22, dPos.y - 0.02, dPos.z + lookZ * 0.22);
       refs.camera.lookAt(dPos.x + lookX * 14, dPos.y + lookY * 14, dPos.z + lookZ * 14);
     } else {
-      // Visão em 3ª pessoa próxima atrás/acima do drone (dist = 1.9m, heightOffset = 0.48m, lerp suave)
+      // Visão em 3ª pessoa próxima atrás/acima do drone (Zero-GC com _tmpV1.._tmpV3)
       const dist = 1.9;
       const heightOffset = 0.48;
-      const idealPos = new THREE.Vector3(
+      _tmpV1.set(
         dPos.x + Math.sin(yaw) * Math.cos(pitch) * dist,
         dPos.y + heightOffset + Math.sin(pitch) * dist * 0.45,
         dPos.z + Math.cos(yaw) * Math.cos(pitch) * dist
       );
-      const camDir = idealPos.clone().sub(dPos).normalize();
-      raycaster.set(dPos, camDir);
-      raycaster.far = idealPos.distanceTo(dPos);
+      _tmpV2.copy(_tmpV1).sub(dPos).normalize();
+      raycaster.set(dPos, _tmpV2);
+      raycaster.far = _tmpV1.distanceTo(dPos);
       const hits = raycaster.intersectObjects(occluders, false);
       const targetCamPos =
         hits.length > 0
-          ? dPos.clone().addScaledVector(camDir, Math.max(0.55, hits[0].distance - 0.22))
-          : idealPos;
+          ? _tmpV3.copy(dPos).addScaledVector(_tmpV2, Math.max(0.55, hits[0].distance - 0.22))
+          : _tmpV1;
       refs.camera.position.lerp(targetCamPos, 0.22);
       refs.camera.lookAt(dPos.x + lookX * 2.5, dPos.y + lookY * 2.5, dPos.z + lookZ * 2.5);
     }
@@ -2431,12 +2448,12 @@ export function updateCamera() {
     refs.camera.position.copy(camObj.pos);
     const yaw = camObj.baseYaw + camObj.yawOffset;
     const pitch = camObj.basePitch + camObj.pitchOffset;
-    const lookTarget = new THREE.Vector3(
+    _tmpV1.set(
       camObj.pos.x + Math.sin(yaw) * Math.cos(pitch) * 10,
       camObj.pos.y + Math.sin(pitch) * 10,
       camObj.pos.z + Math.cos(yaw) * Math.cos(pitch) * 10
     );
-    refs.camera.lookAt(lookTarget);
+    refs.camera.lookAt(_tmpV1);
     return;
   }
 
@@ -2457,12 +2474,12 @@ export function updateCamera() {
       cPos.y + seatH,
       cPos.z + rightZ * 0.36 + fwdZ * 0.12
     );
-    const lookAtPos = new THREE.Vector3(
+    _tmpV1.set(
       refs.camera.position.x + fwdX * 18,
       refs.camera.position.y - 0.55,
       refs.camera.position.z + fwdZ * 18
     );
-    refs.camera.lookAt(lookAtPos);
+    refs.camera.lookAt(_tmpV1);
 
     if (dom.cockpitHud) {
       dom.cockpitHud.classList.remove('hidden');
@@ -2508,7 +2525,7 @@ export function updateCamera() {
     : gameState.drivingCar
     ? gameState.drivingCar.mesh.position
     : refs.playerGroup.position;
-  const target = new THREE.Vector3(
+  _tmpV1.set(
     focusPos.x,
     focusPos.y + (gameState.drivingBoat ? 1.5 : gameState.drivingCar ? 1.4 : gameState.isCrouching ? 1.05 : 1.55),
     focusPos.z
@@ -2518,25 +2535,25 @@ export function updateCamera() {
   const yaw = gameState.cameraYaw;
   const pitch = gameState.cameraPitch;
 
-  const idealPos = new THREE.Vector3(
-    target.x + Math.sin(yaw) * Math.cos(pitch) * dist,
-    target.y + Math.sin(pitch) * dist,
-    target.z + Math.cos(yaw) * Math.cos(pitch) * dist
+  _tmpV2.set(
+    _tmpV1.x + Math.sin(yaw) * Math.cos(pitch) * dist,
+    _tmpV1.y + Math.sin(pitch) * dist,
+    _tmpV1.z + Math.cos(yaw) * Math.cos(pitch) * dist
   );
 
-  // Raycast simples para evitar que a câmera atravesse muros
-  const dir = idealPos.clone().sub(target).normalize();
-  raycaster.set(target, dir);
+  // Raycast simples para evitar que a câmera atravesse muros (Zero-GC)
+  _tmpV3.copy(_tmpV2).sub(_tmpV1).normalize();
+  raycaster.set(_tmpV1, _tmpV3);
   raycaster.far = dist;
   const hits = raycaster.intersectObjects(occluders, false);
   if (hits.length > 0) {
     const safeDist = Math.max(1.2, hits[0].distance - 0.35);
-    refs.camera.position.copy(target).addScaledVector(dir, safeDist);
+    refs.camera.position.copy(_tmpV1).addScaledVector(_tmpV3, safeDist);
   } else {
-    refs.camera.position.copy(idealPos);
+    refs.camera.position.copy(_tmpV2);
   }
 
-  refs.camera.lookAt(target);
+  refs.camera.lookAt(_tmpV1);
 }
 
 // ==========================================
@@ -2606,18 +2623,21 @@ export function updateSecurityCameras(dt, playerPos, playerCenter) {
     camObj.currentYaw = yaw;
     camObj.mesh.rotation.y = yaw;
 
-    // Detecção 3D idêntica ao cone visual: eixo inclinado para baixo (CAM_CONE_PITCH), vértice na lente
+    // Detecção 3D idêntica ao cone visual (Zero-GC com _tmpV1.._tmpV4)
     const cosP = Math.cos(CAM_CONE_PITCH);
-    const camAxis = new THREE.Vector3(Math.sin(yaw) * cosP, -Math.sin(CAM_CONE_PITCH), Math.cos(yaw) * cosP);
-    const lensPos = camObj.pos.clone().addScaledVector(new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)), 0.4);
-    const toTarget = playerCenter.clone().sub(lensPos);
-    const dist = toTarget.length();
+    const sinY = Math.sin(yaw);
+    const cosY = Math.cos(yaw);
+    _tmpV1.set(sinY * cosP, -Math.sin(CAM_CONE_PITCH), cosY * cosP);
+    _tmpV2.set(camObj.pos.x + sinY * 0.4, camObj.pos.y, camObj.pos.z + cosY * 0.4);
+    _tmpV3.copy(playerCenter).sub(_tmpV2);
+    const dist = _tmpV3.length();
 
     if (dist <= camObj.visionRange && dist > 0.2) {
-      const angle = Math.acos(THREE.MathUtils.clamp(camAxis.dot(toTarget.normalize()), -1, 1));
+      _tmpV3.divideScalar(dist);
+      const angle = Math.acos(THREE.MathUtils.clamp(_tmpV1.dot(_tmpV3), -1, 1));
       if (angle <= camObj.visionHalfAngle) {
-        const rayDir = playerCenter.clone().sub(camObj.pos).normalize();
-        raycaster.set(camObj.pos, rayDir);
+        _tmpV4.copy(playerCenter).sub(camObj.pos).normalize();
+        raycaster.set(camObj.pos, _tmpV4);
         raycaster.far = Math.max(0.1, camObj.pos.distanceTo(playerCenter) - 0.3);
         const blocked = raycaster.intersectObjects(occluders, false);
         if (blocked.length === 0) {
@@ -2638,8 +2658,19 @@ export function updateSecurityCameras(dt, playerPos, playerCenter) {
 
 export function updatePedestrians(dt) {
   const pPos = refs.playerGroup.position;
+  const camPos = refs.camera?.position;
   pedestrians.forEach((ped) => {
     const pos = ped.mesh.position;
+
+    // Distance Culling (> 160m da câmera ativa): oculta malha e suspende animações de membros
+    if (camPos && !ped.callingPolice && ped.stunnedTimer <= 0) {
+      const dSq = (pos.x - camPos.x) ** 2 + (pos.z - camPos.z) ** 2;
+      if (dSq > CULL_DIST_SQ) {
+        ped.mesh.visible = false;
+        return;
+      }
+      ped.mesh.visible = true;
+    }
 
     if (ped.stunnedTimer > 0) {
       ped.stunnedTimer = Math.max(0, ped.stunnedTimer - dt);
@@ -2829,17 +2860,29 @@ export function updateGuards(dt) {
   }
 
   const playerPos = refs.playerGroup.position;
-  const playerCenter = new THREE.Vector3(
+  const camPos = refs.camera?.position;
+  _tmpV5.set(
     playerPos.x,
     playerPos.y + (gameState.isCrouching ? 0.58 : 1.05),
     playerPos.z
   );
+  const playerCenter = _tmpV5;
 
   let spottedThisFrame = updateSecurityCameras(dt, playerPos, playerCenter);
   const rangeDelta = gameState.isSprinting ? 4.0 : gameState.isCrouching ? -3.0 : 0;
 
-  guards.forEach((g) => {
+  guards.forEach((g, idx) => {
     if (g.state === GUARD_STATE.DEAD) return;
+
+    // Distance Culling (> 160m da câmera ativa) para guardas distantes fora de perseguição policial
+    if (camPos && !g.isPolice && g.state !== GUARD_STATE.COMBAT) {
+      const dSq = (g.mesh.position.x - camPos.x) ** 2 + (g.mesh.position.z - camPos.z) ** 2;
+      if (dSq > CULL_DIST_SQ) {
+        g.mesh.visible = false;
+        return;
+      }
+      g.mesh.visible = true;
+    }
 
     if (g.state === GUARD_STATE.STUNNED || g.stunTimer > 0) {
       g.stunTimer = Math.max(0, g.stunTimer - dt);
@@ -2874,15 +2917,11 @@ export function updateGuards(dt) {
       return;
     }
 
-    // 1. Checar visão realista (110°, 22m + Raycaster da cabeça até o jogador)
-    const guardForward = new THREE.Vector3(
-      Math.sin(g.mesh.rotation.y),
-      0,
-      Math.cos(g.mesh.rotation.y)
-    );
-    const toPlayer = playerPos.clone().sub(g.mesh.position);
-    toPlayer.y = 0;
-    const distToPlayer = toPlayer.length();
+    // 1. Checar visão realista (110°, 22m + Raycaster escalonado a 10 Hz / 0.1s por guarda, Zero-GC)
+    _tmpV1.set(Math.sin(g.mesh.rotation.y), 0, Math.cos(g.mesh.rotation.y));
+    _tmpV2.copy(playerPos).sub(g.mesh.position);
+    _tmpV2.y = 0;
+    const distToPlayer = _tmpV2.length();
     const effectiveRange = (g.visionRange + rangeDelta) * (gameState.blackoutTimer > 0 ? 0.5 : 1.0);
 
     let guardSeesPlayer = false;
@@ -2890,28 +2929,37 @@ export function updateGuards(dt) {
       g.isPolice || (gameState.mission !== MISSION_STATE.FREE_ROAM && g.missionKey === gameState.activeMissionKey);
 
     if (isContractGuard && distToPlayer <= effectiveRange && distToPlayer > 0.1) {
-      const dirFlat = toPlayer.clone().normalize();
-      const angle = Math.acos(THREE.MathUtils.clamp(guardForward.dot(dirFlat), -1, 1));
+      _tmpV2.divideScalar(distToPlayer);
+      const angle = Math.acos(THREE.MathUtils.clamp(_tmpV1.dot(_tmpV2), -1, 1));
       if (angle <= g.visionHalfAngle) {
-        const eyePos = new THREE.Vector3(g.mesh.position.x, g.mesh.position.y + 1.65, g.mesh.position.z);
-        const rayDir = playerCenter.clone().sub(eyePos).normalize();
-        raycaster.set(eyePos, rayDir);
-        raycaster.far = Math.max(0.1, eyePos.distanceTo(playerCenter) - 0.25);
-        const blocked = raycaster.intersectObjects(occluders, false);
-        if (blocked.length === 0) {
-          guardSeesPlayer = true;
+        g.visionTimer = (g.visionTimer ?? ((idx * 0.017) % 0.1)) - dt;
+        if (g.visionTimer <= 0) {
+          g.visionTimer = 0.1;
+          _tmpV3.set(g.mesh.position.x, g.mesh.position.y + 1.65, g.mesh.position.z);
+          _tmpV4.copy(playerCenter).sub(_tmpV3).normalize();
+          raycaster.set(_tmpV3, _tmpV4);
+          raycaster.far = Math.max(0.1, _tmpV3.distanceTo(playerCenter) - 0.25);
+          const blocked = raycaster.intersectObjects(occluders, false);
+          g._cachedSeesPlayer = blocked.length === 0;
         }
+        guardSeesPlayer = !!g._cachedSeesPlayer;
+      } else {
+        g._cachedSeesPlayer = false;
       }
+    } else {
+      g._cachedSeesPlayer = false;
     }
 
     if (guardSeesPlayer) {
       spottedThisFrame = true;
       g.state = GUARD_STATE.COMBAT;
-      g.lastKnownPos = new THREE.Vector3(playerPos.x, playerPos.y, playerPos.z);
+      if (!g.lastKnownPos) g.lastKnownPos = new THREE.Vector3();
+      g.lastKnownPos.copy(playerPos);
       g.lookAroundTimer = 0;
     } else if (isContractGuard && gameState.baseAlert) {
       g.state = GUARD_STATE.COMBAT;
-      g.lastKnownPos = new THREE.Vector3(playerPos.x, playerPos.y, playerPos.z);
+      if (!g.lastKnownPos) g.lastKnownPos = new THREE.Vector3();
+      g.lastKnownPos.copy(playerPos);
     }
 
     // 2. Máquina de estados de movimentação e combate
