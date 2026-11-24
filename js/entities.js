@@ -2064,6 +2064,8 @@ export function updatePlayer(dt) {
     if (gameState.keys['KeyS'] || gameState.keys['ArrowDown']) inZ -= 1;
     if (gameState.keys['KeyA'] || gameState.keys['ArrowLeft']) inX -= 1;
     if (gameState.keys['KeyD'] || gameState.keys['ArrowRight']) inX += 1;
+    if (Math.abs(gameState.touchMoveX) > 0.08) inX = THREE.MathUtils.clamp(inX + gameState.touchMoveX, -1, 1);
+    if (Math.abs(gameState.touchMoveZ) > 0.08) inZ = THREE.MathUtils.clamp(inZ + gameState.touchMoveZ, -1, 1);
     if (gameState.keys['Space']) inY += 1;
     if (gameState.keys['ControlLeft'] || gameState.keys['ControlRight']) inY -= 1;
 
@@ -2420,10 +2422,15 @@ export function updatePlayer(dt) {
   if (gameState.keys['KeyS'] || gameState.keys['ArrowDown']) inputZ -= 1;
   if (gameState.keys['KeyA'] || gameState.keys['ArrowLeft']) inputX -= 1;
   if (gameState.keys['KeyD'] || gameState.keys['ArrowRight']) inputX += 1;
+  if (Math.abs(gameState.touchMoveX) > 0.08) inputX = THREE.MathUtils.clamp(inputX + gameState.touchMoveX, -1, 1);
+  if (Math.abs(gameState.touchMoveZ) > 0.08) inputZ = THREE.MathUtils.clamp(inputZ + gameState.touchMoveZ, -1, 1);
 
-  const isMoving = inputX !== 0 || inputZ !== 0;
+  const isMoving = Math.abs(inputX) > 0.08 || Math.abs(inputZ) > 0.08;
   gameState.isCrouching = !gameState.isSwimming && !!(gameState.keys['ControlLeft'] || gameState.keys['ControlRight']);
-  gameState.isSprinting = !!(gameState.keys['ShiftLeft'] || gameState.keys['ShiftRight']) && !gameState.isCrouching && isMoving;
+  gameState.isSprinting =
+    !!(gameState.keys['ShiftLeft'] || gameState.keys['ShiftRight'] || gameState.touchSprintToggle) &&
+    !gameState.isCrouching &&
+    isMoving;
 
   if (!gameState.netHackActive && gameState.activeCamIndex < 0) {
     dom.statusMode.textContent = gameState.isSwimming
@@ -3164,7 +3171,7 @@ export function updateGuards(dt) {
 
       if (g.stunTimer === 0) {
         g.mesh.rotation.x = 0;
-        g.mesh.position.y = getSurfaceHeight(g.mesh.position.x, g.mesh.position.z);
+        g.mesh.position.y = getSurfaceHeight(g.mesh.position.x, g.mesh.position.z, g.mesh.position.y);
         if (g.sparkPoints) g.sparkPoints.visible = false;
         g.state = gameState.baseAlert ? GUARD_STATE.COMBAT : GUARD_STATE.INVESTIGATE;
         g.lastKnownPos = g.mesh.position.clone();
@@ -3767,7 +3774,9 @@ export function updateInteractionsAndMission(dt) {
           dom.downloadContainer.classList.add('hidden');
           refs.serverMesh.userData.normalMaterial.emissive.setHex(0x00ff88);
           triggerBaseAlert();
-          addWantedLevel(2, 'PERSEGUIÇÃO');
+          const activeCfg = MAPS_CONFIG[gameState.activeMissionKey];
+          const wantedTarget = activeCfg?.wantedOnDownload || 2;
+          addWantedLevel(Math.max(0, wantedTarget - gameState.wantedLevel), 'PERSEGUIÇÃO');
           setMissionState(MISSION_STATE.ESCAPE);
         }
       }

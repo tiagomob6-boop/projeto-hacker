@@ -192,6 +192,67 @@
       <span><kbd>Click</kbd> Atirar</span>
       <span><kbd>M</kbd> Mudo</span>
     </div>
+
+    <!-- Camada de Controles Touch Otimizados e Customizáveis (Mobile / Tablet) -->
+    <div id="mobile-controls" class="mobile-controls hidden">
+      <!-- Área direita de toque para rotacionar câmera sem Pointer Lock -->
+      <div id="touch-look-zone"></div>
+
+      <!-- Botão discreto de engrenagem para abrir o Editor de HUD Touch -->
+      <button id="btn-mobile-hud-gear" class="mobile-gear-btn" type="button" title="Editar HUD Touch">⚙ HUD</button>
+
+      <!-- Barra de Ferramentas do Editor de HUD Touch ("MEXE OS CONTROLES") -->
+      <div id="touch-editor-bar" class="touch-editor-bar hidden">
+        <div class="touch-editor-title">EDITOR HUD TOUCH // ARRASTE OS CONTROLES</div>
+        <div class="touch-editor-sliders">
+          <label>ESCALA: <strong id="touch-scale-value">100%</strong>
+            <input id="touch-scale-slider" type="range" min="70" max="140" value="100" />
+          </label>
+          <label>OPACIDADE: <strong id="touch-opacity-value">85%</strong>
+            <input id="touch-opacity-slider" type="range" min="30" max="100" value="85" />
+          </label>
+        </div>
+        <div class="touch-editor-actions">
+          <button id="btn-touch-reset" class="cyber-btn small-btn danger-btn" type="button">RESTAURAR PADRÃO</button>
+          <button id="btn-touch-save" class="cyber-btn small-btn green-btn" type="button">SALVAR LAYOUT</button>
+        </div>
+      </div>
+
+      <!-- Lado Esquerdo: Analógico Virtual Flutuante (A pé / Drone) -->
+      <div id="touch-joystick-zone" class="touch-draggable touch-joystick-zone" data-touch-id="joystick" data-context="foot,drone">
+        <div id="touch-joystick-base" class="touch-joystick-base">
+          <div id="touch-joystick-knob" class="touch-joystick-knob"></div>
+        </div>
+      </div>
+
+      <!-- Lado Esquerdo: Direção Esquerda / Direita (Dirigindo Carro / Lancha) -->
+      <div id="touch-steer-cluster" class="touch-draggable touch-steer-cluster hidden" data-touch-id="steer" data-context="vehicle">
+        <button id="touch-steer-left" class="touch-btn touch-steer-btn" type="button" data-action="steer_left">◀</button>
+        <button id="touch-steer-right" class="touch-btn touch-steer-btn" type="button" data-action="steer_right">▶</button>
+      </div>
+
+      <!-- Botões de Ação Contextuais (Lado Direito — A Pé) -->
+      <button class="touch-btn touch-btn-lg touch-btn-shoot touch-draggable" type="button" data-touch-id="btn_shoot" data-context="foot" data-action="shoot">ATIRAR</button>
+      <button class="touch-btn touch-draggable" type="button" data-touch-id="btn_jump" data-context="foot" data-action="jump">PULAR</button>
+      <button class="touch-btn touch-btn-cyan touch-draggable" type="button" data-touch-id="btn_hack" data-context="foot" data-action="hack">HACK</button>
+      <button class="touch-btn touch-draggable" type="button" data-touch-id="btn_vehicle" data-context="foot" data-action="vehicle">CARRO</button>
+      <button class="touch-btn touch-draggable" type="button" data-touch-id="btn_drone" data-context="foot" data-action="drone">DRONE</button>
+      <button class="touch-btn touch-btn-cyan touch-draggable" type="button" data-touch-id="btn_nethack" data-context="foot" data-action="nethack">NET-HACK</button>
+      <button class="touch-btn touch-draggable" type="button" data-touch-id="btn_sprint" data-context="foot" data-action="sprint">CORRER</button>
+      <button class="touch-btn touch-draggable" type="button" data-touch-id="btn_weapon" data-context="foot" data-action="weapon">ARMA</button>
+
+      <!-- Botões de Ação Contextuais (Lado Direito — Dirigindo / Lancha) -->
+      <button class="touch-btn touch-btn-lg touch-btn-green touch-draggable hidden" type="button" data-touch-id="btn_accel" data-context="vehicle" data-action="accel">ACELERAR</button>
+      <button class="touch-btn touch-btn-shoot touch-draggable hidden" type="button" data-touch-id="btn_brake" data-context="vehicle" data-action="brake">FREAR/RÉ</button>
+      <button class="touch-btn touch-btn-yellow touch-draggable hidden" type="button" data-touch-id="btn_nitro" data-context="vehicle" data-action="nitro">TURBO</button>
+      <button class="touch-btn touch-btn-cyan touch-draggable hidden" type="button" data-touch-id="btn_exit_veh" data-context="vehicle" data-action="vehicle">SAIR</button>
+
+      <!-- Botões de Ação Contextuais (Lado Direito — No Drone) -->
+      <button class="touch-btn touch-btn-green touch-draggable hidden" type="button" data-touch-id="btn_drone_up" data-context="drone" data-action="drone_up">SUBIR</button>
+      <button class="touch-btn touch-draggable hidden" type="button" data-touch-id="btn_drone_down" data-context="drone" data-action="drone_down">DESCER</button>
+      <button class="touch-btn touch-btn-cyan touch-draggable hidden" type="button" data-touch-id="btn_drone_hack" data-context="drone" data-action="hack">HACK</button>
+      <button class="touch-btn touch-btn-shoot touch-draggable hidden" type="button" data-touch-id="btn_drone_recall" data-context="drone" data-action="drone">RECOLHER</button>
+    </div>
   </div>
 
   <!-- Tela de Login e Cadastro DedSec (Neon.db + fallback localStorage) -->
@@ -407,6 +468,13 @@
         <div class="guide-setting-item">
           <span>SOMBRAS (PERFORMANCE):</span>
           <button id="btn-toggle-shadows" type="button" class="cyber-btn small-btn active">SOMBRAS: ON</button>
+        </div>
+        <div class="guide-setting-item">
+          <span>MOBILE / TOUCH:</span>
+          <div class="sens-buttons">
+            <button id="btn-toggle-touch" type="button" class="cyber-btn small-btn">CONTROLES TOUCH: OFF</button>
+            <button id="btn-edit-touch-hud" type="button" class="cyber-btn small-btn">EDITAR HUD TOUCH</button>
+          </div>
         </div>
         <div class="guide-setting-item">
           <span>SENSIBILIDADE DO MOUSE:</span>

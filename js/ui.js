@@ -290,7 +290,7 @@ export function openTerminal(targetType = 'GATE') {
 export function closeGateTerminal() {
   gameState.terminalOpen = false;
   dom.terminalModal.classList.add('hidden');
-  dom.canvas.requestPointerLock();
+  if (!gameState.touchEnabled) dom.canvas.requestPointerLock();
 }
 
 export function completeTerminalHack() {
@@ -465,16 +465,26 @@ export function setMissionState(newState) {
       dom.missionSub.textContent = 'Aproxime-se do painel na entrada e pressione [E]';
     }
   } else if (newState === MISSION_STATE.STEAL_DATA) {
-    dom.missionObjective.textContent = 'BAIXE OS DADOS DO SERVIDOR CENTRAL';
-    dom.missionSub.textContent = 'Use cobertura [V / C] contra os guardas e segure [E] no servidor';
+    if (activeCfg?.isVerticalHeist) {
+      dom.missionObjective.textContent = 'SUBA AO 5º ANDAR // SERVIDOR COBERTURA BLUME';
+      dom.missionSub.textContent = 'Suba pelas rampas ou quebre vidros, neutraliza guardas e segure [E] no servidor do 5º andar';
+    } else {
+      dom.missionObjective.textContent = 'BAIXE OS DADOS DO SERVIDOR CENTRAL';
+      dom.missionSub.textContent = 'Use cobertura [V / C] contra os guardas e segure [E] no servidor';
+    }
   } else if (newState === MISSION_STATE.STEAL_CAR) {
     const destLabel = activeCfg?.deliveryLabel || 'GARAGEM DEDSEC SUL';
     dom.missionObjective.textContent = `ENTREGUE O VEÍCULO EM: ${destLabel}`;
     dom.missionSub.textContent = `Fuja da perseguição policial e estacione o veículo intacto em ${destLabel}`;
     AudioManager.setMusicTempo(134);
   } else if (newState === MISSION_STATE.RESCUE_PRISONER) {
-    dom.missionObjective.textContent = 'RESGATE O PRISIONEIRO NO POSTO AVANÇADO';
-    dom.missionSub.textContent = 'Hackeie o terminal da cela [E] ou destrua o gerador próximo para libertá-lo';
+    if (activeCfg?.isVerticalRescue) {
+      dom.missionObjective.textContent = 'SUBA AO 4º ANDAR // SUÍTE PRESIDENCIAL';
+      dom.missionSub.textContent = 'Invada o Grand SF Hotel, suba ao 4º andar e hackeie o terminal da suíte [E]';
+    } else {
+      dom.missionObjective.textContent = 'RESGATE O PRISIONEIRO NO POSTO AVANÇADO';
+      dom.missionSub.textContent = 'Hackeie o terminal da cela [E] ou destrua o gerador próximo para libertá-lo';
+    }
   } else if (newState === MISSION_STATE.ESCAPE) {
     dom.missionObjective.textContent = 'FUJA PARA A ZONA DE EXTRAÇÃO';
     dom.missionSub.textContent = 'Corra até o anel verde na rua para concluir a missão';
@@ -607,7 +617,7 @@ export function closeMissionModal() {
   gameState.pendingMissionKey = null;
   gameState.markerCooldown = 3.0;
   if (dom.missionModal) dom.missionModal.classList.add('hidden');
-  dom.canvas.requestPointerLock();
+  if (!gameState.touchEnabled) dom.canvas.requestPointerLock();
 }
 
 export function acceptPendingMission() {
@@ -822,7 +832,7 @@ export function closeShopModal() {
   gameState.shopCooldown = 1.5;
   gameState.shopMustExitRing = true;
   if (dom.shopModal) dom.shopModal.classList.add('hidden');
-  dom.canvas.requestPointerLock();
+  if (!gameState.touchEnabled) dom.canvas.requestPointerLock();
 }
 
 export function triggerHitmarker(isLethal = false) {
@@ -990,11 +1000,13 @@ export function renderTacticalMap() {
   });
   ctx.textAlign = 'left';
 
-  // Complexos protegidos, Delegacia SFPD, Postos de Resgate & Pontos de Entrega no Mapa Tático
+  // Complexos protegidos, Delegacia SFPD, Postos de Resgate, Missões Verticais & Pontos de Entrega no Mapa Tático
   [
     { x: -195, z: 220, label: 'DEPÓSITO BLUME [03]', color: '#ff00aa' },
     { x: 495, z: 165, label: 'HANGAR ctOS [04]', color: '#00ff88' },
     { x: -220, z: 390, label: 'COFRE TWIN PEAKS [05]', color: '#ffaa00' },
+    { x: 52, z: 16, label: 'COBERTURA BLUME [06]', color: '#ff0055' },
+    { x: -52, z: 42, label: 'HOTEL SUÍTE [07]', color: '#d946ef' },
     { x: -240, z: -220, label: 'RESGATE 01 [NORTE]', color: '#00f0ff' },
     { x: 520, z: 340, label: 'RESGATE 02 [SUL-LESTE]', color: '#ffaa00' },
     { x: 485, z: -245, label: 'DELEGACIA SFPD', color: '#38bdf8' },
@@ -1014,8 +1026,10 @@ export function renderTacticalMap() {
   // Contratos disponíveis
   missionMarkers.forEach((m) => {
     const mp = toCanvas(m.pos.x, m.pos.z);
-    ctx.strokeStyle = m.key.startsWith('VIP_CAR')
+    ctx.strokeStyle = m.key.startsWith('VIP_CAR') || m.key === 'HOTEL_RESCUE_07'
       ? '#d946ef'
+      : m.key === 'BLUME_PENTHOUSE_06'
+      ? '#ff0055'
       : m.key === 'HEIST_BLUME_03'
       ? '#ff00aa'
       : m.key === 'HEIST_CTOS_04'
@@ -1162,6 +1176,7 @@ export function toggleQuickGuide(forceState) {
   } else {
     dom.quickGuideModal.classList.add('hidden');
     if (
+      !gameState.touchEnabled &&
       gameState.mission !== MISSION_STATE.INTRO &&
       gameState.mission !== MISSION_STATE.GAMEOVER &&
       gameState.mission !== MISSION_STATE.VICTORY
@@ -1183,6 +1198,399 @@ export function toggleShadows(forceState) {
     dom.btnToggleShadows.textContent = gameState.shadowsEnabled ? 'SOMBRAS: ON' : 'SOMBRAS: OFF';
     dom.btnToggleShadows.classList.toggle('active', gameState.shadowsEnabled);
   }
+}
+
+// ==========================================
+// CONTROLES TOUCH MOBILE & EDITOR DE HUD ("MEXE OS CONTROLES")
+// ==========================================
+const TOUCH_HUD_STORAGE_KEY = 'dedsec_mobile_hud_layout';
+let _touchControlsInitialized = false;
+let _lastTouchContext = '';
+
+function _loadTouchLayout() {
+  try {
+    const raw = localStorage.getItem(TOUCH_HUD_STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function _applyTouchLayout(layout) {
+  if (!dom.mobileControls) return;
+  const scalePct = THREE.MathUtils.clamp(Number(layout?.scale ?? 100), 70, 140);
+  const opacityPct = THREE.MathUtils.clamp(Number(layout?.opacity ?? 85), 30, 100);
+  dom.mobileControls.style.setProperty('--touch-scale', String(scalePct / 100));
+  dom.mobileControls.style.setProperty('--touch-opacity', String(opacityPct / 100));
+  if (dom.touchScaleSlider) dom.touchScaleSlider.value = String(scalePct);
+  if (dom.touchScaleValue) dom.touchScaleValue.textContent = `${scalePct}%`;
+  if (dom.touchOpacitySlider) dom.touchOpacitySlider.value = String(opacityPct);
+  if (dom.touchOpacityValue) dom.touchOpacityValue.textContent = `${opacityPct}%`;
+
+  const draggables = dom.mobileControls.querySelectorAll('.touch-draggable[data-touch-id]');
+  draggables.forEach((el) => {
+    const id = el.dataset.touchId;
+    const pos = layout?.positions?.[id];
+    if (pos && Number.isFinite(pos.left) && Number.isFinite(pos.top)) {
+      el.style.left = `${THREE.MathUtils.clamp(pos.left, 4, 96)}%`;
+      el.style.top = `${THREE.MathUtils.clamp(pos.top, 8, 94)}%`;
+    } else {
+      el.style.left = '';
+      el.style.top = '';
+    }
+  });
+}
+
+function _saveCurrentTouchLayout() {
+  if (!dom.mobileControls) return;
+  const scale = Number(dom.touchScaleSlider?.value || 100);
+  const opacity = Number(dom.touchOpacitySlider?.value || 85);
+  const positions = {};
+  const draggables = dom.mobileControls.querySelectorAll('.touch-draggable[data-touch-id]');
+  draggables.forEach((el) => {
+    if (el.style.left && el.style.top) {
+      positions[el.dataset.touchId] = {
+        left: parseFloat(el.style.left),
+        top: parseFloat(el.style.top)
+      };
+    }
+  });
+  try {
+    localStorage.setItem(TOUCH_HUD_STORAGE_KEY, JSON.stringify({ scale, opacity, positions }));
+  } catch {}
+}
+
+export function toggleTouchControls(forceState) {
+  gameState.touchEnabled = forceState !== undefined ? !!forceState : !gameState.touchEnabled;
+  if (dom.btnToggleTouch) {
+    dom.btnToggleTouch.textContent = gameState.touchEnabled ? 'CONTROLES TOUCH: ON' : 'CONTROLES TOUCH: OFF';
+    dom.btnToggleTouch.classList.toggle('active', gameState.touchEnabled);
+  }
+  if (!gameState.touchEnabled && gameState.touchEditMode) {
+    setTouchEditMode(false);
+  }
+  updateMobileControlsContext(true);
+}
+
+export function setTouchEditMode(active) {
+  gameState.touchEditMode = !!active;
+  if (gameState.touchEditMode) {
+    if (!gameState.touchEnabled) toggleTouchControls(true);
+    if (gameState.quickGuideOpen) toggleQuickGuide(false);
+    if (document.pointerLockElement === dom.canvas) document.exitPointerLock();
+    gameState.touchMoveX = 0;
+    gameState.touchMoveZ = 0;
+    gameState.mouseDown = false;
+  }
+  if (dom.mobileControls) {
+    dom.mobileControls.classList.toggle('editing-mode', gameState.touchEditMode);
+  }
+  if (dom.touchEditorBar) {
+    dom.touchEditorBar.classList.toggle('hidden', !gameState.touchEditMode);
+  }
+  if (dom.btnMobileHudGear) {
+    dom.btnMobileHudGear.classList.toggle('hidden', gameState.touchEditMode);
+  }
+  updateMobileControlsContext(true);
+}
+
+export function updateMobileControlsContext(force = false) {
+  if (!dom.mobileControls) return;
+  const modalBlocking =
+    gameState.authOpen ||
+    gameState.terminalOpen ||
+    gameState.missionModalOpen ||
+    gameState.shopOpen ||
+    gameState.tacticalMapOpen ||
+    gameState.quickGuideOpen ||
+    gameState.coopModalOpen ||
+    gameState.mission === MISSION_STATE.GAMEOVER ||
+    gameState.mission === MISSION_STATE.VICTORY;
+
+  const shouldShow = gameState.touchEnabled && !modalBlocking;
+  dom.mobileControls.classList.toggle('hidden', !shouldShow);
+  if (!shouldShow) return;
+
+  const ctx = gameState.droneActive
+    ? 'drone'
+    : gameState.drivingCar || gameState.drivingBoat
+    ? 'vehicle'
+    : 'foot';
+
+  if (!force && ctx === _lastTouchContext) return;
+  _lastTouchContext = ctx;
+
+  const items = dom.mobileControls.querySelectorAll('.touch-draggable[data-context]');
+  items.forEach((el) => {
+    const allowed = (el.dataset.context || '').split(',');
+    el.classList.toggle('hidden', !allowed.includes(ctx));
+  });
+}
+
+export function setupMobileTouchControls(handlers = {}) {
+  if (_touchControlsInitialized || !dom.mobileControls) return;
+  _touchControlsInitialized = true;
+
+  const saved = _loadTouchLayout();
+  _applyTouchLayout(saved);
+
+  const isTouchDevice =
+    'ontouchstart' in window || (navigator.maxTouchPoints || 0) > 0 || window.innerWidth < 950;
+  toggleTouchControls(isTouchDevice);
+
+  dom.btnToggleTouch?.addEventListener('click', () => {
+    toggleTouchControls();
+    AudioManager.playKeyBeep();
+  });
+
+  dom.btnEditTouchHud?.addEventListener('click', () => {
+    setTouchEditMode(true);
+    AudioManager.playKeyBeep();
+  });
+
+  dom.btnMobileHudGear?.addEventListener('click', () => {
+    setTouchEditMode(true);
+    AudioManager.playKeyBeep();
+  });
+
+  dom.touchScaleSlider?.addEventListener('input', () => {
+    const v = Number(dom.touchScaleSlider.value);
+    dom.mobileControls.style.setProperty('--touch-scale', String(v / 100));
+    if (dom.touchScaleValue) dom.touchScaleValue.textContent = `${v}%`;
+  });
+
+  dom.touchOpacitySlider?.addEventListener('input', () => {
+    const v = Number(dom.touchOpacitySlider.value);
+    dom.mobileControls.style.setProperty('--touch-opacity', String(v / 100));
+    if (dom.touchOpacityValue) dom.touchOpacityValue.textContent = `${v}%`;
+  });
+
+  dom.btnTouchReset?.addEventListener('click', () => {
+    try {
+      localStorage.removeItem(TOUCH_HUD_STORAGE_KEY);
+    } catch {}
+    _applyTouchLayout(null);
+    AudioManager.playKeyBeep();
+  });
+
+  dom.btnTouchSave?.addEventListener('click', () => {
+    _saveCurrentTouchLayout();
+    setTouchEditMode(false);
+    AudioManager.playTerminalSuccess();
+  });
+
+  // Arrastar qualquer controle no Modo Edição ("MEXE OS CONTROLES")
+  const draggables = dom.mobileControls.querySelectorAll('.touch-draggable[data-touch-id]');
+  draggables.forEach((el) => {
+    let dragPointerId = null;
+    el.addEventListener('pointerdown', (e) => {
+      if (!gameState.touchEditMode) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dragPointerId = e.pointerId;
+      el.setPointerCapture?.(e.pointerId);
+    });
+    el.addEventListener('pointermove', (e) => {
+      if (!gameState.touchEditMode || dragPointerId !== e.pointerId) return;
+      e.preventDefault();
+      const leftPct = THREE.MathUtils.clamp((e.clientX / window.innerWidth) * 100, 4, 96);
+      const topPct = THREE.MathUtils.clamp((e.clientY / window.innerHeight) * 100, 8, 94);
+      el.style.left = `${leftPct.toFixed(1)}%`;
+      el.style.top = `${topPct.toFixed(1)}%`;
+    });
+    const endDrag = (e) => {
+      if (dragPointerId === e.pointerId) dragPointerId = null;
+    };
+    el.addEventListener('pointerup', endDrag);
+    el.addEventListener('pointercancel', endDrag);
+  });
+
+  // Analógico Virtual Flutuante (Lado Esquerdo — Multi-Touch)
+  if (dom.touchJoystickZone && dom.touchJoystickBase && dom.touchJoystickKnob) {
+    let joyPointerId = null;
+    let joyCenterX = 0;
+    let joyCenterY = 0;
+    const maxRadius = 44;
+
+    const resetJoystick = () => {
+      joyPointerId = null;
+      gameState.touchMoveX = 0;
+      gameState.touchMoveZ = 0;
+      dom.touchJoystickKnob.style.transform = 'translate(0px, 0px)';
+    };
+
+    dom.touchJoystickZone.addEventListener('pointerdown', (e) => {
+      if (gameState.touchEditMode) return;
+      e.preventDefault();
+      AudioManager.init();
+      joyPointerId = e.pointerId;
+      dom.touchJoystickZone.setPointerCapture?.(e.pointerId);
+      const rect = dom.touchJoystickBase.getBoundingClientRect();
+      joyCenterX = rect.left + rect.width / 2;
+      joyCenterY = rect.top + rect.height / 2;
+      const dx = e.clientX - joyCenterX;
+      const dy = e.clientY - joyCenterY;
+      const dist = Math.hypot(dx, dy);
+      const clamped = Math.min(dist, maxRadius);
+      const angle = Math.atan2(dy, dx);
+      const ox = Math.cos(angle) * clamped;
+      const oy = Math.sin(angle) * clamped;
+      dom.touchJoystickKnob.style.transform = `translate(${ox.toFixed(1)}px, ${oy.toFixed(1)}px)`;
+      gameState.touchMoveX = ox / maxRadius;
+      gameState.touchMoveZ = -oy / maxRadius;
+    });
+
+    dom.touchJoystickZone.addEventListener('pointermove', (e) => {
+      if (gameState.touchEditMode || joyPointerId !== e.pointerId) return;
+      e.preventDefault();
+      const dx = e.clientX - joyCenterX;
+      const dy = e.clientY - joyCenterY;
+      const dist = Math.hypot(dx, dy);
+      const clamped = Math.min(dist, maxRadius);
+      const angle = Math.atan2(dy, dx);
+      const ox = Math.cos(angle) * clamped;
+      const oy = Math.sin(angle) * clamped;
+      dom.touchJoystickKnob.style.transform = `translate(${ox.toFixed(1)}px, ${oy.toFixed(1)}px)`;
+      gameState.touchMoveX = ox / maxRadius;
+      gameState.touchMoveZ = -oy / maxRadius;
+    });
+
+    dom.touchJoystickZone.addEventListener('pointerup', (e) => {
+      if (joyPointerId === e.pointerId) resetJoystick();
+    });
+    dom.touchJoystickZone.addEventListener('pointercancel', (e) => {
+      if (joyPointerId === e.pointerId) resetJoystick();
+    });
+  }
+
+  // Área Central/Direita de Toque para Rotacionar Câmera sem Pointer Lock
+  if (dom.touchLookZone) {
+    let lookPointerId = null;
+    let lastX = 0;
+    let lastY = 0;
+
+    dom.touchLookZone.addEventListener('pointerdown', (e) => {
+      if (gameState.touchEditMode) return;
+      e.preventDefault();
+      AudioManager.init();
+      lookPointerId = e.pointerId;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      dom.touchLookZone.setPointerCapture?.(e.pointerId);
+    });
+
+    dom.touchLookZone.addEventListener('pointermove', (e) => {
+      if (gameState.touchEditMode || lookPointerId !== e.pointerId) return;
+      e.preventDefault();
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      lastX = e.clientX;
+      lastY = e.clientY;
+
+      const sens = (gameState.mouseSensitivity || 0.0024) * 1.65;
+      if (gameState.activeCamIndex >= 0) {
+        const camObj = securityCameras[gameState.activeCamIndex];
+        if (camObj) {
+          camObj.yawOffset = THREE.MathUtils.clamp(camObj.yawOffset - dx * sens, -0.9, 0.9);
+          camObj.pitchOffset = THREE.MathUtils.clamp(camObj.pitchOffset - dy * sens, -0.45, 0.35);
+        }
+      } else if (gameState.droneActive) {
+        gameState.droneYaw -= dx * sens;
+        gameState.dronePitch = THREE.MathUtils.clamp(gameState.dronePitch + dy * sens, -0.85, 0.85);
+      } else {
+        gameState.cameraYaw -= dx * sens;
+        const minPitch = gameState.firstPerson ? -0.85 : 0.08;
+        const maxPitch = gameState.firstPerson ? 0.85 : 1.15;
+        gameState.cameraPitch = THREE.MathUtils.clamp(gameState.cameraPitch + dy * sens, minPitch, maxPitch);
+      }
+    });
+
+    const endLook = (e) => {
+      if (lookPointerId === e.pointerId) lookPointerId = null;
+    };
+    dom.touchLookZone.addEventListener('pointerup', endLook);
+    dom.touchLookZone.addEventListener('pointercancel', endLook);
+  }
+
+  // Botões de Ação Contextuais Multi-Touch
+  const actionButtons = dom.mobileControls.querySelectorAll('.touch-btn[data-action]');
+  actionButtons.forEach((btn) => {
+    const action = btn.dataset.action;
+    let activePointerId = null;
+
+    btn.addEventListener('pointerdown', (e) => {
+      if (gameState.touchEditMode) return;
+      e.preventDefault();
+      e.stopPropagation();
+      AudioManager.init();
+      activePointerId = e.pointerId;
+      btn.setPointerCapture?.(e.pointerId);
+      btn.classList.add('active');
+
+      if (action === 'shoot') {
+        gameState.mouseDown = true;
+        handlers.fireWeapon?.();
+      } else if (action === 'jump' || action === 'drone_up') {
+        gameState.keys['Space'] = true;
+      } else if (action === 'drone_down') {
+        gameState.keys['ControlLeft'] = true;
+      } else if (action === 'hack') {
+        gameState.keys['KeyE'] = true;
+        handlers.handleInteract?.();
+      } else if (action === 'vehicle') {
+        handlers.toggleVehicle?.();
+      } else if (action === 'drone') {
+        handlers.toggleDrone?.();
+      } else if (action === 'nethack') {
+        handlers.toggleNetHack?.();
+      } else if (action === 'sprint') {
+        gameState.touchSprintToggle = !gameState.touchSprintToggle;
+        btn.classList.toggle('active', gameState.touchSprintToggle);
+      } else if (action === 'weapon') {
+        handlers.cycleWeapon?.();
+      } else if (action === 'steer_left') {
+        gameState.keys['KeyA'] = true;
+      } else if (action === 'steer_right') {
+        gameState.keys['KeyD'] = true;
+      } else if (action === 'accel') {
+        gameState.keys['KeyW'] = true;
+      } else if (action === 'brake') {
+        gameState.keys['KeyS'] = true;
+      } else if (action === 'nitro') {
+        gameState.keys['ShiftLeft'] = true;
+      }
+    });
+
+    const releaseAction = (e) => {
+      if (activePointerId !== e.pointerId) return;
+      activePointerId = null;
+      if (action !== 'sprint') btn.classList.remove('active');
+
+      if (action === 'shoot') {
+        gameState.mouseDown = false;
+      } else if (action === 'jump' || action === 'drone_up') {
+        gameState.keys['Space'] = false;
+      } else if (action === 'drone_down') {
+        gameState.keys['ControlLeft'] = false;
+      } else if (action === 'hack') {
+        gameState.keys['KeyE'] = false;
+      } else if (action === 'steer_left') {
+        gameState.keys['KeyA'] = false;
+      } else if (action === 'steer_right') {
+        gameState.keys['KeyD'] = false;
+      } else if (action === 'accel') {
+        gameState.keys['KeyW'] = false;
+      } else if (action === 'brake') {
+        gameState.keys['KeyS'] = false;
+      } else if (action === 'nitro') {
+        gameState.keys['ShiftLeft'] = false;
+      }
+    };
+
+    btn.addEventListener('pointerup', releaseAction);
+    btn.addEventListener('pointercancel', releaseAction);
+  });
 }
 
 export function setMouseSensitivity(val) {
@@ -1273,7 +1681,11 @@ export function triggerVictory() {
   if (document.pointerLockElement === dom.canvas) {
     document.exitPointerLock();
   }
-  const activeCfg = MAPS_CONFIG[gameState.activeMissionKey || gameState.selectedMap] || MAPS_CONFIG.COMPLEXO_CTOS;
+  const completedKey = gameState.activeMissionKey || gameState.selectedMap;
+  if (completedKey && !gameState.completedMissions.includes(completedKey)) {
+    gameState.completedMissions.push(completedKey);
+  }
+  const activeCfg = MAPS_CONFIG[completedKey] || MAPS_CONFIG.COMPLEXO_CTOS;
   const rank = calculateMissionRank();
   const rewardMap = {
     'RANK S - FANTASMA': 2500,
@@ -1281,7 +1693,10 @@ export function triggerVictory() {
     'RANK B - OPERATIVO': 1300,
     'RANK C': 1000
   };
-  const reward = activeCfg.isVehicleTheft || activeCfg.isRescue ? activeCfg.reward || 2000 : rewardMap[rank] || 1000;
+  const reward =
+    activeCfg.isVehicleTheft || activeCfg.isRescue || activeCfg.isVerticalHeist
+      ? activeCfg.reward || 2000
+      : rewardMap[rank] || 1000;
   gameState.money += reward;
   updateMoneyHUD();
 
@@ -1413,8 +1828,10 @@ export function updateRadar() {
   // Marcadores de missão no radar
   missionMarkers.forEach((m) => {
     const mp = toRadar(m.pos.x, m.pos.z);
-    ctx.strokeStyle = m.key.startsWith('VIP_CAR')
+    ctx.strokeStyle = m.key.startsWith('VIP_CAR') || m.key === 'HOTEL_RESCUE_07'
       ? '#d946ef'
+      : m.key === 'BLUME_PENTHOUSE_06'
+      ? '#ff0055'
       : m.key === 'HEIST_BLUME_03'
       ? '#ff00aa'
       : m.key === 'HEIST_CTOS_04'

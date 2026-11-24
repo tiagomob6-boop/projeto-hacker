@@ -319,6 +319,65 @@ export const MAPS_CONFIG = {
       { waypoints: [[531, 0, 349], [531, 0, 331], [523, 0, 331], [523, 0, 349]], speed: 3.4, visionRange: 24 },
       { waypoints: [[515, 0, 347], [527, 0, 347], [527, 0, 333], [515, 0, 333]], speed: 3.5, visionRange: 24 }
     ]
+  },
+  BLUME_PENTHOUSE_06: {
+    key: 'BLUME_PENTHOUSE_06',
+    isVerticalHeist: true,
+    label: 'CONTRATO 06 // INVASÃO COBERTURA BLUME',
+    desc: 'Invada a BLUME / ctOS TOWER, suba até o 5º andar (pelas rampas ou quebrando janelas de vidro), neutraliza os guardas dos andares superiores, hackeie o Servidor Central da Cobertura (E) e escape com alerta 3 estrelas. Recompensa: $4.800.',
+    reward: 4800,
+    wantedOnDownload: 3,
+    bounds: WORLD_BOUNDS,
+    radarScale: 0.95,
+    playerStart: [41.5, 0, 16],
+    markerPos: [41.5, 0.06, 16],
+    extractPos: [28, 0.04, 16],
+    serverPos: [50.0, 16.2 + 1.65, 16.0],
+    gates: [],
+    cameras: [
+      { name: 'CAM_BLUME_3F // 3º ANDAR', pos: [46.2, 11.4, 10.5], baseYaw: 2.35, basePitch: -0.35 },
+      { name: 'CAM_BLUME_5F // COBERTURA', pos: [46.2, 19.4, 21.5], baseYaw: 0.78, basePitch: -0.35 }
+    ],
+    electricBoxes: [
+      { name: 'CAIXA_BLUME_3F', pos: [52.5, 8.2 + 0.85, 10.5] }
+    ],
+    guards: [
+      { waypoints: [[47.5, 4.2, 12], [52.5, 4.2, 12], [52.5, 4.2, 20], [47.5, 4.2, 20]], speed: 2.8, visionRange: 18 },
+      { waypoints: [[52.5, 8.2, 20], [47.5, 8.2, 20], [47.5, 8.2, 12], [52.5, 8.2, 12]], speed: 2.9, visionRange: 18 },
+      { waypoints: [[47.5, 12.2, 19], [52.5, 12.2, 19], [52.5, 12.2, 13], [47.5, 12.2, 13]], speed: 3.0, visionRange: 18 },
+      { waypoints: [[47.5, 16.2, 11.5], [52.6, 16.2, 11.5], [52.6, 16.2, 20.5], [47.5, 16.2, 20.5]], speed: 3.1, visionRange: 19 }
+    ]
+  },
+  HOTEL_RESCUE_07: {
+    key: 'HOTEL_RESCUE_07',
+    isRescue: true,
+    isVerticalRescue: true,
+    label: 'CONTRATO 07 // RESGATE NA SUÍTE PRESIDENCIAL',
+    desc: 'Um informante da DedSec está refém no 4º andar do GRAND SF HOTEL. Suba os andares evitando guardas e câmeras internas, hackeie o terminal da suíte (E) para libertá-lo e fuja até a extração na rua. Recompensa: $4.000.',
+    reward: 4000,
+    wantedOnFree: 2,
+    bounds: WORLD_BOUNDS,
+    radarScale: 0.95,
+    playerStart: [-41.5, 0, 42],
+    markerPos: [-41.5, 0.06, 42],
+    extractPos: [-28, 0.04, 42],
+    cellPos: [-49.5, 12.2, 42],
+    panelPos: [-52.2, 12.2 + 0.85, 42],
+    generatorPos: [-49.5, 12.2 + 0.9, 46.2],
+    escapeDir: [1, 0],
+    gates: [],
+    cameras: [
+      { name: 'CAM_HOTEL_3F // CORREDOR 3º', pos: [-46.2, 11.4, 35.8], baseYaw: -2.35, basePitch: -0.35 },
+      { name: 'CAM_HOTEL_4F // SUÍTE PRES.', pos: [-46.2, 15.4, 48.2], baseYaw: -0.78, basePitch: -0.35 }
+    ],
+    electricBoxes: [
+      { name: 'CAIXA_HOTEL_4F', pos: [-52.5, 12.2 + 0.85, 36.2] }
+    ],
+    guards: [
+      { waypoints: [[-52.5, 4.2, 37], [-47.5, 4.2, 37], [-47.5, 4.2, 47], [-52.5, 4.2, 47]], speed: 2.7, visionRange: 18 },
+      { waypoints: [[-47.5, 8.2, 47], [-52.5, 8.2, 47], [-52.5, 8.2, 37], [-47.5, 8.2, 37]], speed: 2.9, visionRange: 18 },
+      { waypoints: [[-52.8, 12.2, 36.5], [-47.2, 12.2, 36.5], [-47.2, 12.2, 47.5], [-52.8, 12.2, 47.5]], speed: 3.0, visionRange: 19 }
+    ]
   }
 };
 
@@ -474,7 +533,26 @@ export const dom = {
   authStatus: document.getElementById('auth-status'),
   btnGuestLogin: document.getElementById('btn-guest-login'),
   statusAgent: document.getElementById('status-agent'),
-  btnLogout: document.getElementById('btn-logout')
+  btnLogout: document.getElementById('btn-logout'),
+  // Controles Touch Mobile & Editor de HUD
+  mobileControls: document.getElementById('mobile-controls'),
+  touchLookZone: document.getElementById('touch-look-zone'),
+  touchJoystickZone: document.getElementById('touch-joystick-zone'),
+  touchJoystickBase: document.getElementById('touch-joystick-base'),
+  touchJoystickKnob: document.getElementById('touch-joystick-knob'),
+  touchSteerCluster: document.getElementById('touch-steer-cluster'),
+  touchSteerLeft: document.getElementById('touch-steer-left'),
+  touchSteerRight: document.getElementById('touch-steer-right'),
+  btnToggleTouch: document.getElementById('btn-toggle-touch'),
+  btnEditTouchHud: document.getElementById('btn-edit-touch-hud'),
+  btnMobileHudGear: document.getElementById('btn-mobile-hud-gear'),
+  touchEditorBar: document.getElementById('touch-editor-bar'),
+  touchScaleSlider: document.getElementById('touch-scale-slider'),
+  touchScaleValue: document.getElementById('touch-scale-value'),
+  touchOpacitySlider: document.getElementById('touch-opacity-slider'),
+  touchOpacityValue: document.getElementById('touch-opacity-value'),
+  btnTouchReset: document.getElementById('btn-touch-reset'),
+  btnTouchSave: document.getElementById('btn-touch-save')
 };
 
 // Variáveis Three.js
@@ -585,6 +663,7 @@ export const gameState = {
   ownedSkins: ['classic'],
   equippedSkin: 'classic',
   ownedVehicles: [],
+  completedMissions: [],
   hasRapidReload: false,
   hasShotgun: false,
   hasBlackout: false,
@@ -648,6 +727,11 @@ export const gameState = {
   localPlayerId: 'local',
   cameraYaw: 0,
   cameraPitch: 0.34,
+  touchEnabled: false,
+  touchEditMode: false,
+  touchMoveX: 0,
+  touchMoveZ: 0,
+  touchSprintToggle: false,
   keys: {}
 };
 
@@ -940,6 +1024,7 @@ export function getSaveDataSnapshot() {
     ownedSkins: gameState.ownedSkins,
     equippedSkin: gameState.equippedSkin,
     ownedVehicles: gameState.ownedVehicles,
+    completedMissions: gameState.completedMissions,
     hasRapidReload: gameState.hasRapidReload,
     hasShotgun: gameState.hasShotgun,
     hasBlackout: gameState.hasBlackout,
@@ -954,6 +1039,7 @@ export function resetSaveDefaults() {
   gameState.ownedSkins = ['classic'];
   gameState.equippedSkin = 'classic';
   gameState.ownedVehicles = [];
+  gameState.completedMissions = [];
   gameState.hasRapidReload = false;
   gameState.hasShotgun = false;
   gameState.hasBlackout = true;
@@ -971,6 +1057,7 @@ export function applySaveData(data) {
   if (Array.isArray(data.ownedSkins) && data.ownedSkins.length > 0) gameState.ownedSkins = data.ownedSkins;
   if (typeof data.equippedSkin === 'string') gameState.equippedSkin = data.equippedSkin;
   if (Array.isArray(data.ownedVehicles)) gameState.ownedVehicles = data.ownedVehicles;
+  if (Array.isArray(data.completedMissions)) gameState.completedMissions = data.completedMissions;
   if (typeof data.hasRapidReload === 'boolean') gameState.hasRapidReload = data.hasRapidReload;
   if (typeof data.hasShotgun === 'boolean') gameState.hasShotgun = data.hasShotgun;
   if (typeof data.hasBlackout === 'boolean') gameState.hasBlackout = data.hasBlackout;

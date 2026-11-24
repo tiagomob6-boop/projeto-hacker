@@ -17,7 +17,11 @@ Protótipo funcional de um jogo 3D em terceira pessoa de infiltração e hacking
 6. **Missões de Resgate de Prisioneiros (`RESCUE_PRISONER`):**
    - **Resgate 01 — Galpão Isolado Norte (Downtown Norte, Recompensa `\$3.200`):** Posto avançado com 4 guardas e 2 câmeras laser prendendo um hacker da DedSec em cela energizada. Hackeie o terminal da cela (`E`) ou destrua o gerador próximo a tiros para libertá-lo e fuja até o Ponto de Extração.
    - **Resgate 02 — Terminal Marítimo Sul-Leste (Extremo Portuário, Recompensa `\$3.800`):** Base costeira com 5 guardas e 2 câmeras laser contendo um informante. Desative a cela (`E` ou destruindo o gerador) e escape da perseguição policial até o anel verde de extração.
-7. **IA Urbana, Atropelamento & Sistema Policial ctOS:** Pedestres desviam lateralmente de carros se aproximando (`< 10m`), param nas faixas diante de tráfego cruzando e reagem a tiros/batidas (fugindo ou ligando para o 911). Atropelamentos em alta velocidade (`speed >= 5`) aplicam impacto físico real sem travar o veículo. Evite testemunhas ou desative câmeras laser (`V + E` / `C + R`) para escapar da perseguição (15s fora de vista).
+7. **Missões Verticais nos Prédios de 5 Andares (Contratos 06 e 07):**
+   - **Contrato 06 — Invasão Cobertura Blume (`BLUME / ctOS TOWER` — 5º Andar, Recompensa `\$4.800`):** Marcador holográfico na entrada térrea do arranha-céu. Suba até o 5º andar pelas rampas internas (ou quebrando as janelas de vidro para abrir atalhos), neutralize os guardas do 2º ao 5º andar, hackeie o **Servidor Central da Cobertura (`E`)** e fuja até a zona de extração sob alerta policial **3 estrelas**.
+   - **Contrato 07 — Resgate na Suíte Presidencial (`GRAND SF HOTEL` — 4º Andar, Recompensa `\$4.000`):** Invada o hotel de 5 andares, suba até o 4º andar evitando guardas e câmeras internas, hackeie o terminal da suíte (`E`) para libertar o informante da DedSec e escape até o ponto de extração na rua.
+   - Ambas aparecem no **Mapa Tático (`Tab`)** e no **Radar DedSec** e salvam sua conclusão em `completedMissions` no **Neon.db** (com fallback em `localStorage`).
+8. **IA Urbana, Atropelamento & Sistema Policial ctOS:** Pedestres desviam lateralmente de carros se aproximando (`< 10m`), param nas faixas diante de tráfego cruzando e reagem a tiros/batidas (fugindo ou ligando para o 911). Atropelamentos em alta velocidade (`speed >= 5`) aplicam impacto físico real sem travar o veículo. Evite testemunhas ou desative câmeras laser (`V + E` / `C + R`) para escapar da perseguição (15s fora de vista).
 
 ---
 
@@ -57,6 +61,11 @@ Explore livremente o mapa contínuo (`-30000..30000`) com `$500` iniciais e ativ
 | `H` | Abrir / fechar o **Guia Rápido & Ajustes** (resumo de controles, sombras e sensibilidade) |
 | `M` | Ligar / silenciar (Mudo) o áudio procedural e a trilha sonora |
 | `ESC` | Cancelar terminal de hack / liberar cursor do mouse |
+
+### 📱 Suporte Touch Completo & Editor de HUD Customizável (Mobile / Tablet)
+- **Detecção Automática & Teste no PC:** Ativa automaticamente a interface `#mobile-controls` em telas touch (`ontouchstart` / `maxTouchPoints > 0` ou largura `< 950px`), com alternância manual `[CONTROLES TOUCH: ON/OFF]` dentro do menu `[H] AJUDA`.
+- **Multi-Touch Ergonômico:** Analógico virtual flutuante à esquerda (que alterna automaticamente para botões grandes `◀` / `▶` ao dirigir carros/lanchas), metade direita da tela dedicada à rotação livre da câmera sem precisar de Pointer Lock, e botões contextuais para **A Pé** (`ATIRAR`, `PULAR`, `HACK`, `CARRO`, `DRONE`, `NET-HACK`, `CORRER`, `ARMA`), **Veículo** (`ACELERAR`, `FREAR/RÉ`, `TURBO`, `SAIR`) e **Drone** (`SUBIR`, `DESCER`, `HACK`, `RECOLHER`).
+- **Editor de HUD Touch ("MEXE OS CONTROLES"):** Acessível pelo ícone `⚙ HUD` no topo da tela ou por `[EDITAR HUD TOUCH]` em `[H] AJUDA`. Pausa o jogo, permite arrastar qualquer botão ou o joystick para qualquer posição da tela, ajustar **Escala (70%–140%)** e **Opacidade (30%–100%)**, restaurar padrão e salvar em `localStorage` (`dedsec_mobile_hud_layout`).
 
 ---
 

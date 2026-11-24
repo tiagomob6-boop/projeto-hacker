@@ -34,7 +34,9 @@ import {
   setupAuthUI,
   openCoopModal,
   closeCoopModal,
-  setupCoopUI
+  setupCoopUI,
+  setupMobileTouchControls,
+  updateMobileControlsContext
 } from './js/ui.js';
 import {
   selectWeapon,
@@ -233,6 +235,8 @@ function setupInputs() {
       gameState.mission === MISSION_STATE.ESCAPE;
     if (
       playing &&
+      !gameState.touchEnabled &&
+      !gameState.touchEditMode &&
       !gameState.authOpen &&
       !gameState.terminalOpen &&
       !gameState.missionModalOpen &&
@@ -376,7 +380,7 @@ function animate() {
     gameState.mission === MISSION_STATE.STEAL_CAR ||
     gameState.mission === MISSION_STATE.RESCUE_PRISONER ||
     gameState.mission === MISSION_STATE.ESCAPE;
-  const isPlaying = !gameState.authOpen && (isContract || gameState.mission === MISSION_STATE.FREE_ROAM);
+  const isPlaying = !gameState.authOpen && !gameState.touchEditMode && (isContract || gameState.mission === MISSION_STATE.FREE_ROAM);
 
   if (isPlaying) {
     if (isContract) {
@@ -396,15 +400,18 @@ function animate() {
     updateRemotePlayers(dt);
     networkManager.tick(dt);
 
-    // Atualiza minimapa Radar e etiquetas NetHack a 20 Hz (a cada 0.05s) para liberar CPU
+    // Atualiza minimapa Radar, controles mobile e etiquetas NetHack a 20 Hz (a cada 0.05s) para liberar CPU
     _hudTickAccum += dt;
     if (_hudTickAccum >= 0.05) {
       _hudTickAccum = 0;
       updateRadar();
+      updateMobileControlsContext();
       if (gameState.netHackActive) {
         updateNetHackLabels();
       }
     }
+  } else {
+    updateMobileControlsContext();
   }
 
   updateCamera();
@@ -433,6 +440,19 @@ try {
   setupInputs();
   setupAuthUI();
   setupCoopUI(networkManager);
+  setupMobileTouchControls({
+    fireWeapon: fireEquippedWeapon,
+    handleInteract: handleInteractPress,
+    toggleVehicle: toggleDriveDedsecCar,
+    toggleDrone,
+    toggleNetHack,
+    cycleWeapon: () => {
+      const order = [WEAPON_TYPE.TASER, WEAPON_TYPE.PISTOL, WEAPON_TYPE.RIFLE, WEAPON_TYPE.EMP];
+      if (gameState.hasShotgun) order.push(WEAPON_TYPE.SHOTGUN);
+      const nextIdx = (order.indexOf(gameState.equippedWeapon) + 1) % order.length;
+      selectWeapon(order[nextIdx]);
+    }
+  });
   setMissionState(MISSION_STATE.FREE_ROAM);
   updateMoneyHUD();
   updateHpHUD();

@@ -1150,3 +1150,340 @@ kbd {
     grid-template-columns: 1fr;
   }
 }
+
+/* ==========================================
+   CONTROLES TOUCH MOBILE & EDITOR DE HUD
+   ========================================== */
+.mobile-controls {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  pointer-events: none;
+  touch-action: none;
+  --touch-scale: 1;
+  --touch-opacity: 0.85;
+}
+
+#touch-look-zone {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 56%;
+  height: 100%;
+  pointer-events: auto;
+  touch-action: none;
+  z-index: 1;
+}
+
+.mobile-gear-btn {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 15;
+  pointer-events: auto;
+  padding: 5px 12px;
+  background: rgba(6, 12, 24, 0.82);
+  border: 1px solid rgba(0, 240, 255, 0.55);
+  color: var(--cyan);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.touch-editor-bar {
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(6, 12, 24, 0.95);
+  border: 1.5px solid var(--cyan);
+  box-shadow: 0 0 22px rgba(0, 240, 255, 0.32);
+  width: min(92vw, 460px);
+}
+
+.touch-editor-title {
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: var(--cyan);
+}
+
+.touch-editor-sliders {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  font-size: 0.72rem;
+  color: var(--text-main);
+}
+
+.touch-editor-sliders label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.touch-editor-sliders input[type='range'] {
+  width: 92px;
+  accent-color: var(--cyan);
+}
+
+.touch-editor-actions {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.touch-draggable {
+  position: fixed;
+  pointer-events: auto;
+  touch-action: none;
+  z-index: 10;
+  opacity: var(--touch-opacity);
+  transform: translate(-50%, -50%) scale(var(--touch-scale));
+  transform-origin: center center;
+}
+
+.mobile-controls.editing-mode #touch-look-zone {
+  pointer-events: none;
+}
+
+.mobile-controls.editing-mode .touch-draggable {
+  outline: 2px dashed var(--cyan);
+  outline-offset: 4px;
+  cursor: move;
+  opacity: 0.96 !important;
+}
+
+/* Joystick Virtual (Esquerda) */
+.touch-joystick-zone {
+  left: 14%;
+  top: 76%;
+  width: 128px;
+  height: 128px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.touch-joystick-base {
+  width: 118px;
+  height: 118px;
+  border-radius: 50%;
+  background: rgba(6, 14, 28, 0.56);
+  border: 2px solid rgba(0, 240, 255, 0.65);
+  box-shadow: 0 0 18px rgba(0, 240, 255, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.touch-joystick-knob {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, rgba(0, 240, 255, 0.9), rgba(0, 120, 180, 0.72));
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 14px rgba(0, 240, 255, 0.55);
+  pointer-events: none;
+  transition: transform 0.04s linear;
+}
+
+/* Direção Veicular Esquerda/Direita */
+.touch-steer-cluster {
+  left: 16%;
+  top: 78%;
+  display: flex;
+  gap: 14px;
+}
+
+.touch-steer-btn {
+  position: static !important;
+  transform: none !important;
+  width: 72px !important;
+  height: 72px !important;
+  font-size: 1.5rem !important;
+}
+
+/* Botões Circulares / Táticos Touch */
+.touch-btn {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: rgba(8, 16, 32, 0.72);
+  border: 2px solid rgba(226, 241, 255, 0.55);
+  color: #e2f1ff;
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-shadow: 0 0 14px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.touch-btn-lg {
+  width: 82px;
+  height: 82px;
+  font-size: 0.78rem;
+}
+
+.touch-btn-shoot {
+  border-color: var(--magenta);
+  color: #ffd6e2;
+  background: rgba(70, 8, 28, 0.76);
+  box-shadow: 0 0 16px rgba(255, 0, 85, 0.32);
+}
+
+.touch-btn-cyan {
+  border-color: var(--cyan);
+  color: var(--cyan);
+  background: rgba(6, 28, 46, 0.76);
+}
+
+.touch-btn-green {
+  border-color: var(--green);
+  color: var(--green);
+  background: rgba(6, 38, 24, 0.76);
+}
+
+.touch-btn-yellow {
+  border-color: var(--yellow);
+  color: var(--yellow);
+  background: rgba(48, 36, 6, 0.76);
+}
+
+.touch-btn.active,
+.touch-btn:active {
+  filter: brightness(1.35);
+  box-shadow: 0 0 22px rgba(0, 240, 255, 0.7);
+}
+
+/* Posições Padrão dos Botões Touch (Lado Direito) */
+[data-touch-id="btn_shoot"] { left: 86%; top: 75%; }
+[data-touch-id="btn_jump"] { left: 74%; top: 82%; }
+[data-touch-id="btn_hack"] { left: 75%; top: 64%; }
+[data-touch-id="btn_vehicle"] { left: 88%; top: 56%; }
+[data-touch-id="btn_drone"] { left: 78%; top: 47%; }
+[data-touch-id="btn_nethack"] { left: 66%; top: 72%; }
+[data-touch-id="btn_sprint"] { left: 26%; top: 62%; }
+[data-touch-id="btn_weapon"] { left: 66%; top: 54%; }
+
+[data-touch-id="btn_accel"] { left: 87%; top: 76%; }
+[data-touch-id="btn_brake"] { left: 74%; top: 82%; }
+[data-touch-id="btn_nitro"] { left: 76%; top: 62%; }
+[data-touch-id="btn_exit_veh"] { left: 89%; top: 56%; }
+
+[data-touch-id="btn_drone_up"] { left: 86%; top: 62%; }
+[data-touch-id="btn_drone_down"] { left: 86%; top: 80%; }
+[data-touch-id="btn_drone_hack"] { left: 74%; top: 68%; }
+[data-touch-id="btn_drone_recall"] { left: 74%; top: 84%; }
+
+/* HUD Responsivo para Celulares e Tablets (< 900px) */
+@media (max-width: 900px) {
+  .hud-top {
+    padding: 8px 10px;
+    gap: 8px;
+  }
+
+  .hud-panel {
+    padding: 6px 9px;
+  }
+
+  .mission-panel {
+    max-width: 44vw;
+  }
+
+  .mission-text {
+    font-size: 0.74rem;
+  }
+
+  .mission-sub {
+    font-size: 0.64rem;
+    line-height: 1.25;
+  }
+
+  .status-panel {
+    min-width: 142px;
+    max-width: 42vw;
+  }
+
+  .status-row {
+    font-size: 0.66rem;
+    gap: 6px;
+    margin-top: 2px;
+  }
+
+  .hud-controls {
+    display: none !important;
+  }
+
+  #radar-container {
+    right: auto;
+    left: 10px;
+    bottom: auto;
+    top: 96px;
+  }
+
+  #radar-canvas {
+    width: 96px;
+    height: 96px;
+  }
+
+  .radar-label {
+    font-size: 0.56rem;
+  }
+
+  #interact-prompt {
+    bottom: auto;
+    top: 56px;
+    font-size: 0.72rem;
+    padding: 5px 10px;
+    max-width: 82vw;
+    text-align: center;
+  }
+
+  #download-container,
+  #vehicle-hp-container {
+    width: 240px;
+    bottom: auto;
+    top: 94px;
+  }
+
+  #cockpit-hud {
+    bottom: auto;
+    top: 54px;
+    padding: 6px 12px;
+    gap: 10px;
+  }
+
+  #drone-hud {
+    top: 54px;
+    font-size: 0.66rem;
+    padding: 4px 10px;
+  }
+
+  .terminal-card {
+    padding: 18px;
+    max-height: 92vh;
+    overflow-y: auto;
+  }
+}

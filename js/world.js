@@ -557,6 +557,7 @@ export function buildMap() {
   buildSouthDistrictAndBridge();
   buildHeistCompounds();
   buildRescueOutposts();
+  buildVerticalMissions();
   buildPolicePrecinct();
   buildUrbanDetailsAndMidBlocks();
   buildTerrainAndMountains();
@@ -576,7 +577,7 @@ export function buildMap() {
   buildBoatPiersAndBoats();
 
   // Câmeras, Caixas Elétricas e Guardas das missões e contratos VIP + Câmeras de rua ctOS
-  ['COMPLEXO_CTOS', 'DOCAS_BAIA_SF', 'VIP_CAR_01', 'VIP_CAR_02', 'HEIST_BLUME_03', 'HEIST_CTOS_04', 'HEIST_VALKYRIE_05', 'RESCUE_01', 'RESCUE_02'].forEach((mKey) => {
+  ['COMPLEXO_CTOS', 'DOCAS_BAIA_SF', 'VIP_CAR_01', 'VIP_CAR_02', 'HEIST_BLUME_03', 'HEIST_CTOS_04', 'HEIST_VALKYRIE_05', 'RESCUE_01', 'RESCUE_02', 'BLUME_PENTHOUSE_06', 'HOTEL_RESCUE_07'].forEach((mKey) => {
     const mCfg = MAPS_CONFIG[mKey];
     buildSecurityCameras(mCfg, mKey);
     buildElectricBoxes(mCfg);
@@ -1054,6 +1055,101 @@ export function buildRescueOutposts() {
     // Zona de Extração distante (anel verde sem PointLight)
     buildExtractionZone(cfg.extractPos[0], cfg.extractPos[2], oc.missionKey);
   });
+}
+
+export function buildVerticalMissions() {
+  // CONTRATO 06: BLUME / ctOS TOWER — Servidor Central no 5º Andar (y = 16.2)
+  const cfg06 = MAPS_CONFIG.BLUME_PENTHOUSE_06;
+  if (cfg06) {
+    buildServerUnit(cfg06.serverPos[0], cfg06.serverPos[2], 'BLUME_PENTHOUSE_06', 16.2);
+    buildExtractionZone(cfg06.extractPos[0], cfg06.extractPos[2], 'BLUME_PENTHOUSE_06');
+  }
+
+  // CONTRATO 07: GRAND SF HOTEL — Cela do Informante na Suíte Presidencial do 4º Andar (y = 12.2)
+  const cfg07 = MAPS_CONFIG.HOTEL_RESCUE_07;
+  if (cfg07) {
+    const [cellX, cellY, cellZ] = cfg07.cellPos;
+    const accent = 0xd946ef;
+
+    const barsGroup = new THREE.Group();
+    barsGroup.position.set(cellX, cellY, cellZ);
+    const barMat = new THREE.MeshBasicMaterial({
+      color: 0xff0055,
+      transparent: true,
+      opacity: 0.42,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+    const cageMesh = new THREE.Mesh(new THREE.BoxGeometry(3.2, 2.9, 3.2), barMat);
+    cageMesh.position.y = 1.45;
+    const cageEdges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(cageMesh.geometry),
+      new THREE.LineBasicMaterial({ color: 0xff0055, transparent: true, opacity: 0.95 })
+    );
+    cageMesh.add(cageEdges);
+    barsGroup.add(cageMesh);
+    refs.worldGroup.add(barsGroup);
+    barsGroup.updateMatrixWorld(true);
+    const cellCollider = { box: new THREE.Box3().setFromObject(cageMesh), mesh: cageMesh, isRescueCell: true };
+    colliders.push(cellCollider);
+
+    // Informante DedSec refém na Suíte Presidencial
+    const prisoner = new THREE.Group();
+    const pJacket = new THREE.MeshStandardMaterial({ color: 0x151e30, roughness: 0.65 });
+    const pTrim = new THREE.MeshBasicMaterial({ color: accent });
+    const pPants = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.8 });
+    const pSkin = new THREE.MeshStandardMaterial({ color: 0xc99678, roughness: 0.65 });
+
+    const pTorso = new THREE.Mesh(new THREE.CapsuleGeometry(0.17, 0.34, 6, 10), pJacket);
+    pTorso.position.y = 1.14;
+    const pStripe = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.08, 0.24), pTrim);
+    pStripe.position.y = 1.24;
+    const pHead = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 10), pSkin);
+    pHead.position.y = 1.58;
+    const pLegL = new THREE.Mesh(new THREE.CapsuleGeometry(0.065, 0.42, 4, 8), pPants);
+    pLegL.position.set(-0.1, 0.42, 0);
+    const pLegR = new THREE.Mesh(new THREE.CapsuleGeometry(0.065, 0.42, 4, 8), pPants);
+    pLegR.position.set(0.1, 0.42, 0);
+    const pArmL = new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.36, 4, 8), pJacket);
+    pArmL.position.set(-0.24, 1.08, 0);
+    const pArmR = new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.36, 4, 8), pJacket);
+    pArmR.position.set(0.24, 1.08, 0);
+    prisoner.add(pTorso, pStripe, pHead, pLegL, pLegR, pArmL, pArmR);
+    prisoner.position.set(cellX, cellY, cellZ);
+    refs.worldGroup.add(prisoner);
+
+    const [px, py, pz] = cfg07.panelPos;
+    const panelMesh = createHackableDevice(0.75, 1.5, 0.55, px, py, pz, accent, 'CELA_HOTEL_RESCUE_07');
+    const [gx, gy, gz] = cfg07.generatorPos;
+    const genMesh = createHackableDevice(1.15, 1.55, 0.95, gx, gy, gz, 0xff3344, 'GERADOR_HOTEL_RESCUE_07');
+    genMesh.updateMatrixWorld(true);
+    const genBox = new THREE.Box3().setFromObject(genMesh);
+
+    rescueCells.push({
+      missionKey: 'HOTEL_RESCUE_07',
+      barsGroup,
+      cageMesh,
+      cellCollider,
+      panelMesh,
+      genMesh,
+      genBox,
+      genHp: 40,
+      genMaxHp: 40,
+      freed: false,
+      prisoner,
+      pLegL,
+      pLegR,
+      pArmL,
+      pArmR,
+      prisonerInitialPos: new THREE.Vector3(cellX, cellY, cellZ),
+      prisonerRunning: false,
+      prisonerRunTimer: 0,
+      prisonerPhase: 0,
+      escapeDir: cfg07.escapeDir || [1, 0]
+    });
+
+    buildExtractionZone(cfg07.extractPos[0], cfg07.extractPos[2], 'HOTEL_RESCUE_07');
+  }
 }
 
 export function buildPolicePrecinct() {
@@ -2116,7 +2212,7 @@ export function buildTraversableGoldenGate() {
 }
 
 export function buildMissionMarkers() {
-  ['COMPLEXO_CTOS', 'DOCAS_BAIA_SF', 'VIP_CAR_01', 'VIP_CAR_02', 'HEIST_BLUME_03', 'HEIST_CTOS_04', 'HEIST_VALKYRIE_05', 'RESCUE_01', 'RESCUE_02'].forEach((mKey) => {
+  ['COMPLEXO_CTOS', 'DOCAS_BAIA_SF', 'VIP_CAR_01', 'VIP_CAR_02', 'HEIST_BLUME_03', 'HEIST_CTOS_04', 'HEIST_VALKYRIE_05', 'RESCUE_01', 'RESCUE_02', 'BLUME_PENTHOUSE_06', 'HOTEL_RESCUE_07'].forEach((mKey) => {
     const mCfg = MAPS_CONFIG[mKey];
     const [mx, my, mz] = mCfg.markerPos;
     const color = mKey.startsWith('VIP_CAR')
@@ -2127,6 +2223,10 @@ export function buildMissionMarkers() {
       ? 0x00ff88
       : mKey === 'HEIST_VALKYRIE_05'
       ? 0xffaa00
+      : mKey === 'BLUME_PENTHOUSE_06'
+      ? 0xff0055
+      : mKey === 'HOTEL_RESCUE_07'
+      ? 0xd946ef
       : mKey === 'RESCUE_01'
       ? 0x00f0ff
       : mKey === 'RESCUE_02'
@@ -3179,18 +3279,18 @@ export function buildMapGates(cfg, missionKey) {
   });
 }
 
-export function buildServerUnit(sx, sz, missionKey) {
-  addStaticBox(4.4, 0.3, 3.6, sx, 0.15, sz, 0x182238, { occlude: false, collide: false });
-  const sMesh = createHackableDevice(2.0, 3.0, 1.4, sx, 1.65, sz, 0xff0055, `SERVIDOR_${missionKey}`);
+export function buildServerUnit(sx, sz, missionKey, baseY = 0) {
+  addStaticBox(4.0, 0.25, 3.2, sx, baseY + 0.13, sz, 0x182238, { occlude: false, collide: false });
+  const sMesh = createHackableDevice(1.8, 2.7, 1.3, sx, baseY + 1.5, sz, 0xff0055, `SERVIDOR_${missionKey}`);
 
   const core = new THREE.Mesh(
-    new THREE.OctahedronGeometry(0.55, 0),
+    new THREE.OctahedronGeometry(0.5, 0),
     new THREE.MeshBasicMaterial({ color: 0x00f0ff, wireframe: true })
   );
-  core.position.set(sx, 3.9, sz);
+  core.position.set(sx, baseY + 3.45, sz);
   refs.worldGroup.add(core);
 
-  buildServerParticles(sx, sz);
+  buildServerParticles(sx, sz, baseY);
   missionServers[missionKey] = { mesh: sMesh, core };
   if (missionKey === 'COMPLEXO_CTOS') {
     refs.serverMesh = sMesh;
@@ -3521,13 +3621,13 @@ export function buildComplexNeonAccents() {
   });
 }
 
-export function buildServerParticles(sx = 0, sz = -21.5) {
+export function buildServerParticles(sx = 0, sz = -21.5, baseY = 0) {
   const count = 56;
   const positions = new Float32Array(count * 3);
 
   for (let i = 0; i < count; i++) {
     const px = sx + (Math.random() - 0.5) * 2.4;
-    const py = 0.4 + Math.random() * 4.4;
+    const py = baseY + 0.4 + Math.random() * 3.4;
     const pz = sz + (Math.random() - 0.5) * 1.8;
 
     positions[i * 3] = px;
@@ -3536,6 +3636,7 @@ export function buildServerParticles(sx = 0, sz = -21.5) {
 
     serverParticleData.push({
       baseX: px,
+      baseY,
       baseZ: pz,
       speed: 0.65 + Math.random() * 0.9,
       phase: Math.random() * Math.PI * 2
@@ -4686,7 +4787,9 @@ export function resetWorldState(keepPlayerPos = false) {
       cell.pArmR.rotation.x = 0;
     }
     if (cell.panelMesh?.userData?.normalMaterial?.emissive) {
-      cell.panelMesh.userData.normalMaterial.emissive.setHex(cell.missionKey === 'RESCUE_01' ? 0x00f0ff : 0xffaa00);
+      cell.panelMesh.userData.normalMaterial.emissive.setHex(
+        cell.missionKey === 'RESCUE_01' ? 0x00f0ff : cell.missionKey === 'HOTEL_RESCUE_07' ? 0xd946ef : 0xffaa00
+      );
     }
     if (cell.genMesh?.userData?.normalMaterial?.emissive) {
       cell.genMesh.userData.normalMaterial.emissive.setHex(0xff3344);
@@ -4732,6 +4835,10 @@ export function startContract(missionKey) {
     gameState.targetCar = null;
     if (refs.vehicleDeliveryGroup) refs.vehicleDeliveryGroup.visible = false;
     setMissionState(MISSION_STATE.RESCUE_PRISONER);
+  } else if (mCfg?.isVerticalHeist) {
+    gameState.targetCar = null;
+    if (refs.vehicleDeliveryGroup) refs.vehicleDeliveryGroup.visible = false;
+    setMissionState(MISSION_STATE.STEAL_DATA);
   } else if (mCfg?.isVehicleTheft) {
     gameState.targetCar = cars.find((c) => c.vipMissionKey === missionKey) || null;
     if (refs.vehicleDeliveryGroup && mCfg.extractPos) {
@@ -4745,7 +4852,7 @@ export function startContract(missionKey) {
     setMissionState(MISSION_STATE.INFILTRATE);
   }
   AudioManager.startMusic(96);
-  dom.canvas.requestPointerLock();
+  if (!gameState.touchEnabled) dom.canvas.requestPointerLock();
 }
 
 export function returnToFreeRoam() {
@@ -4770,7 +4877,7 @@ export function returnToFreeRoam() {
   dom.victoryScreen.classList.add('hidden');
   dom.hud.classList.remove('hidden');
   setMissionState(MISSION_STATE.FREE_ROAM);
-  dom.canvas.requestPointerLock();
+  if (!gameState.touchEnabled) dom.canvas.requestPointerLock();
 }
 
 export function startMission() {
