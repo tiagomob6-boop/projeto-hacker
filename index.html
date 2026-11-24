@@ -98,6 +98,10 @@
           <button id="btn-network-mode" class="mute-btn" type="button">[MODO: SOLO // CO-OP READY]</button>
         </div>
         <div class="status-row">
+          <span>CONTROLE:</span>
+          <button id="btn-hud-platform" class="mute-btn" type="button" title="Clique para alternar entre versão PC e Celular">[💻 PC]</button>
+        </div>
+        <div class="status-row">
           <span>CLIMA:</span>
           <button id="btn-rain" class="mute-btn" type="button">CHUVA: ON</button>
         </div>
@@ -219,6 +223,7 @@
           </label>
         </div>
         <div class="touch-editor-actions">
+          <button id="btn-touch-switch-pc" class="cyber-btn small-btn secondary-btn" type="button">VOLTAR AO MODO PC</button>
           <button id="btn-touch-reset" class="cyber-btn small-btn danger-btn" type="button">RESTAURAR PADRÃO</button>
           <button id="btn-touch-save" class="cyber-btn small-btn green-btn" type="button">SALVAR LAYOUT</button>
         </div>
@@ -267,6 +272,15 @@
       <div class="brand-tag">DEDSEC // REDE ctOS // AUTENTICAÇÃO DE AGENTE</div>
       <h1 class="glitch-title auth-title">ACESSO DEDSEC</h1>
       <div id="auth-db-badge" class="auth-db-badge">CONECTANDO AO SERVIDOR DEDSEC...</div>
+
+      <!-- Seletor de Plataforma (Celular / PC) -->
+      <div class="auth-platform-box">
+        <div class="platform-title">ESCOLHA SUA VERSÃO / CONTROLES:</div>
+        <div class="platform-btn-group">
+          <button id="btn-auth-mode-pc" type="button" class="cyber-btn small-btn platform-btn active">💻 COMPUTADOR (PC)</button>
+          <button id="btn-auth-mode-mobile" type="button" class="cyber-btn small-btn platform-btn">📱 CELULAR (TOUCH)</button>
+        </div>
+      </div>
 
       <div class="auth-tabs">
         <button id="auth-tab-login" class="auth-tab active" type="button">ENTRAR</button>
@@ -476,10 +490,11 @@
           <button id="btn-toggle-shadows" type="button" class="cyber-btn small-btn active">SOMBRAS: ON</button>
         </div>
         <div class="guide-setting-item">
-          <span>MOBILE / TOUCH:</span>
+          <span>VERSÃO DO JOGO &amp; CONTROLES:</span>
           <div class="sens-buttons">
-            <button id="btn-toggle-touch" type="button" class="cyber-btn small-btn">CONTROLES TOUCH: OFF</button>
-            <button id="btn-edit-touch-hud" type="button" class="cyber-btn small-btn">EDITAR HUD TOUCH</button>
+            <button id="btn-guide-mode-pc" type="button" class="cyber-btn small-btn active">💻 COMPUTADOR (PC)</button>
+            <button id="btn-guide-mode-mobile" type="button" class="cyber-btn small-btn">📱 CELULAR (TOUCH)</button>
+            <button id="btn-edit-touch-hud" type="button" class="cyber-btn small-btn">⚙ EDITAR HUD TOUCH</button>
           </div>
         </div>
         <div class="guide-setting-item">

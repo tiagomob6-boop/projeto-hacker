@@ -1069,6 +1069,43 @@ kbd {
   background: rgba(0, 255, 136, 0.08);
 }
 
+.auth-platform-box {
+  margin: 10px 0 14px 0;
+  padding: 8px 12px;
+  background: rgba(14, 22, 38, 0.75);
+  border: 1px dashed rgba(0, 240, 255, 0.35);
+  border-radius: 4px;
+}
+
+.platform-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: var(--cyan);
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.platform-btn-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.platform-btn {
+  font-size: 0.74rem !important;
+  padding: 8px 4px !important;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.platform-btn.active {
+  background: rgba(0, 240, 255, 0.25) !important;
+  border-color: var(--cyan) !important;
+  color: #fff !important;
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.45) !important;
+}
+
 .auth-tabs {
   display: grid;
   grid-template-columns: 1fr 1fr;

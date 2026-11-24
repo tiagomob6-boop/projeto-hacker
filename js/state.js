@@ -552,7 +552,14 @@ export const dom = {
   touchOpacitySlider: document.getElementById('touch-opacity-slider'),
   touchOpacityValue: document.getElementById('touch-opacity-value'),
   btnTouchReset: document.getElementById('btn-touch-reset'),
-  btnTouchSave: document.getElementById('btn-touch-save')
+  btnTouchSave: document.getElementById('btn-touch-save'),
+  // Seletor de Plataforma (Celular / PC)
+  btnHudPlatform: document.getElementById('btn-hud-platform'),
+  btnAuthModePc: document.getElementById('btn-auth-mode-pc'),
+  btnAuthModeMobile: document.getElementById('btn-auth-mode-mobile'),
+  btnGuideModePc: document.getElementById('btn-guide-mode-pc'),
+  btnGuideModeMobile: document.getElementById('btn-guide-mode-mobile'),
+  btnTouchSwitchPc: document.getElementById('btn-touch-switch-pc')
 };
 
 // Variáveis Three.js
@@ -760,6 +767,7 @@ export const gameState = {
   localPlayerId: 'local',
   cameraYaw: 0,
   cameraPitch: 0.34,
+  platformMode: 'PC', // 'PC' | 'MOBILE'
   touchEnabled: false,
   touchEditMode: false,
   touchMoveX: 0,

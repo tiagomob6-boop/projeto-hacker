@@ -533,6 +533,7 @@ export function openAuthScreen() {
   if (document.pointerLockElement) document.exitPointerLock();
   if (dom.hud) dom.hud.classList.add('hidden');
   if (dom.authScreen) dom.authScreen.classList.remove('hidden');
+  setPlatformMode(getPreferredPlatformMode(), false, false);
   setAuthStatus('');
 }
 
@@ -1355,16 +1356,99 @@ function _saveCurrentTouchLayout() {
   } catch {}
 }
 
-export function toggleTouchControls(forceState) {
-  gameState.touchEnabled = forceState !== undefined ? !!forceState : !gameState.touchEnabled;
+export const PLATFORM_STORAGE_KEY = 'dedsec_platform_mode';
+let _configuredPlatformMode = 'AUTO';
+
+// Carrega assincronamente a configuração de js/config.js se disponível
+import('./config.js')
+  .then((cfg) => {
+    if (cfg?.PLATFORM_MODE) {
+      _configuredPlatformMode = cfg.PLATFORM_MODE;
+      if (!localStorage.getItem(PLATFORM_STORAGE_KEY) && (_configuredPlatformMode === 'PC' || _configuredPlatformMode === 'MOBILE')) {
+        setPlatformMode(_configuredPlatformMode, false, false);
+      }
+    }
+  })
+  .catch(() => {});
+
+export function getPreferredPlatformMode() {
+  try {
+    const saved = localStorage.getItem(PLATFORM_STORAGE_KEY);
+    if (saved === 'PC' || saved === 'MOBILE') return saved;
+  } catch {}
+  if (_configuredPlatformMode === 'PC' || _configuredPlatformMode === 'MOBILE') {
+    return _configuredPlatformMode;
+  }
+  const isTouchDevice =
+    'ontouchstart' in window || (navigator.maxTouchPoints || 0) > 0 || window.innerWidth < 950;
+  return isTouchDevice ? 'MOBILE' : 'PC';
+}
+
+export function setPlatformMode(mode, save = true, showNotice = true) {
+  const targetMode = mode === 'MOBILE' ? 'MOBILE' : 'PC';
+  gameState.platformMode = targetMode;
+  gameState.touchEnabled = targetMode === 'MOBILE';
+
+  if (save) {
+    try {
+      localStorage.setItem(PLATFORM_STORAGE_KEY, targetMode);
+    } catch {}
+  }
+
+  // 1. Atualiza botão no HUD superior direito
+  if (dom.btnHudPlatform) {
+    dom.btnHudPlatform.textContent = targetMode === 'MOBILE' ? '[📱 CELULAR]' : '[💻 PC]';
+    dom.btnHudPlatform.title = targetMode === 'MOBILE'
+      ? 'Versão Celular Ativa (Touch). Clique para mudar para Computador.'
+      : 'Versão PC Ativa (Teclado/Mouse). Clique para mudar para Celular.';
+  }
+
+  // 2. Atualiza botões na tela de login/cadastro (Auth)
+  if (dom.btnAuthModePc && dom.btnAuthModeMobile) {
+    dom.btnAuthModePc.classList.toggle('active', targetMode === 'PC');
+    dom.btnAuthModeMobile.classList.toggle('active', targetMode === 'MOBILE');
+  }
+
+  // 3. Atualiza botões no Menu de Ajuda [H]
+  if (dom.btnGuideModePc && dom.btnGuideModeMobile) {
+    dom.btnGuideModePc.classList.toggle('active', targetMode === 'PC');
+    dom.btnGuideModeMobile.classList.toggle('active', targetMode === 'MOBILE');
+  }
   if (dom.btnToggleTouch) {
-    dom.btnToggleTouch.textContent = gameState.touchEnabled ? 'CONTROLES TOUCH: ON' : 'CONTROLES TOUCH: OFF';
-    dom.btnToggleTouch.classList.toggle('active', gameState.touchEnabled);
+    dom.btnToggleTouch.textContent = targetMode === 'MOBILE' ? 'CONTROLES: 📱 CELULAR' : 'CONTROLES: 💻 PC';
+    dom.btnToggleTouch.classList.toggle('active', targetMode === 'MOBILE');
   }
-  if (!gameState.touchEnabled && gameState.touchEditMode) {
-    setTouchEditMode(false);
+
+  // 4. Aplica transição de controles e PointerLock
+  if (targetMode === 'PC') {
+    if (gameState.touchEditMode) setTouchEditMode(false);
+    if (dom.mobileControls) dom.mobileControls.classList.add('hidden');
+    const modalBlocking =
+      gameState.authOpen ||
+      gameState.terminalOpen ||
+      gameState.missionModalOpen ||
+      gameState.shopOpen ||
+      gameState.tacticalMapOpen ||
+      gameState.quickGuideOpen ||
+      gameState.coopModalOpen;
+    if (!modalBlocking && dom.canvas) {
+      dom.canvas.requestPointerLock?.();
+    }
+  } else {
+    if (document.pointerLockElement === dom.canvas) {
+      document.exitPointerLock();
+    }
+    updateMobileControlsContext(true);
   }
-  updateMobileControlsContext(true);
+
+  if (showNotice && !gameState.authOpen) {
+    showCoopHUDNotice(`MODO ATIVADO: ${targetMode === 'MOBILE' ? '📱 CELULAR (CONTROLES TOUCH)' : '💻 COMPUTADOR (TECLADO + MOUSE)'}`, 'info');
+  }
+}
+
+export function toggleTouchControls(forceState) {
+  const nextMode = forceState !== undefined ? (forceState ? 'MOBILE' : 'PC') : (gameState.touchEnabled ? 'PC' : 'MOBILE');
+  setPlatformMode(nextMode, true, true);
 }
 
 export function setTouchEditMode(active) {
@@ -1431,9 +1515,40 @@ export function setupMobileTouchControls(handlers = {}) {
   const saved = _loadTouchLayout();
   _applyTouchLayout(saved);
 
-  const isTouchDevice =
-    'ontouchstart' in window || (navigator.maxTouchPoints || 0) > 0 || window.innerWidth < 950;
-  toggleTouchControls(isTouchDevice);
+  // Inicializa a plataforma (PC ou Celular) conforme config.js / localStorage / dispositivo
+  const initialMode = getPreferredPlatformMode();
+  setPlatformMode(initialMode, false, false);
+
+  // Listeners de seleção de plataforma
+  dom.btnHudPlatform?.addEventListener('click', () => {
+    setPlatformMode(gameState.platformMode === 'PC' ? 'MOBILE' : 'PC');
+    AudioManager.playKeyBeep();
+  });
+
+  dom.btnAuthModePc?.addEventListener('click', () => {
+    setPlatformMode('PC');
+    AudioManager.playKeyBeep();
+  });
+
+  dom.btnAuthModeMobile?.addEventListener('click', () => {
+    setPlatformMode('MOBILE');
+    AudioManager.playKeyBeep();
+  });
+
+  dom.btnGuideModePc?.addEventListener('click', () => {
+    setPlatformMode('PC');
+    AudioManager.playKeyBeep();
+  });
+
+  dom.btnGuideModeMobile?.addEventListener('click', () => {
+    setPlatformMode('MOBILE');
+    AudioManager.playKeyBeep();
+  });
+
+  dom.btnTouchSwitchPc?.addEventListener('click', () => {
+    setPlatformMode('PC');
+    AudioManager.playKeyBeep();
+  });
 
   dom.btnToggleTouch?.addEventListener('click', () => {
     toggleTouchControls();

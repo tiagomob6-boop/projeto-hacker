@@ -387,8 +387,13 @@ export function initThree() {
 
   refs.camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 2400);
 
-  const isMobile =
+  let isMobile =
     'ontouchstart' in window || (navigator.maxTouchPoints || 0) > 0 || window.innerWidth < 900;
+  try {
+    const savedMode = localStorage.getItem('dedsec_platform_mode');
+    if (savedMode === 'PC') isMobile = false;
+    else if (savedMode === 'MOBILE') isMobile = true;
+  } catch {}
   if (isMobile) {
     gameState.shadowsEnabled = false;
     gameState.rainEnabled = false;
