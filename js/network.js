@@ -39,7 +39,7 @@ export class NetworkManager {
     return mod.Peer || mod.default;
   }
 
-  async createRoom() {
+  async createRoom(retryCount = 0) {
     this.disconnect();
     const code = `DEDSEC-${Math.floor(1000 + Math.random() * 9000)}`;
     this.roomCode = code;
@@ -67,6 +67,10 @@ export class NetworkManager {
       });
 
       peer.on('error', (err) => {
+        if (err?.type === 'unavailable-id' && retryCount < 4) {
+          this.createRoom(retryCount + 1);
+          return;
+        }
         this.emit('onStatusChange', { text: `ERRO PEERJS: ${err?.type || err?.message || 'falha'}`, online: false, error: true });
       });
 
@@ -157,10 +161,14 @@ export class NetworkManager {
     const rotY = refs.playerGroup?.rotation?.y || 0;
     const animState = gameState.droneActive
       ? 'DRONE'
+      : gameState.drivingBoat
+      ? 'BOAT'
       : gameState.drivingCar
       ? 'DRIVING'
       : gameState.isSwimming
       ? 'SWIM'
+      : !gameState.isGrounded
+      ? 'JUMP'
       : gameState.isCrouching
       ? 'CROUCH'
       : gameState.isSprinting
@@ -209,7 +217,7 @@ export class NetworkManager {
   }
 
   broadcastShoot(origin, dir, color = 0x00f0ff) {
-    this.broadcast('onPlayerShoot', {
+    const payload = {
       id: this.localId,
       ox: Number(origin.x.toFixed(2)),
       oy: Number(origin.y.toFixed(2)),
@@ -218,15 +226,21 @@ export class NetworkManager {
       dy: Number(dir.y.toFixed(3)),
       dz: Number(dir.z.toFixed(3)),
       color
-    });
+    };
+    this.broadcast('onPlayerShoot', payload);
+    setTimeout(() => this.broadcast('onPlayerShoot', payload), 80);
   }
 
   broadcastHack(hackType, data = {}) {
-    this.broadcast('onHackTriggered', {
+    const payload = {
       id: this.localId,
       hackType,
       data
-    });
+    };
+    this.broadcast('onHackTriggered', payload);
+    if (hackType === 'GATE' || hackType === 'BLACKOUT' || hackType === 'SHOOT') {
+      setTimeout(() => this.broadcast('onHackTriggered', payload), 80);
+    }
   }
 
   handleIncomingPacket(packet) {

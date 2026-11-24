@@ -598,7 +598,13 @@ export const refs = {
   onApplySkin: null,
   onSelectWeapon: null,
   onSpawnVehicle: null,
-  onSpawnPolice: null
+  onSpawnPolice: null,
+  onBroadcastShoot: null,
+  onBroadcastHack: null,
+  onShatterWindow: null,
+  onFreeRescueCell: null,
+  _shadowTimer: 0,
+  _waterFrameToggle: false
 };
 
 export const serverParticleData = [];

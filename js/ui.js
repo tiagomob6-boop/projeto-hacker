@@ -378,6 +378,18 @@ export function updateWeaponHUD() {
     dom.statusWeapon.className = cd > 0 ? 'neon-magenta' : 'neon-cyan';
   }
 
+  const touchWeaponBtn = dom.mobileControls?.querySelector('[data-action="weapon"]');
+  if (touchWeaponBtn) {
+    const shortLabels = {
+      TASER: 'TASER',
+      PISTOL: '9MM',
+      RIFLE: 'RIFLE',
+      EMP: 'EMP',
+      SHOTGUN: '12GA'
+    };
+    touchWeaponBtn.textContent = shortLabels[gameState.equippedWeapon] || 'ARMA';
+  }
+
   if (dom.weaponCooldownBar && dom.weaponCooldownFill) {
     if (cd > 0) {
       dom.weaponCooldownBar.classList.remove('hidden');
@@ -1206,6 +1218,7 @@ export function toggleShadows(forceState) {
 const TOUCH_HUD_STORAGE_KEY = 'dedsec_mobile_hud_layout';
 let _touchControlsInitialized = false;
 let _lastTouchContext = '';
+let _editorPreviewCtx = 'foot';
 
 function _loadTouchLayout() {
   try {
@@ -1312,7 +1325,9 @@ export function updateMobileControlsContext(force = false) {
   dom.mobileControls.classList.toggle('hidden', !shouldShow);
   if (!shouldShow) return;
 
-  const ctx = gameState.droneActive
+  const ctx = gameState.touchEditMode
+    ? _editorPreviewCtx
+    : gameState.droneActive
     ? 'drone'
     : gameState.drivingCar || gameState.drivingBoat
     ? 'vehicle'
@@ -1378,6 +1393,17 @@ export function setupMobileTouchControls(handlers = {}) {
     _saveCurrentTouchLayout();
     setTouchEditMode(false);
     AudioManager.playTerminalSuccess();
+  });
+
+  // Abas de contexto no Editor de HUD Touch (A PÉ | VEÍCULO | DRONE)
+  const editTabs = dom.touchEditorBar?.querySelectorAll('.touch-ctx-tab[data-edit-ctx]');
+  editTabs?.forEach((tab) => {
+    tab.addEventListener('click', () => {
+      _editorPreviewCtx = tab.dataset.editCtx || 'foot';
+      editTabs.forEach((t) => t.classList.toggle('active', t === tab));
+      updateMobileControlsContext(true);
+      AudioManager.playKeyBeep();
+    });
   });
 
   // Arrastar qualquer controle no Modo Edição ("MEXE OS CONTROLES")
