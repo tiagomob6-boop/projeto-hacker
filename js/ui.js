@@ -42,7 +42,10 @@ import {
   registerAccount,
   loginAccount,
   loginAsGuest,
-  logoutAccount
+  logoutAccount,
+  validateUsername,
+  sanitizeAgentName,
+  validatePassword
 } from './state.js';
 import { AudioManager } from './audio.js';
 
@@ -513,7 +516,9 @@ export function updateMoneyHUD() {
 
 export function updateAgentHUD() {
   if (dom.statusAgent) {
-    dom.statusAgent.textContent = (gameState.currentUser?.agentName || 'CONVIDADO').toUpperCase();
+    const rawName = gameState.currentUser?.agentName || 'CONVIDADO';
+    const safe = sanitizeAgentName(rawName);
+    dom.statusAgent.textContent = (safe.ok ? safe.value : 'CONVIDADO').toUpperCase();
   }
 }
 
@@ -541,7 +546,7 @@ export function closeAuthScreen() {
   if (refs.rainPoints) refs.rainPoints.visible = gameState.rainEnabled;
   if (dom.btnRain) dom.btnRain.textContent = gameState.rainEnabled ? 'CHUVA: ON' : 'CHUVA: OFF';
   refs.onApplySkin?.(gameState.equippedSkin);
-  if (dom.canvas) dom.canvas.requestPointerLock?.();
+  if (dom.canvas && !gameState.touchEnabled) dom.canvas.requestPointerLock?.();
 }
 
 export function setupAuthUI() {
@@ -573,8 +578,18 @@ export function setupAuthUI() {
 
   dom.authLoginForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const userCheck = validateUsername(dom.authLoginUser?.value);
+    if (!userCheck.ok) {
+      setAuthStatus(`> ERRO: ${userCheck.error}`, 'error');
+      return;
+    }
+    const passCheck = validatePassword(dom.authLoginPass?.value);
+    if (!passCheck.ok) {
+      setAuthStatus(`> ERRO: ${passCheck.error}`, 'error');
+      return;
+    }
     setAuthStatus('> VERIFICANDO CREDENCIAIS ctOS...');
-    const res = await loginAccount(dom.authLoginUser?.value, dom.authLoginPass?.value);
+    const res = await loginAccount(userCheck.value, dom.authLoginPass?.value);
     if (!res.ok) {
       setAuthStatus(`> ERRO: ${res.error}`, 'error');
       return;
@@ -585,8 +600,23 @@ export function setupAuthUI() {
 
   dom.authRegisterForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const agentCheck = sanitizeAgentName(dom.authRegAgent?.value);
+    if (!agentCheck.ok) {
+      setAuthStatus(`> ERRO: ${agentCheck.error}`, 'error');
+      return;
+    }
+    const userCheck = validateUsername(dom.authRegUser?.value);
+    if (!userCheck.ok) {
+      setAuthStatus(`> ERRO: ${userCheck.error}`, 'error');
+      return;
+    }
+    const passCheck = validatePassword(dom.authRegPass?.value);
+    if (!passCheck.ok) {
+      setAuthStatus(`> ERRO: ${passCheck.error}`, 'error');
+      return;
+    }
     setAuthStatus('> REGISTRANDO NOVO AGENTE DEDSEC...');
-    const res = await registerAccount(dom.authRegAgent?.value, dom.authRegUser?.value, dom.authRegPass?.value);
+    const res = await registerAccount(agentCheck.value, userCheck.value, dom.authRegPass?.value);
     if (!res.ok) {
       setAuthStatus(`> ERRO: ${res.error}`, 'error');
       return;

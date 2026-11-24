@@ -76,3 +76,23 @@ Por utilizar **ES Modules** (`import * as THREE from 'three'`) e a **Pointer Loc
 1. Abra a pasta `projeto-hacker/` no **VS Code**.
 2. Clique com o botão direito em `index.html` e selecione **Open with Live Server** (extensão *Live Server*).
 3. O navegador abrirá automaticamente. Clique em **INICIAR MISSÃO** para travar o cursor e começar a jogar.
+
+---
+
+## 🔐 Configuração & Segurança do Banco de Dados (Neon.db)
+
+O salvamento na nuvem utiliza o driver HTTP oficial `@neondatabase/serverless` via CDN com **queries 100% parametrizadas** (Tagged Template Literals via protocolo *bind* do PostgreSQL), validação estrita de `username` (`/^[a-z0-9_]{3,20}$/`), sanitização anti-XSS de `agent_name`, hash `SHA-256` da senha e allowlist de schema para o `save_data` (`JSONB`). Caso `js/config.js` não exista (como no GitHub Pages), o jogo opera automaticamente em modo offline com `localStorage`.
+
+1. Copie `js/config.example.js` para `js/config.js` (já ignorado no `.gitignore`) e insira sua connection string em `NEON_DATABASE_URL`.
+2. Como camada extra de defesa no servidor PostgreSQL, mantenha as constraints abaixo na tabela `dedsec_players`:
+
+```sql
+CREATE TABLE IF NOT EXISTS dedsec_players (
+  id SERIAL PRIMARY KEY,
+  username TEXT UNIQUE NOT NULL CHECK (username ~ '^[a-z0-9_]{3,20}$'),
+  agent_name TEXT NOT NULL CHECK (char_length(agent_name) BETWEEN 2 AND 24),
+  password_hash TEXT NOT NULL CHECK (char_length(password_hash) = 64),
+  save_data JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```

@@ -1050,8 +1050,98 @@ export async function sha256Hex(text) {
     .join('');
 }
 
-export function getSaveDataSnapshot() {
+export const USERNAME_REGEX = /^[a-z0-9_]{3,20}$/;
+export const SHA256_HEX_REGEX = /^[a-f0-9]{64}$/;
+
+export function validateUsername(raw) {
+  const value = String(raw ?? '').trim().toLowerCase();
+  if (!USERNAME_REGEX.test(value)) {
+    return {
+      ok: false,
+      value,
+      error: 'Usuário inválido: use 3 a 20 caracteres (apenas letras a-z, números 0-9 e _).'
+    };
+  }
+  return { ok: true, value };
+}
+
+export function sanitizeAgentName(raw) {
+  const value = String(raw ?? '')
+    .replace(/[\u0000-\u001F\u007F]/g, '')
+    .replace(/[<>'"`;\\]/g, '')
+    .trim();
+  if (value.length < 2 || value.length > 24) {
+    return {
+      ok: false,
+      value,
+      error: 'Nome do Agente deve ter entre 2 e 24 caracteres válidos.'
+    };
+  }
+  return { ok: true, value };
+}
+
+export function validatePassword(raw) {
+  if (typeof raw !== 'string' || raw.length < 4 || raw.length > 64) {
+    return {
+      ok: false,
+      error: 'Senha deve ter entre 4 e 64 caracteres.'
+    };
+  }
+  return { ok: true };
+}
+
+const VALID_SKIN_IDS = new Set(SKINS_CATALOG.map((s) => s.id));
+const VALID_VEHICLE_IDS = new Set(VEHICLES_CATALOG.map((v) => v.id));
+const VALID_MISSION_KEYS = new Set(Object.keys(MAPS_CONFIG));
+
+export function sanitizeSaveData(raw) {
+  const src = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
+
+  const money =
+    typeof src.money === 'number' && Number.isFinite(src.money)
+      ? Math.max(0, Math.min(99999999, Math.round(src.money)))
+      : 500;
+
+  const maxHp =
+    typeof src.maxHp === 'number' && Number.isFinite(src.maxHp)
+      ? Math.max(100, Math.min(500, Math.round(src.maxHp)))
+      : 100;
+
+  const ownedSkinsRaw = Array.isArray(src.ownedSkins)
+    ? [...new Set(src.ownedSkins.filter((id) => typeof id === 'string' && VALID_SKIN_IDS.has(id)))]
+    : [];
+  if (!ownedSkinsRaw.includes('classic')) ownedSkinsRaw.unshift('classic');
+
+  const equippedSkin =
+    typeof src.equippedSkin === 'string' && ownedSkinsRaw.includes(src.equippedSkin)
+      ? src.equippedSkin
+      : 'classic';
+
+  const ownedVehicles = Array.isArray(src.ownedVehicles)
+    ? [...new Set(src.ownedVehicles.filter((id) => typeof id === 'string' && VALID_VEHICLE_IDS.has(id)))]
+    : [];
+
+  const completedMissions = Array.isArray(src.completedMissions)
+    ? [...new Set(src.completedMissions.filter((k) => typeof k === 'string' && VALID_MISSION_KEYS.has(k)))]
+    : [];
+
+  // Retorna exclusivamente as chaves permitidas pelo schema (rejeita qualquer chave inesperada)
   return {
+    money,
+    maxHp,
+    ownedSkins: ownedSkinsRaw,
+    equippedSkin,
+    ownedVehicles,
+    completedMissions,
+    hasRapidReload: typeof src.hasRapidReload === 'boolean' ? src.hasRapidReload : false,
+    hasShotgun: typeof src.hasShotgun === 'boolean' ? src.hasShotgun : false,
+    hasBlackout: typeof src.hasBlackout === 'boolean' ? src.hasBlackout : true,
+    rainEnabled: typeof src.rainEnabled === 'boolean' ? src.rainEnabled : true
+  };
+}
+
+export function getSaveDataSnapshot() {
+  return sanitizeSaveData({
     money: gameState.money,
     maxHp: gameState.maxHp,
     ownedSkins: gameState.ownedSkins,
@@ -1062,7 +1152,7 @@ export function getSaveDataSnapshot() {
     hasShotgun: gameState.hasShotgun,
     hasBlackout: gameState.hasBlackout,
     rainEnabled: gameState.rainEnabled
-  };
+  });
 }
 
 export function resetSaveDefaults() {
@@ -1081,20 +1171,19 @@ export function resetSaveDefaults() {
 
 export function applySaveData(data) {
   resetSaveDefaults();
-  if (!data || typeof data !== 'object') return;
-  if (typeof data.money === 'number') gameState.money = data.money;
-  if (typeof data.maxHp === 'number') {
-    gameState.maxHp = data.maxHp;
-    gameState.hp = data.maxHp;
-  }
-  if (Array.isArray(data.ownedSkins) && data.ownedSkins.length > 0) gameState.ownedSkins = data.ownedSkins;
-  if (typeof data.equippedSkin === 'string') gameState.equippedSkin = data.equippedSkin;
-  if (Array.isArray(data.ownedVehicles)) gameState.ownedVehicles = data.ownedVehicles;
-  if (Array.isArray(data.completedMissions)) gameState.completedMissions = data.completedMissions;
-  if (typeof data.hasRapidReload === 'boolean') gameState.hasRapidReload = data.hasRapidReload;
-  if (typeof data.hasShotgun === 'boolean') gameState.hasShotgun = data.hasShotgun;
-  if (typeof data.hasBlackout === 'boolean') gameState.hasBlackout = data.hasBlackout;
-  if (typeof data.rainEnabled === 'boolean') gameState.rainEnabled = data.rainEnabled;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return;
+  const safe = sanitizeSaveData(data);
+  gameState.money = safe.money;
+  gameState.maxHp = safe.maxHp;
+  gameState.hp = safe.maxHp;
+  gameState.ownedSkins = safe.ownedSkins;
+  gameState.equippedSkin = safe.equippedSkin;
+  gameState.ownedVehicles = safe.ownedVehicles;
+  gameState.completedMissions = safe.completedMissions;
+  gameState.hasRapidReload = safe.hasRapidReload;
+  gameState.hasShotgun = safe.hasShotgun;
+  gameState.hasBlackout = safe.hasBlackout;
+  gameState.rainEnabled = safe.rainEnabled;
 }
 
 export async function initCloudDb() {
@@ -1115,9 +1204,9 @@ export async function initCloudDb() {
     await sql`
       CREATE TABLE IF NOT EXISTS dedsec_players (
         id SERIAL PRIMARY KEY,
-        username TEXT UNIQUE NOT NULL,
-        agent_name TEXT NOT NULL,
-        password_hash TEXT NOT NULL,
+        username TEXT UNIQUE NOT NULL CHECK (username ~ '^[a-z0-9_]{3,20}$'),
+        agent_name TEXT NOT NULL CHECK (char_length(agent_name) BETWEEN 2 AND 24),
+        password_hash TEXT NOT NULL CHECK (char_length(password_hash) = 64),
         save_data JSONB NOT NULL DEFAULT '{}'::jsonb,
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
@@ -1146,24 +1235,36 @@ function _writeLocalAccounts(accounts) {
 }
 
 export async function registerAccount(agentName, username, password) {
-  const cleanUser = String(username || '').trim().toLowerCase();
-  const cleanAgent = String(agentName || '').trim();
-  if (!cleanAgent || !cleanUser || !password || password.length < 4) {
-    return { ok: false, error: 'Preencha todos os campos (senha mín. 4 caracteres).' };
+  const agentCheck = sanitizeAgentName(agentName);
+  if (!agentCheck.ok) return { ok: false, error: agentCheck.error };
+
+  const userCheck = validateUsername(username);
+  if (!userCheck.ok) return { ok: false, error: userCheck.error };
+
+  const passCheck = validatePassword(password);
+  if (!passCheck.ok) return { ok: false, error: passCheck.error };
+
+  const cleanAgent = agentCheck.value;
+  const cleanUser = userCheck.value;
+  const passHash = await sha256Hex(password);
+  if (!SHA256_HEX_REGEX.test(passHash)) {
+    return { ok: false, error: 'Falha ao gerar hash SHA-256.' };
   }
-  const hash = await sha256Hex(password);
+
   resetSaveDefaults();
   const initialSave = getSaveDataSnapshot();
 
   if (_neonSql) {
     try {
-      const existing = await _neonSql`SELECT username FROM dedsec_players WHERE username = ${cleanUser} LIMIT 1`;
+      const existing = await _neonSql`
+        SELECT username FROM dedsec_players WHERE username = ${cleanUser} LIMIT 1
+      `;
       if (existing.length > 0) {
         return { ok: false, error: 'Usuário já cadastrado na rede DedSec.' };
       }
       await _neonSql`
         INSERT INTO dedsec_players (username, agent_name, password_hash, save_data)
-        VALUES (${cleanUser}, ${cleanAgent}, ${hash}, ${JSON.stringify(initialSave)}::jsonb)
+        VALUES (${cleanUser}, ${cleanAgent}, ${passHash}, ${JSON.stringify(initialSave)}::jsonb)
       `;
       gameState.currentUser = { username: cleanUser, agentName: cleanAgent, isGuest: false };
       saveProgress();
@@ -1178,7 +1279,7 @@ export async function registerAccount(agentName, username, password) {
   if (accounts[cleanUser]) {
     return { ok: false, error: 'Usuário já cadastrado localmente.' };
   }
-  accounts[cleanUser] = { username: cleanUser, agentName: cleanAgent, passwordHash: hash, saveData: initialSave };
+  accounts[cleanUser] = { username: cleanUser, agentName: cleanAgent, passwordHash: passHash, saveData: initialSave };
   _writeLocalAccounts(accounts);
   gameState.currentUser = { username: cleanUser, agentName: cleanAgent, isGuest: false };
   saveProgress();
@@ -1186,11 +1287,14 @@ export async function registerAccount(agentName, username, password) {
 }
 
 export async function loginAccount(username, password) {
-  const cleanUser = String(username || '').trim().toLowerCase();
-  if (!cleanUser || !password) {
-    return { ok: false, error: 'Informe usuário e senha.' };
-  }
-  const hash = await sha256Hex(password);
+  const userCheck = validateUsername(username);
+  if (!userCheck.ok) return { ok: false, error: userCheck.error };
+
+  const passCheck = validatePassword(password);
+  if (!passCheck.ok) return { ok: false, error: passCheck.error };
+
+  const cleanUser = userCheck.value;
+  const passHash = await sha256Hex(password);
 
   if (_neonSql) {
     try {
@@ -1204,12 +1308,22 @@ export async function loginAccount(username, password) {
         return { ok: false, error: 'Agente não encontrado.' };
       }
       const row = rows[0];
-      if (row.password_hash !== hash) {
+      if (row.password_hash !== passHash) {
         return { ok: false, error: 'Senha incorreta.' };
       }
-      const parsed = typeof row.save_data === 'string' ? JSON.parse(row.save_data) : row.save_data;
+      let parsed = {};
+      try {
+        parsed = typeof row.save_data === 'string' ? JSON.parse(row.save_data) : row.save_data;
+      } catch {
+        parsed = {};
+      }
       applySaveData(parsed);
-      gameState.currentUser = { username: row.username, agentName: row.agent_name, isGuest: false };
+      const safeAgent = sanitizeAgentName(row.agent_name);
+      gameState.currentUser = {
+        username: cleanUser,
+        agentName: safeAgent.ok ? safeAgent.value : cleanUser,
+        isGuest: false
+      };
       return { ok: true, cloud: true };
     } catch (err) {
       return { ok: false, error: `Erro no Neon.db: ${err?.message || 'falha de conexão'}` };
@@ -1220,9 +1334,14 @@ export async function loginAccount(username, password) {
   const accounts = _readLocalAccounts();
   const acc = accounts[cleanUser];
   if (!acc) return { ok: false, error: 'Agente não encontrado (modo local).' };
-  if (acc.passwordHash !== hash) return { ok: false, error: 'Senha incorreta.' };
+  if (acc.passwordHash !== passHash) return { ok: false, error: 'Senha incorreta.' };
   applySaveData(acc.saveData);
-  gameState.currentUser = { username: acc.username, agentName: acc.agentName, isGuest: false };
+  const safeAgent = sanitizeAgentName(acc.agentName);
+  gameState.currentUser = {
+    username: cleanUser,
+    agentName: safeAgent.ok ? safeAgent.value : cleanUser,
+    isGuest: false
+  };
   return { ok: true, cloud: false };
 }
 
@@ -1259,15 +1378,18 @@ export function saveProgress(immediateCloud = false) {
     // Ignora falhas de quota/modo privado
   }
 
-  // Sincronização na nuvem via Neon.db com debounce de 1.5s
+  // Sincronização na nuvem via Neon.db com debounce de 1.5s (100% parametrizada)
   if (_neonSql && gameState.currentUser && !gameState.currentUser.isGuest) {
-    const username = gameState.currentUser.username;
+    const userCheck = validateUsername(gameState.currentUser.username);
+    if (!userCheck.ok) return;
+    const cleanUser = userCheck.value;
     const flushCloud = async () => {
       try {
+        const safePayload = getSaveDataSnapshot();
         await _neonSql`
           UPDATE dedsec_players
-          SET save_data = ${JSON.stringify(getSaveDataSnapshot())}::jsonb, updated_at = NOW()
-          WHERE username = ${username}
+          SET save_data = ${JSON.stringify(safePayload)}::jsonb, updated_at = NOW()
+          WHERE username = ${cleanUser}
         `;
       } catch (err) {
         console.warn('[DedSec Cloud] Falha ao sincronizar save no Neon.db:', err);
