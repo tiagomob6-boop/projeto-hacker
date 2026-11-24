@@ -76,9 +76,9 @@ export const MAPS_CONFIG = {
       { x: 0, y: 2.2, z: 8, w: 7, h: 4.4, d: 0.6, panelPos: [4.8, 0.75, 9.0], openX: -7.2 }
     ],
     cameras: [
-      { name: 'CAM_01 // GUARITA_ENTRADA', pos: [-26.5, 4.8, 4], baseYaw: -2.15, basePitch: -0.35 },
-      { name: 'CAM_02 // ALA_OESTE', pos: [-26.5, 4.8, -28], baseYaw: -0.85, basePitch: -0.35 },
-      { name: 'CAM_03 // ALA_LESTE', pos: [26.5, 4.8, -24], baseYaw: 1.95, basePitch: -0.32 }
+      { name: 'CAM_01 // GUARITA_ENTRADA', pos: [-26.2, 5.2, 4.5], baseYaw: 2.35, basePitch: -0.35 },
+      { name: 'CAM_02 // ALA_OESTE', pos: [-26.2, 5.2, -28], baseYaw: 0.85, basePitch: -0.35 },
+      { name: 'CAM_03 // ALA_LESTE', pos: [26.2, 5.2, -24], baseYaw: -0.85, basePitch: -0.32 }
     ],
     electricBoxes: [
       { name: 'CAIXA_ALA_OESTE', pos: [-20, 0.85, -4] },
@@ -514,6 +514,7 @@ export const refs = {
   vehicleDeliveryGroup: null,
   vehicleDeliveryRing: null,
   vehicleDeliveryBeam: null,
+  precinctTerminalMesh: null,
   onFirewallDisabled: null,
   onAcceptMission: null,
   onApplySkin: null,
@@ -556,6 +557,7 @@ export const supplyBoxes = [];     // Caixas de suprimentos (+$100 ou +25 HP) no
 export const policeCars = [];      // Viaturas de reforço policial ctOS spawnadas dinamicamente
 export const rescueCells = [];     // Celas de contenção de prisioneiros (RESCUE_01, RESCUE_02)
 export const steamPipes = [];      // Tubulações subterrâneas de vapor nas avenidas (V + E)
+export const multiFloorBuildings = []; // Descritores de pisos/escadas dos prédios abertos de 5 andares
 export const remotePlayers = new Map(); // Jogadores remotos (id -> { group, parts, targetPos, targetYaw })
 export const playersMap = new Map();    // Todos os agentes ativos ('local' + remotos)
 export const missionServers = {};  // { COMPLEXO_CTOS: { mesh, core, particles, particleData }, DOCAS_BAIA_SF: ... }
@@ -648,7 +650,44 @@ export const raycaster = new THREE.Raycaster();
 // ==========================================
 // TEXTURAS PROCEDURAIS (HTML5 CANVAS -> CanvasTexture)
 
-export function getSurfaceHeight(x, z) {
+export function getSurfaceHeight(x, z, currentY = null) {
+  // Prédios abertos de múltiplos andares (Térreo 0.2, 2º 4.2, 3º 8.2, 4º 12.2, 5º/Cobertura 16.2 + rampa de escada)
+  for (let i = 0; i < multiFloorBuildings.length; i++) {
+    const b = multiFloorBuildings[i];
+    if (x >= b.minX && x <= b.maxX && z >= b.minZ && z <= b.maxZ) {
+      const refY = currentY !== null ? currentY : 0.2;
+      // Zona de escada / rampa interna
+      if (x >= b.stairMinX && x <= b.stairMaxX && z >= b.stairMinZ && z <= b.stairMaxZ) {
+        const t = THREE.MathUtils.clamp((z - b.stairMinZ) / (b.stairMaxZ - b.stairMinZ), 0, 1);
+        const flights = [
+          0.2 + t * 4.0,
+          4.2 + (1 - t) * 4.0,
+          8.2 + t * 4.0,
+          12.2 + (1 - t) * 4.0
+        ];
+        let bestH = 0.2;
+        let bestDiff = Infinity;
+        for (let f = 0; f < flights.length; f++) {
+          const fh = flights[f];
+          if (fh <= refY + 1.85 && fh >= refY - 2.8) {
+            const diff = Math.abs(fh - refY);
+            if (diff < bestDiff) {
+              bestDiff = diff;
+              bestH = fh;
+            }
+          }
+        }
+        return bestH;
+      }
+      // Laje do andar correspondente à altura atual
+      let floorH = 0.2;
+      for (let k = 0; k < b.floors.length; k++) {
+        if (b.floors[k] <= refY + 1.45) floorH = b.floors[k];
+      }
+      return floorH;
+    }
+  }
+
   // Ponte Golden Gate atravessável (X: 70..410, Z: 25.0..45.0)
   if (z >= 25.0 && z <= 45.0 && x >= 70 && x <= 410) {
     if (x <= 80) return 0;

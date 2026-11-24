@@ -967,23 +967,35 @@ export function renderTacticalMap() {
     ctx.fillText('LANCHA', bp.x + 6, bp.y + 3);
   });
 
-  // Lojas (Style, Motors, Armory)
+  // Lojas (Style, Motors, Armory) com rótulos desencavalados
   stores.forEach((st) => {
     const sp = toCanvas(st.pos.x, st.pos.z);
     ctx.fillStyle = st.type === 'STYLE' ? '#d946ef' : st.type === 'MOTORS' ? '#00f0ff' : '#ffaa00';
     ctx.beginPath();
     ctx.arc(sp.x, sp.y, 5, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillText(st.name, sp.x - 24, sp.y + 16);
+    ctx.font = 'bold 9px monospace';
+    if (st.type === 'STYLE') {
+      ctx.textAlign = 'right';
+      ctx.fillText(st.name, sp.x - 8, sp.y + 3);
+    } else if (st.type === 'MOTORS') {
+      ctx.textAlign = 'center';
+      ctx.fillText(st.name, sp.x, sp.y + 17);
+    } else {
+      ctx.textAlign = 'left';
+      ctx.fillText(st.name, sp.x + 8, sp.y + 3);
+    }
   });
+  ctx.textAlign = 'left';
 
-  // Complexos protegidos, Postos de Resgate & Pontos de Entrega no Mapa Tático
+  // Complexos protegidos, Delegacia SFPD, Postos de Resgate & Pontos de Entrega no Mapa Tático
   [
     { x: -195, z: 220, label: 'DEPÓSITO BLUME [03]', color: '#ff00aa' },
     { x: 495, z: 165, label: 'HANGAR ctOS [04]', color: '#00ff88' },
     { x: -220, z: 390, label: 'COFRE TWIN PEAKS [05]', color: '#ffaa00' },
     { x: -240, z: -220, label: 'RESGATE 01 [NORTE]', color: '#00f0ff' },
     { x: 520, z: 340, label: 'RESGATE 02 [SUL-LESTE]', color: '#ffaa00' },
+    { x: 485, z: -245, label: 'DELEGACIA SFPD', color: '#38bdf8' },
     { x: 435, z: -135, label: 'DOCA NORTE', color: '#00ff88' },
     { x: -210, z: -140, label: 'GARAGEM OESTE', color: '#00f0ff' },
     { x: 460, z: -40, label: 'DOCA LESTE', color: '#ffaa00' }

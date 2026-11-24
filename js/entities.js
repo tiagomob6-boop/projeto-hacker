@@ -661,6 +661,13 @@ export function buildSecurityCameras(cfg, missionKey = 'COMPLEXO_CTOS') {
     mesh.userData.normalMaterial = normalMat;
     mesh.userData.nethackMaterial = nethackMat;
 
+    // Poste/suporte metálico físico sustentando a câmera até o solo (y = 0..pos.y)
+    const poleH = Math.max(1.0, pos.y);
+    const poleMat = new THREE.MeshStandardMaterial({ color: 0x1b2438, roughness: 0.65, metalness: 0.45 });
+    const poleMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, poleH, 8), poleMat);
+    poleMesh.position.set(pos.x, poleH / 2, pos.z);
+    refs.worldGroup.add(poleMesh);
+
     // Feixe laser vermelho semitransparente de varredura
     const laserMat = new THREE.MeshBasicMaterial({
       color: 0xff0033,
@@ -1007,7 +1014,7 @@ export function handleInteractPress() {
       }
     }
 
-    // 1c. Checar caixas de suprimentos nos prédios abertos (+$100 ou +25 HP)
+    // 1c. Checar caixas de suprimentos nos prédios abertos (+$100 / +$200 ou +25 HP)
     for (const sb of supplyBoxes) {
       if (!sb.used && pPos.distanceTo(sb.pos) < 3.0) {
         sb.used = true;
@@ -1015,7 +1022,7 @@ export function handleInteractPress() {
           sb.mesh.userData.normalMaterial.emissiveIntensity = 0.08;
         }
         if (sb.rewardType === 'MONEY') {
-          gameState.money += 100;
+          gameState.money += sb.rewardAmount || 100;
           updateMoneyHUD();
         } else {
           gameState.hp = Math.min(gameState.maxHp || 100, gameState.hp + 25);
@@ -1024,6 +1031,21 @@ export function handleInteractPress() {
         AudioManager.playTerminalSuccess();
         return;
       }
+    }
+
+    // 1d. Terminal Hackeável da Delegacia SFPD (limpa Nível de Procurado para 0)
+    if (refs.precinctTerminalMesh && pPos.distanceTo(refs.precinctTerminalMesh.position) < 4.0) {
+      gameState.wantedLevel = 0;
+      gameState.wantedCooldown = 0;
+      gameState.wantedStatus = 'OCULTO';
+      gameState.baseAlert = false;
+      gameState.hacksUsed += 1;
+      updateWantedHUD();
+      if (dom.baseAlertBanner) dom.baseAlertBanner.classList.add('hidden');
+      if (dom.ctosRevealBanner) dom.ctosRevealBanner.classList.add('hidden');
+      AudioManager.playTerminalSuccess();
+      if (dom.missionSub) dom.missionSub.textContent = '> REGISTROS SFPD APAGADOS // NÍVEL DE PROCURADO ZERADO!';
+      return;
     }
 
     // 2. Checar firewall do servidor central antes do download
@@ -2245,7 +2267,7 @@ export function updatePlayer(dt) {
       gameState.playerVelY = 7.8;
       gameState.isGrounded = false;
     }
-    const groundY = getSurfaceHeight(pos.x, pos.z);
+    const groundY = getSurfaceHeight(pos.x, pos.z, pos.y);
     if (!gameState.isGrounded || gameState.playerVelY > 0) {
       gameState.playerVelY -= 20.0 * dt;
       pos.y += gameState.playerVelY * dt;
@@ -2618,7 +2640,7 @@ export function updateSecurityCameras(dt, playerPos, playerCenter) {
     } else {
       const sweepSpeed = DIFFICULTY_PRESETS[gameState.difficulty].camSweepSpeed;
       camObj.sweepPhase += dt * sweepSpeed;
-      yaw = camObj.baseYaw + Math.sin(camObj.sweepPhase) * 0.6;
+      yaw = camObj.baseYaw + Math.sin(camObj.sweepPhase) * 0.42;
     }
     camObj.currentYaw = yaw;
     camObj.mesh.rotation.y = yaw;
@@ -3233,13 +3255,16 @@ export function updateInteractionsAndMission(dt) {
     }
   }
 
-  // Prompt de caixas de suprimentos nos prédios abertos (apenas a pé)
+  // Prompt de caixas de suprimentos nos prédios abertos (+$100 / +$200 ou +25 HP) e Terminal SFPD
   if (!isDrone && !promptText && gameState.activeCamIndex < 0) {
+    if (refs.precinctTerminalMesh && pPos.distanceTo(refs.precinctTerminalMesh.position) < 4.0) {
+      promptText = '[E] HACKEAR TERMINAL SFPD (ZERAR NÍVEL DE PROCURADO)';
+    }
     for (const sb of supplyBoxes) {
-      if (!sb.used && pPos.distanceTo(sb.pos) < 3.0) {
+      if (!promptText && !sb.used && pPos.distanceTo(sb.pos) < 3.0) {
         promptText =
           sb.rewardType === 'MONEY'
-            ? '[E] COLETAR SUPRIMENTOS (+$100)'
+            ? `[E] COLETAR SUPRIMENTOS (+$${sb.rewardAmount || 100})`
             : '[E] USAR KIT MÉDICO (+25 HP)';
         break;
       }

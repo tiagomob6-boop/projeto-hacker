@@ -40,6 +40,7 @@ import {
   policeCars,
   rescueCells,
   steamPipes,
+  multiFloorBuildings,
   missionServers,
   missionExtractions,
   serverParticleData,
@@ -410,6 +411,8 @@ export function buildMap() {
   policeCars.length = 0;
   rescueCells.length = 0;
   steamPipes.length = 0;
+  multiFloorBuildings.length = 0;
+  refs.precinctTerminalMesh = null;
   refs.waterMesh = null;
   refs.dedsecCar = null;
   refs.showroomTurntable = null;
@@ -512,6 +515,7 @@ export function buildMap() {
   buildSouthDistrictAndBridge();
   buildHeistCompounds();
   buildRescueOutposts();
+  buildPolicePrecinct();
   buildUrbanDetailsAndMidBlocks();
   buildTerrainAndMountains();
 
@@ -539,10 +543,10 @@ export function buildMap() {
   buildSecurityCameras(
     {
       cameras: [
-        { name: 'STREET_CAM_01 // ESQUINA OESTE', pos: [-28, 5.2, 32], baseYaw: 0.75, basePitch: -0.35 },
-        { name: 'STREET_CAM_02 // ESQUINA LESTE', pos: [28, 5.2, 32], baseYaw: -0.75, basePitch: -0.35 },
-        { name: 'STREET_CAM_03 // AVENIDA SUL OESTE', pos: [-26, 5.2, 58], baseYaw: 2.35, basePitch: -0.35 },
-        { name: 'STREET_CAM_04 // AVENIDA SUL LESTE', pos: [26, 5.2, 58], baseYaw: -2.35, basePitch: -0.35 }
+        { name: 'STREET_CAM_01 // ESQUINA OESTE', pos: [-26, 5.2, 26], baseYaw: 0.72, basePitch: -0.35 },
+        { name: 'STREET_CAM_02 // ESQUINA LESTE', pos: [26, 5.2, 26], baseYaw: -0.72, basePitch: -0.35 },
+        { name: 'STREET_CAM_03 // AVENIDA SUL OESTE', pos: [-24, 5.2, 62], baseYaw: 2.5, basePitch: -0.35 },
+        { name: 'STREET_CAM_04 // AVENIDA SUL LESTE', pos: [24, 5.2, 62], baseYaw: -2.5, basePitch: -0.35 }
       ]
     },
     'STREET'
@@ -1005,6 +1009,129 @@ export function buildRescueOutposts() {
     // Zona de Extração distante (anel verde sem PointLight)
     buildExtractionZone(cfg.extractPos[0], cfg.extractPos[2], oc.missionKey);
   });
+}
+
+export function buildPolicePrecinct() {
+  // Delegacia Central SFPD // ctOS PRECINCT no canto vazio Nordeste (X: 485, Z: -245)
+  const px = 485;
+  const pz = -245;
+  const w = 26;
+  const d = 18;
+  const h = 9.0; // 2 andares (térreo aberto + 2º andar + terraço com heliponto)
+  const accent = 0x38bdf8;
+
+  // Avenida de ligação ligando as Docas (Z=-35) até o pátio da Delegacia (Z=-220)
+  addStaticBox(16, 0.08, 210, 470, 0.01, -135, 0x151e30, {
+    collide: false,
+    occlude: false,
+    edgesColor: accent,
+    edgesOpacity: 0.35
+  });
+
+  // Pátio da Delegacia (X: 465..505, Z: -236..-212)
+  addStaticBox(42, 0.12, 34, px, 0.02, pz + 14, 0x121b2e, {
+    collide: false,
+    occlude: false,
+    edgesColor: accent,
+    edgesOpacity: 0.55
+  });
+
+  // Prédio de 2 andares (térreo com porta dupla aberta voltada para o pátio sul +Z)
+  const floorH = 4.5;
+  const doorW = 6.0;
+  const wallT = 0.65;
+  const segW = (w - doorW) / 2;
+
+  // Paredes do térreo
+  addStaticBox(w, floorH, wallT, px, floorH / 2, pz - d / 2, 0x18233a, { edgesColor: accent, edgesOpacity: 0.65 });
+  addStaticBox(wallT, floorH, d, px - w / 2, floorH / 2, pz, 0x18233a, { edgesColor: accent, edgesOpacity: 0.65 });
+  addStaticBox(wallT, floorH, d, px + w / 2, floorH / 2, pz, 0x18233a, { edgesColor: accent, edgesOpacity: 0.65 });
+  addStaticBox(segW, floorH, wallT, px - (doorW / 2 + segW / 2), floorH / 2, pz + d / 2, 0x18233a, { edgesColor: accent, edgesOpacity: 0.7 });
+  addStaticBox(segW, floorH, wallT, px + (doorW / 2 + segW / 2), floorH / 2, pz + d / 2, 0x18233a, { edgesColor: accent, edgesOpacity: 0.7 });
+
+  // 2º andar sólido + laje de cobertura (y = 4.5 .. 9.0)
+  addStaticBox(w, 4.5, d, px, 6.75, pz, 0x131d33, { edgesColor: accent, edgesOpacity: 0.72 });
+
+  // Letreiro luminoso 3D na fachada sul
+  const sign = new THREE.Mesh(
+    new THREE.PlaneGeometry(13.5, 2.2),
+    new THREE.MeshBasicMaterial({ map: TextureGenerator.getNeonSignTexture('SFPD // ctOS PRECINCT', '#38bdf8'), side: THREE.DoubleSide })
+  );
+  sign.position.set(px, 6.8, pz + d / 2 + 0.45);
+  refs.worldGroup.add(sign);
+
+  // Heliponto no terraço (y = 9.05) com marcação 'H' procedural
+  const hCanvas = TextureGenerator._makeCanvas(256, 256);
+  const hCtx = hCanvas.getContext('2d');
+  hCtx.fillStyle = '#0f172a';
+  hCtx.fillRect(0, 0, 256, 256);
+  hCtx.strokeStyle = '#ffaa00';
+  hCtx.lineWidth = 10;
+  hCtx.beginPath();
+  hCtx.arc(128, 128, 102, 0, Math.PI * 2);
+  hCtx.stroke();
+  hCtx.fillStyle = '#38bdf8';
+  hCtx.font = 'bold 138px monospace';
+  hCtx.textAlign = 'center';
+  hCtx.textBaseline = 'middle';
+  hCtx.fillText('H', 128, 134);
+  const helipadTex = new THREE.CanvasTexture(hCanvas);
+  const helipad = new THREE.Mesh(
+    new THREE.PlaneGeometry(11, 11),
+    new THREE.MeshBasicMaterial({ map: helipadTex, side: THREE.DoubleSide })
+  );
+  helipad.rotation.x = -Math.PI / 2;
+  helipad.position.set(px, h + 0.06, pz);
+  refs.worldGroup.add(helipad);
+
+  // Sala de controle interna + Terminal Hackeável que zera Nível de Procurado (wantedLevel = 0 com E)
+  addStaticBox(5.2, 1.0, 1.3, px, 0.55, pz - 4.0, 0x1e2c46, { edgesColor: accent, edgesOpacity: 0.65 });
+  const termMesh = createHackableDevice(1.1, 1.65, 0.75, px, 0.85, pz - 2.6, 0x00ff88, 'TERMINAL_SFPD_LIMPAR_PROCURADO');
+  refs.precinctTerminalMesh = termMesh;
+
+  // 3 Viaturas policiais estacionadas no pátio frontal (dirigíveis com F)
+  [
+    { x: px - 10, z: pz + 16, yaw: 0 },
+    { x: px, z: pz + 18, yaw: 0 },
+    { x: px + 10, z: pz + 16, yaw: 0 }
+  ].forEach((pc, idx) => {
+    const { carGroup, bodyMesh, driverMesh } = buildCarMesh(0x111827, 0x38bdf8, true, 'SUV', false);
+    carGroup.position.set(pc.x, 0, pc.z);
+    carGroup.rotation.y = pc.yaw;
+    refs.worldGroup.add(carGroup);
+    carGroup.updateMatrixWorld(true);
+    const colliderObj = { box: new THREE.Box3().setFromObject(carGroup), mesh: bodyMesh, carIndex: cars.length };
+    colliders.push(colliderObj);
+    occluders.push(bodyMesh);
+    cars.push({
+      id: 720 + idx,
+      mesh: carGroup,
+      bodyMesh,
+      driverMesh,
+      initialHasDriver: false,
+      hasDriver: false,
+      colliderObj,
+      initialPos: new THREE.Vector3(pc.x, 0, pc.z),
+      initialYaw: pc.yaw,
+      initialColor: 0x111827,
+      isDedsec: false,
+      isDrivable: true,
+      vipMissionKey: null,
+      maxHp: 200,
+      hp: 200,
+      maxSpeed: 24,
+      accel: 22,
+      destroyed: false,
+      smokePoints: null,
+      smokeData: [],
+      speed: 0,
+      hackedTimer: 0,
+      hackedUsed: false,
+      headlight: null
+    });
+  });
+
+  radarBuildings.push({ x: px, z: pz, w, d });
 }
 
 export function buildTerrainAndMountains() {
@@ -2463,27 +2590,154 @@ export function buildEnterableBuilding(x, z, w, h, d, opts = {}) {
     refs.worldGroup.add(bSign);
   }
 
-  // Laje do teto do térreo + torre superior estilizada (acima de y = floorH, sem bloquear interior)
-  const upperH = Math.max(6, h - floorH);
-  const facadeTex = TextureGenerator.getBuildingFacadeTexture(2, 3);
-  const upperMat = new THREE.MeshStandardMaterial({
-    color: 0xd0dcf5,
-    map: facadeTex,
-    emissive: 0x18253d,
-    emissiveMap: facadeTex,
-    emissiveIntensity: 0.65,
-    roughness: 0.6
-  });
-  const upperMesh = new THREE.Mesh(new THREE.BoxGeometry(w - 0.3, upperH, d - 0.3), upperMat);
-  upperMesh.position.set(x, floorH + upperH / 2, z);
-  upperMesh.castShadow = true;
-  upperMesh.userData.normalMaterial = upperMat;
-  upperMesh.userData.nethackMaterial = new THREE.MeshBasicMaterial({ color: 0x0b3a5c, wireframe: true, transparent: true, opacity: 0.45 });
-  structureMeshes.push(upperMesh);
-  refs.worldGroup.add(upperMesh);
-  // Colisão da torre superior (acima de y = floorH): bloqueia o Drone sem afetar quem anda no térreo
-  upperMesh.updateMatrixWorld(true);
-  colliders.push({ box: new THREE.Box3().setFromObject(upperMesh), mesh: upperMesh });
+  // Laje do teto do térreo + torre superior OU 5 andares acessíveis mobiliados (multiFloor: true)
+  if (opts.multiFloor) {
+    const floorStep = 4.0;
+    const levels = [0.2, 4.2, 8.2, 12.2, 16.2];
+    const totalH = 16.2;
+    const backDir = doorSide === 'EAST' ? -1 : 1;
+    const stairW = 2.8;
+    const stairCenterX = backDir < 0 ? x - w / 2 + 0.6 + stairW / 2 : x + w / 2 - 0.6 - stairW / 2;
+    const stairMinX = stairCenterX - stairW / 2;
+    const stairMaxX = stairCenterX + stairW / 2;
+    const stairMinZ = z - 4.8;
+    const stairMaxZ = z + 4.8;
+    const roomW = w - stairW - 1.4;
+    const roomCenterX = backDir < 0 ? x + (stairW + 0.3) / 2 : x - (stairW + 0.3) / 2;
+
+    multiFloorBuildings.push({
+      minX: x - w / 2 + 0.3,
+      maxX: x + w / 2 - 0.3,
+      minZ: z - d / 2 + 0.3,
+      maxZ: z + d / 2 - 0.3,
+      stairMinX,
+      stairMaxX,
+      stairMinZ,
+      stairMaxZ,
+      floors: levels
+    });
+
+    // Paredes dos andares superiores (2º ao 4º andar: y = 4.6 .. 16.2) com faixas neon
+    const upperWallH = totalH - floorH;
+    const upperWallY = floorH + upperWallH / 2;
+    addStaticBox(w, upperWallH, wallT, x, upperWallY, z - d / 2, 0x162034, { edgesColor: accent, edgesOpacity: 0.45 });
+    addStaticBox(w, upperWallH, wallT, x, upperWallY, z + d / 2, 0x162034, { edgesColor: accent, edgesOpacity: 0.45 });
+    addStaticBox(wallT, upperWallH, d, x - w / 2, upperWallY, z, 0x162034, { edgesColor: accent, edgesOpacity: 0.45 });
+    addStaticBox(wallT, upperWallH, d, x + w / 2, upperWallY, z, 0x162034, { edgesColor: accent, edgesOpacity: 0.45 });
+
+    // Lajes dos andares 2, 3, 4 e 5 (cobertura) com vão da escada aberto + Box3 em colliders/occluders
+    const stairLen = stairMaxZ - stairMinZ; // 9.6m
+    const rampHyp = Math.hypot(stairLen, floorStep);
+    const rampAng = Math.atan2(floorStep, stairLen);
+    const landingD = Math.max(1.2, (d - stairLen) / 2 - 0.3);
+
+    for (let fl = 1; fl <= 4; fl++) {
+      const fy = levels[fl];
+      // Laje principal do andar (fora do vão da escada)
+      addStaticBox(roomW, 0.24, d - 0.7, roomCenterX, fy - 0.12, z, 0x131d32, {
+        edgesColor: accent,
+        edgesOpacity: 0.4
+      });
+      // Patamares norte e sul ligando a escada ao andar
+      addStaticBox(stairW + 0.4, 0.24, landingD, stairCenterX, fy - 0.12, z - d / 2 + 0.35 + landingD / 2, 0x18253d, {
+        edgesColor: accent,
+        edgesOpacity: 0.45
+      });
+      addStaticBox(stairW + 0.4, 0.24, landingD, stairCenterX, fy - 0.12, z + d / 2 - 0.35 - landingD / 2, 0x18253d, {
+        edgesColor: accent,
+        edgesOpacity: 0.45
+      });
+
+      // Rampa/escada inclinada ligando andar (fl-1) ao andar fl
+      const dirSign = (fl - 1) % 2 === 0 ? 1 : -1;
+      const rampMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(stairW - 0.15, 0.22, rampHyp),
+        new THREE.MeshStandardMaterial({ color: 0x1e2c46, roughness: 0.75, metalness: 0.25 })
+      );
+      rampMesh.position.set(stairCenterX, levels[fl - 1] + floorStep / 2 - 0.12, z);
+      rampMesh.rotation.x = dirSign > 0 ? -rampAng : rampAng;
+      rampMesh.receiveShadow = true;
+      rampMesh.userData.normalMaterial = rampMesh.material;
+      rampMesh.userData.nethackMaterial = new THREE.MeshBasicMaterial({ color: accent, wireframe: true });
+      structureMeshes.push(rampMesh);
+      occluders.push(rampMesh);
+      refs.worldGroup.add(rampMesh);
+    }
+
+    // Mobília temática do 2º e 3º andares (y = 4.2 e 8.2): camas, mesas e TVs holográficas
+    [4.2, 8.2].forEach((fy) => {
+      // Cama dupla moderna
+      addStaticBox(2.4, 0.55, 2.0, roomCenterX, fy + 0.28, z - 3.6, 0x2a1f3d, { edgesColor: accent, edgesOpacity: 0.5 });
+      // Mesa de trabalho + cadeira
+      addStaticBox(1.8, 0.85, 1.0, roomCenterX, fy + 0.42, z + 3.4, 0x1e2a40, { edgesColor: accent, edgesOpacity: 0.45 });
+      // TV holográfica na parede frontal
+      const frontX = doorSide === 'EAST' ? x + w / 2 - 0.45 : x - w / 2 + 0.45;
+      addStaticBox(0.14, 1.35, 2.8, frontX, fy + 1.85, z, accent, {
+        collide: false,
+        occlude: false,
+        emissive: accent,
+        emissiveIntensity: 0.9
+      });
+    });
+
+    // Mobília temática do 4º andar (y = 12.2): estações de trabalho e servidores ctOS
+    const f4 = 12.2;
+    [-3.2, 3.2].forEach((oz) => {
+      addStaticBox(2.4, 0.9, 1.1, roomCenterX, f4 + 0.45, z + oz, 0x1b263b, { edgesColor: 0x00f0ff, edgesOpacity: 0.6 });
+      addStaticBox(0.9, 0.55, 0.14, roomCenterX, f4 + 1.25, z + oz, 0x00f0ff, {
+        collide: false,
+        occlude: false,
+        emissive: 0x00f0ff,
+        emissiveIntensity: 0.95
+      });
+    });
+    addStaticBox(1.4, 2.4, 1.2, roomCenterX + (backDir < 0 ? 2.4 : -2.4), f4 + 1.2, z, 0x10182b, {
+      edgesColor: 0xff0055,
+      edgesOpacity: 0.85
+    });
+
+    // 5º Andar / Cobertura (y = 16.2): parapeito, antenas ctOS e caixa de suprimentos +$200
+    const f5 = 16.2;
+    addStaticBox(w, 1.1, 0.45, x, f5 + 0.55, z - d / 2 + 0.22, 0x202d45, { edgesColor: accent, edgesOpacity: 0.7 });
+    addStaticBox(w, 1.1, 0.45, x, f5 + 0.55, z + d / 2 - 0.22, 0x202d45, { edgesColor: accent, edgesOpacity: 0.7 });
+    addStaticBox(0.45, 1.1, d, x - w / 2 + 0.22, f5 + 0.55, z, 0x202d45, { edgesColor: accent, edgesOpacity: 0.7 });
+    addStaticBox(0.45, 1.1, d, x + w / 2 - 0.22, f5 + 0.55, z, 0x202d45, { edgesColor: accent, edgesOpacity: 0.7 });
+    // Antena de comunicações no terraço
+    addStaticBox(0.28, 4.8, 0.28, roomCenterX, f5 + 2.4, z - 4.2, 0x3b4a68, { edgesColor: accent, edgesOpacity: 0.8 });
+    // Caixa de suprimentos VIP no terraço (+$200)
+    const roofSupX = roomCenterX;
+    const roofSupZ = z + 3.6;
+    const roofSupMesh = createHackableDevice(1.05, 0.78, 1.05, roofSupX, f5 + 0.42, roofSupZ, 0x00ff88, `SUPRIMENTO_COBERTURA_${theme}`);
+    supplyBoxes.push({
+      id: supplyBoxes.length,
+      mesh: roofSupMesh,
+      pos: new THREE.Vector3(roofSupX, f5 + 0.42, roofSupZ),
+      rewardType: 'MONEY',
+      rewardAmount: 200,
+      used: false
+    });
+  } else {
+    const upperH = Math.max(6, h - floorH);
+    const facadeTex = TextureGenerator.getBuildingFacadeTexture(2, 3);
+    const upperMat = new THREE.MeshStandardMaterial({
+      color: 0xd0dcf5,
+      map: facadeTex,
+      emissive: 0x18253d,
+      emissiveMap: facadeTex,
+      emissiveIntensity: 0.65,
+      roughness: 0.6
+    });
+    const upperMesh = new THREE.Mesh(new THREE.BoxGeometry(w - 0.3, upperH, d - 0.3), upperMat);
+    upperMesh.position.set(x, floorH + upperH / 2, z);
+    upperMesh.castShadow = true;
+    upperMesh.userData.normalMaterial = upperMat;
+    upperMesh.userData.nethackMaterial = new THREE.MeshBasicMaterial({ color: 0x0b3a5c, wireframe: true, transparent: true, opacity: 0.45 });
+    structureMeshes.push(upperMesh);
+    refs.worldGroup.add(upperMesh);
+    // Colisão da torre superior (acima de y = floorH): bloqueia o Drone sem afetar quem anda no térreo
+    upperMesh.updateMatrixWorld(true);
+    colliders.push({ box: new THREE.Box3().setFromObject(upperMesh), mesh: upperMesh });
+  }
 
   // Tela holográfica na parede dos fundos
   const backX = doorSide === 'EAST' ? x - w / 2 + 0.45 : x + w / 2 - 0.45;
@@ -2610,11 +2864,11 @@ export function buildEnvironment(cfg) {
     });
   });
 
-  // Quarteirões urbanos: 4 prédios principais com portas abertas e interiores mobiliados + prédios laterais
+  // Quarteirões urbanos: 4 prédios principais abertos (Hotel Grand SF e Escritório ctOS com 5 andares mobiliados!)
   buildEnterableBuilding(-52, 16, 14, 18, 14, { accent: 0x00f0ff, doorSide: 'EAST', theme: 'CAFE', title: 'CAFÉ CYBER' });
-  buildEnterableBuilding(-52, 42, 14, 22, 16, { accent: 0xffaa00, doorSide: 'EAST', theme: 'GARAGE', title: 'OFICINA DEDSEC' });
+  buildEnterableBuilding(-52, 42, 14, 22, 16, { accent: 0xffaa00, doorSide: 'EAST', theme: 'CAFE', title: 'HOTEL GRAND SF', multiFloor: true });
   buildDetailedBuilding(-52, -14, 14, 20, 16, { accent: 0x38bdf8 });
-  buildEnterableBuilding(52, 16, 14, 19, 14, { accent: 0xff0055, doorSide: 'WEST', theme: 'OFFICE', title: 'ESCRITÓRIO ctOS' });
+  buildEnterableBuilding(52, 16, 14, 22, 14, { accent: 0xff0055, doorSide: 'WEST', theme: 'OFFICE', title: 'ESCRITÓRIO ctOS', multiFloor: true });
   buildEnterableBuilding(52, 42, 14, 24, 16, { accent: 0x00ff88, doorSide: 'WEST', theme: 'HIDEOUT', title: 'ESCONDERIJO DEDSEC' });
   buildDetailedBuilding(52, -14, 14, 21, 16, { accent: 0xffaa00 });
 
