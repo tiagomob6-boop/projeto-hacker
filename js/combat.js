@@ -179,7 +179,7 @@ export function stunGuard(guard, duration) {
   guard.lookAroundTimer = 0;
   guard.burstLeft = 0;
   guard.mesh.rotation.x = Math.PI / 2.2;
-  guard.mesh.position.y = 0.25;
+  guard.mesh.position.y = getSurfaceHeight(guard.mesh.position.x, guard.mesh.position.z, guard.mesh.position.y) + 0.25;
   if (guard.sparkPoints) {
     guard.sparkPoints.visible = true;
   }
@@ -193,7 +193,7 @@ export function damageGuard(guard, dmg) {
     guard.stunTimer = 0;
     guard.burstLeft = 0;
     guard.mesh.rotation.x = -Math.PI / 2;
-    guard.mesh.position.y = 0.22;
+    guard.mesh.position.y = getSurfaceHeight(guard.mesh.position.x, guard.mesh.position.z, guard.mesh.position.y) + 0.22;
     if (guard.sparkPoints) guard.sparkPoints.visible = false;
     return;
   }
@@ -291,14 +291,16 @@ export function fireEmpPulse() {
   });
   const ringMesh = new THREE.Mesh(new THREE.RingGeometry(0.4, 0.85, 48), ringMat);
   ringMesh.rotation.x = -Math.PI / 2;
-  ringMesh.position.set(pPos.x, 0.14, pPos.z);
+  ringMesh.position.set(pPos.x, pPos.y + 0.14, pPos.z);
   refs.scene.add(ringMesh);
 
   empWaves.push({ mesh: ringMesh, mat: ringMat, radius: 1, maxRadius: 10.5 });
 
   securityCameras.forEach((camObj) => {
-    camObj.disabledTimer = Math.max(camObj.disabledTimer, 10.0);
-    camObj.mesh.userData.normalMaterial.emissive.setHex(0x331111);
+    if (camObj.pos.distanceTo(pPos) <= 14.0) {
+      camObj.disabledTimer = Math.max(camObj.disabledTimer, 10.0);
+      camObj.mesh.userData.normalMaterial.emissive.setHex(0x331111);
+    }
   });
 
   guards.forEach((g) => {

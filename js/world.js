@@ -415,6 +415,8 @@ export function initThree() {
   window.addEventListener('resize', onWindowResize);
 }
 
+const serverParticleSystems = [];
+
 export function buildMap() {
   disposeHierarchy(refs.worldGroup);
   while (refs.worldGroup.children.length > 0) {
@@ -438,6 +440,7 @@ export function buildMap() {
   radarBuildings.length = 0;
   radarWalls.length = 0;
   serverParticleData.length = 0;
+  serverParticleSystems.length = 0;
   blinkingLights.length = 0;
   sirenLights.length = 0;
   missionMarkers.length = 0;
@@ -3627,6 +3630,7 @@ export function buildComplexNeonAccents() {
 export function buildServerParticles(sx = 0, sz = -21.5, baseY = 0) {
   const count = 56;
   const positions = new Float32Array(count * 3);
+  const data = [];
 
   for (let i = 0; i < count; i++) {
     const px = sx + (Math.random() - 0.5) * 2.4;
@@ -3637,7 +3641,7 @@ export function buildServerParticles(sx = 0, sz = -21.5, baseY = 0) {
     positions[i * 3 + 1] = py;
     positions[i * 3 + 2] = pz;
 
-    serverParticleData.push({
+    data.push({
       baseX: px,
       baseY,
       baseZ: pz,
@@ -3658,8 +3662,10 @@ export function buildServerParticles(sx = 0, sz = -21.5, baseY = 0) {
     depthWrite: false
   });
 
-  refs.serverParticles = new THREE.Points(geo, mat);
-  refs.worldGroup.add(refs.serverParticles);
+  const points = new THREE.Points(geo, mat);
+  refs.worldGroup.add(points);
+  serverParticleSystems.push({ points, data });
+  refs.serverParticles = points;
 }
 
 export function buildCarMesh(color, neonTrim, isPatrol = false, bodyType = 'SPORT', hasDriver = false) {
@@ -4526,6 +4532,10 @@ export function resetWorldState(keepPlayerPos = false) {
   AudioManager.stopRadio();
   gameState.cameraYaw = 0;
   gameState.cameraPitch = 0.34;
+  gameState.touchMoveX = 0;
+  gameState.touchMoveZ = 0;
+  gameState.touchSprintToggle = false;
+  dom.mobileControls?.querySelector('[data-action="sprint"]')?.classList.remove('active');
   gameState.keys = {};
 
   if (gameState.netHackActive) toggleNetHack(false);
@@ -4638,7 +4648,8 @@ export function resetWorldState(keepPlayerPos = false) {
   }
   for (let i = empWaves.length - 1; i >= 0; i--) {
     const w = empWaves[i];
-    refs.scene.remove(w.mesh);
+    if (w.mesh?.parent) w.mesh.parent.remove(w.mesh);
+    else refs.scene.remove(w.mesh);
     if (w.mesh?.geometry) w.mesh.geometry.dispose();
     if (w.mat) w.mat.dispose();
     empWaves.splice(i, 1);
@@ -4909,6 +4920,7 @@ export function spawnPurchasedVehicle(vehCfg) {
     if (existing === gameState.drivingCar || existing.isDedsec) continue;
     if (Math.hypot(existing.mesh.position.x - sx, existing.mesh.position.z - sz) < 4.8) {
       refs.worldGroup.remove(existing.mesh);
+      disposeHierarchy(existing.mesh);
       const colIdx = colliders.indexOf(existing.colliderObj);
       if (colIdx !== -1) colliders.splice(colIdx, 1);
       const occIdx = occluders.indexOf(existing.bodyMesh);
@@ -5191,12 +5203,14 @@ export function updateVisualEffects(dt, nowSec) {
       refs.dirLight.target.updateMatrixWorld();
     }
   }
-  if (refs.serverParticles) {
-    const posAttr = refs.serverParticles.geometry.getAttribute('position');
-    for (let i = 0; i < serverParticleData.length; i++) {
-      const p = serverParticleData[i];
+  for (let s = 0; s < serverParticleSystems.length; s++) {
+    const sys = serverParticleSystems[s];
+    const posAttr = sys.points.geometry.getAttribute('position');
+    const data = sys.data;
+    for (let i = 0; i < data.length; i++) {
+      const p = data[i];
       let y = posAttr.getY(i) + p.speed * dt;
-      if (y > 4.9) y = 0.4;
+      if (y > p.baseY + 3.8) y = p.baseY + 0.4;
       const swayX = p.baseX + Math.sin(nowSec * 1.8 + p.phase) * 0.14;
       const swayZ = p.baseZ + Math.cos(nowSec * 1.6 + p.phase) * 0.14;
       posAttr.setXYZ(i, swayX, y, swayZ);
