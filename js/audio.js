@@ -215,6 +215,30 @@ export const AudioManager = {
     this._tone(780, 190, 0.28, 'sawtooth', 0.14, 2200, 0.02);
   },
 
+  playGlassBreak() {
+    if (!this.ctx || this.muted) return;
+    // Estilhaços cristalinos em alta frequência + ruído filtrado de vidro quebrando
+    const pings = [2400, 3150, 3900, 4700, 5400];
+    pings.forEach((freq, i) => {
+      this._tone(freq, freq * 0.72, 0.09 + i * 0.015, 'triangle', 0.075, 6500, i * 0.022);
+    });
+    if (!this.noiseBuffer) return;
+    const now = this.ctx.currentTime;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this.noiseBuffer;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.setValueAtTime(2800, now);
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.22, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+    src.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.masterGain);
+    src.start(now);
+    src.stop(now + 0.3);
+  },
+
   playTireScreech() {
     this._tone(1150, 920, 0.14, 'sawtooth', 0.045, 2200, 0);
   },

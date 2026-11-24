@@ -16,6 +16,7 @@ import {
   cars,
   policeCars,
   rescueCells,
+  breakableWindows,
   pedestrians,
   projectiles,
   guardProjectiles,
@@ -396,6 +397,17 @@ export function updateProjectiles(dt) {
       disposePlayerProjectile(p);
       projectiles.splice(i, 1);
       continue;
+    }
+
+    // Quebra de janelas e vitrines de vidro ao impacto de projéteis
+    for (let wIdx = 0; wIdx < breakableWindows.length; wIdx++) {
+      const win = breakableWindows[wIdx];
+      if (win.broken || !win.box) continue;
+      if (_tmpBox.copy(win.box).expandByScalar(0.28).containsPoint(p.pos)) {
+        refs.onShatterWindow?.(win, p.dir);
+        spawnTaserFlash(p.pos, 0x7dd3fc);
+        break;
+      }
     }
 
     // Acerto no gerador das celas de resgate (destruir gerador liberta o prisioneiro)

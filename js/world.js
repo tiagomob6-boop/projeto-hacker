@@ -44,6 +44,8 @@ import {
   interiorGroups,
   worldPickups,
   coffeeMachines,
+  breakableWindows,
+  glassShards,
   missionServers,
   missionExtractions,
   serverParticleData,
@@ -450,6 +452,8 @@ export function buildMap() {
   interiorGroups.length = 0;
   worldPickups.length = 0;
   coffeeMachines.length = 0;
+  breakableWindows.length = 0;
+  glassShards.length = 0;
   refs.precinctTerminalMesh = null;
   refs.waterMesh = null;
   refs.dedsecCar = null;
@@ -2460,7 +2464,8 @@ export function addStaticBox(w, h, d, x, y, z, color, options = {}) {
       box,
       mesh,
       isGate: !!options.isGate,
-      gateIndex: options.gateIndex ?? -1
+      gateIndex: options.gateIndex ?? -1,
+      isFloorSlab: !!options.isFloorSlab
     });
   }
 
@@ -2591,6 +2596,41 @@ export function buildDetailedBuilding(x, z, w, h, d, style = {}) {
   blinkingLights.push({ mat: beaconMat, phase: Math.random() * Math.PI * 2 });
 }
 
+function createBreakableWindow(w, h, d, x, y, z, accent = 0x00f0ff) {
+  const mat = new THREE.MeshStandardMaterial({
+    color: 0x7dd3fc,
+    emissive: accent,
+    emissiveIntensity: 0.16,
+    transparent: true,
+    opacity: 0.32,
+    roughness: 0.1,
+    metalness: 0.22,
+    side: THREE.DoubleSide
+  });
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  mesh.position.set(x, y, z);
+  const frame = new THREE.LineSegments(
+    new THREE.EdgesGeometry(mesh.geometry),
+    new THREE.LineBasicMaterial({ color: 0x94a3b8, transparent: true, opacity: 0.85 })
+  );
+  mesh.add(frame);
+  mesh.userData.normalMaterial = mat;
+  mesh.userData.nethackMaterial = new THREE.MeshBasicMaterial({ color: 0x00f0ff, wireframe: true });
+  refs.worldGroup.add(mesh);
+  mesh.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(mesh);
+  const colliderObj = { box, mesh, isWindow: true };
+  colliders.push(colliderObj);
+  breakableWindows.push({
+    mesh,
+    colliderObj,
+    box,
+    broken: false,
+    center: new THREE.Vector3(x, y, z)
+  });
+  return mesh;
+}
+
 function spawnWorldPickup(type, x, y, z, parentGroup) {
   const grp = new THREE.Group();
   grp.position.set(x, y + 0.55, z);
@@ -2678,13 +2718,13 @@ export function buildEnterableBuilding(x, z, w, h, d, opts = {}) {
     edgesOpacity: 0.4
   });
 
-  // Geometria da escada lateral encostada na parede dos fundos (nunca cruza o meio da sala)
+  // Geometria da escada lateral encostada na parede dos fundos com patamar livre >= 3.0m no topo e na base
   const backDir = doorSide === 'EAST' ? -1 : 1;
   const stairW = 2.6;
   const stairCenterX = backDir < 0 ? x - w / 2 + 0.65 + stairW / 2 : x + w / 2 - 0.65 - stairW / 2;
   const stairMinX = stairCenterX - stairW / 2;
   const stairMaxX = stairCenterX + stairW / 2;
-  const stairLen = Math.min(9.0, Math.max(5.4, d - 4.4));
+  const stairLen = Math.max(5.0, d - 6.6); // Garante >= 3.0m de patamar livre em cada extremidade
   const stairMinZ = z - stairLen / 2;
   const stairMaxZ = z + stairLen / 2;
   const roomW = w - stairW - 1.5;
@@ -2702,98 +2742,116 @@ export function buildEnterableBuilding(x, z, w, h, d, opts = {}) {
     floors: levels
   });
 
-  // Paredes perimetrais externas (Térreo + andares superiores até o terraço topFloorY)
-  const wallCol = theme === 'CLINIC' ? 0x2a394f : 0x162034;
-  addStaticBox(w, topFloorY, wallT, x, topFloorY / 2, z - d / 2, wallCol, { edgesColor: accent, edgesOpacity: 0.45 });
-  addStaticBox(w, topFloorY, wallT, x, topFloorY / 2, z + d / 2, wallCol, { edgesColor: accent, edgesOpacity: 0.45 });
+  // Fachadas arquitetônicas estilizadas: paredes texturizadas, pilares metálicos, faixas luminosas, toldo e vitrines quebráveis
+  const wallCol = theme === 'CLINIC' ? 0x3a4d66 : 0x24324a;
+  const facadeTex = TextureGenerator.getBuildingFacadeTexture(2, numFloors);
+  addStaticBox(w, topFloorY, wallT, x, topFloorY / 2, z - d / 2, wallCol, { map: facadeTex, edgesColor: accent, edgesOpacity: 0.55 });
+  addStaticBox(w, topFloorY, wallT, x, topFloorY / 2, z + d / 2, wallCol, { map: facadeTex, edgesColor: accent, edgesOpacity: 0.55 });
+
+  // 4 pilares verticais metálicos nos cantos externos do edifício
+  [
+    [x - w / 2, z - d / 2],
+    [x + w / 2, z - d / 2],
+    [x - w / 2, z + d / 2],
+    [x + w / 2, z + d / 2]
+  ].forEach(([px, pz]) => {
+    addStaticBox(0.85, topFloorY + 1.1, 0.85, px, (topFloorY + 1.1) / 2, pz, 0x1e2c42, {
+      collide: false,
+      occlude: false,
+      castShadow: false,
+      edgesColor: accent,
+      edgesOpacity: 0.85
+    });
+  });
 
   const segD = Math.max(1.2, (d - doorW) / 2);
   const bHexStr = `#${accent.toString(16).padStart(6, '0')}`;
-  const glassMat = new THREE.MeshStandardMaterial({
-    color: accent,
-    transparent: true,
-    opacity: 0.25,
-    roughness: 0.15,
-    metalness: 0.25,
-    side: THREE.DoubleSide
+  const frontX = doorSide === 'EAST' ? x + w / 2 : x - w / 2;
+  const backWallX = doorSide === 'EAST' ? x - w / 2 : x + w / 2;
+  const outSign = doorSide === 'EAST' ? 1 : -1;
+
+  // Parede dos fundos texturizada
+  addStaticBox(wallT, topFloorY, d, backWallX, topFloorY / 2, z, wallCol, { map: facadeTex, edgesColor: accent, edgesOpacity: 0.5 });
+
+  // Fachada frontal no térreo: mureta baixa (0.8m) + 2 grandes vitrines de vidro quebráveis ladeando a porta dupla aberta
+  const winW = Math.max(1.8, segD - 0.8);
+  const winZ1 = z - (doorW / 2 + segD / 2);
+  const winZ2 = z + (doorW / 2 + segD / 2);
+  [winZ1, winZ2].forEach((wz) => {
+    addStaticBox(wallT, 0.85, segD, frontX, 0.425, wz, wallCol, { edgesColor: accent, edgesOpacity: 0.65 });
+    createBreakableWindow(0.18, 3.15, winW, frontX, 2.45, wz, accent);
   });
 
-  if (doorSide === 'EAST') {
-    addStaticBox(wallT, topFloorY, d, x - w / 2, topFloorY / 2, z, wallCol, { edgesColor: accent, edgesOpacity: 0.45 });
-    // Fachada leste: porta dupla aberta no térreo (y = 0..4.2) + parede superior + vitrines de vidro (opacity 0.25)
-    addStaticBox(wallT, 4.2, segD, x + w / 2, 2.1, z - (doorW / 2 + segD / 2), wallCol, { edgesColor: accent, edgesOpacity: 0.55 });
-    addStaticBox(wallT, 4.2, segD, x + w / 2, 2.1, z + (doorW / 2 + segD / 2), wallCol, { edgesColor: accent, edgesOpacity: 0.55 });
-    if (topFloorY > 4.2) {
-      const uh = topFloorY - 4.2;
-      addStaticBox(wallT, uh, d, x + w / 2, 4.2 + uh / 2, z, wallCol, { edgesColor: accent, edgesOpacity: 0.45 });
-    }
-    const winMesh = new THREE.Mesh(new THREE.PlaneGeometry(d - 1.2, Math.max(2.6, topFloorY - 4.6)), glassMat);
-    winMesh.rotation.y = Math.PI / 2;
-    winMesh.position.set(x + w / 2 + 0.3, 4.2 + Math.max(1.3, (topFloorY - 4.6) / 2), z);
-    refs.worldGroup.add(winMesh);
+  // Toldo / Marquise na entrada + Letreiro Neon
+  addStaticBox(1.9, 0.24, doorW + 1.6, frontX + outSign * 0.95, 4.18, z, 0x18253a, {
+    collide: false,
+    occlude: false,
+    castShadow: false,
+    edgesColor: accent,
+    edgesOpacity: 0.9
+  });
+  const bSign = new THREE.Mesh(
+    new THREE.PlaneGeometry(Math.min(9.5, d - 2), 1.45),
+    new THREE.MeshBasicMaterial({ map: TextureGenerator.getNeonSignTexture(bTitle, bHexStr), side: THREE.DoubleSide })
+  );
+  bSign.rotation.y = doorSide === 'EAST' ? Math.PI / 2 : -Math.PI / 2;
+  bSign.position.set(frontX + outSign * 0.45, 5.15, z);
+  refs.worldGroup.add(bSign);
 
-    const bSign = new THREE.Mesh(
-      new THREE.PlaneGeometry(Math.min(9.5, d - 2), 1.45),
-      new THREE.MeshBasicMaterial({ map: TextureGenerator.getNeonSignTexture(bTitle, bHexStr), side: THREE.DoubleSide })
-    );
-    bSign.rotation.y = Math.PI / 2;
-    bSign.position.set(x + w / 2 + 0.42, 4.15, z);
-    refs.worldGroup.add(bSign);
-  } else {
-    addStaticBox(wallT, topFloorY, d, x + w / 2, topFloorY / 2, z, wallCol, { edgesColor: accent, edgesOpacity: 0.45 });
-    addStaticBox(wallT, 4.2, segD, x - w / 2, 2.1, z - (doorW / 2 + segD / 2), wallCol, { edgesColor: accent, edgesOpacity: 0.55 });
-    addStaticBox(wallT, 4.2, segD, x - w / 2, 2.1, z + (doorW / 2 + segD / 2), wallCol, { edgesColor: accent, edgesOpacity: 0.55 });
-    if (topFloorY > 4.2) {
-      const uh = topFloorY - 4.2;
-      addStaticBox(wallT, uh, d, x - w / 2, 4.2 + uh / 2, z, wallCol, { edgesColor: accent, edgesOpacity: 0.45 });
+  // Andares superiores da fachada frontal: faixas luminosas de andar + janelas panorâmicas quebráveis
+  for (let fl = 1; fl < numFloors; fl++) {
+    const fy = levels[fl];
+    // Faixa luminosa horizontal separando os andares
+    addStaticBox(0.32, 0.24, d + 0.3, frontX + outSign * 0.25, fy, z, accent, {
+      collide: false,
+      occlude: false,
+      castShadow: false,
+      emissive: accent,
+      emissiveIntensity: 0.85
+    });
+    if (fl < numFloors - 1) {
+      // Peitoril (0.9m) + janela panorâmica quebrável (2.8m)
+      addStaticBox(wallT, 0.95, d, frontX, fy + 0.48, z, wallCol, { edgesColor: accent, edgesOpacity: 0.5 });
+      createBreakableWindow(0.18, 2.85, d - 2.2, frontX, fy + 2.4, z, accent);
     }
-    const winMesh = new THREE.Mesh(new THREE.PlaneGeometry(d - 1.2, Math.max(2.6, topFloorY - 4.6)), glassMat);
-    winMesh.rotation.y = -Math.PI / 2;
-    winMesh.position.set(x - w / 2 - 0.3, 4.2 + Math.max(1.3, (topFloorY - 4.6) / 2), z);
-    refs.worldGroup.add(winMesh);
-
-    const bSign = new THREE.Mesh(
-      new THREE.PlaneGeometry(Math.min(9.5, d - 2), 1.45),
-      new THREE.MeshBasicMaterial({ map: TextureGenerator.getNeonSignTexture(bTitle, bHexStr), side: THREE.DoubleSide })
-    );
-    bSign.rotation.y = -Math.PI / 2;
-    bSign.position.set(x - w / 2 - 0.42, 4.15, z);
-    refs.worldGroup.add(bSign);
   }
 
-  // Lajes dos andares superiores (com recorte exato acima da escada) + rampas laterais + corrimãos neon ciano
+  // Lajes dos andares superiores (recorte exato acima da escada, isFloorSlab: true) + rampas laterais + corrimãos neon
   const rampHyp = Math.hypot(stairLen, floorStep);
   const rampAng = Math.atan2(floorStep, stairLen);
-  const landingD = Math.max(1.1, (d - stairLen) / 2 - 0.35);
+  const landingD = Math.max(3.0, (d - stairLen) / 2 - 0.25);
   const handrailX = backDir < 0 ? stairMaxX : stairMinX;
 
   for (let fl = 1; fl < numFloors; fl++) {
     const fy = levels[fl];
-    // Laje principal do andar (Box3 em colliders/occluders)
+    // Laje principal do andar (Box3 marcada isFloorSlab para não bloquear quem sobe/desce no vão)
     addStaticBox(roomW, 0.24, d - 0.7, roomCenterX, fy - 0.12, z, 0xffffff, {
       map: floorTex,
       castShadow: false,
+      isFloorSlab: true,
       edgesColor: accent,
       edgesOpacity: 0.35
     });
-    // Patamares norte e sul alinhados fora do vão da escada
-    addStaticBox(stairW + 0.3, 0.24, landingD, stairCenterX, fy - 0.12, z - d / 2 + 0.35 + landingD / 2, 0x18253d, {
+    // Patamares norte e sul livres (>= 3.0m) alinhados exatamente no topo e base da rampa
+    addStaticBox(stairW + 0.3, 0.24, landingD, stairCenterX, fy - 0.12, z - d / 2 + 0.3 + landingD / 2, 0x1e2e4a, {
       castShadow: false,
+      isFloorSlab: true,
       edgesColor: accent,
-      edgesOpacity: 0.4
+      edgesOpacity: 0.45
     });
-    addStaticBox(stairW + 0.3, 0.24, landingD, stairCenterX, fy - 0.12, z + d / 2 - 0.35 - landingD / 2, 0x18253d, {
+    addStaticBox(stairW + 0.3, 0.24, landingD, stairCenterX, fy - 0.12, z + d / 2 - 0.3 - landingD / 2, 0x1e2e4a, {
       castShadow: false,
+      isFloorSlab: true,
       edgesColor: accent,
-      edgesOpacity: 0.4
+      edgesOpacity: 0.45
     });
 
-    // Faixa de LED emissiva no teto do andar inferior (iluminação procedural sem PointLight!)
-    addInteriorBox(roomW * 0.65, 0.08, 0.35, roomCenterX, fy - 0.28, z, accent, {
+    // Iluminação interna procedural mais clara (painel LED emissivo amplo no teto, zero PointLight!)
+    addInteriorBox(roomW * 0.75, 0.08, d * 0.45, roomCenterX, fy - 0.26, z, 0xe0f2fe, {
       collide: false,
       occlude: false,
       emissive: accent,
-      emissiveIntensity: 1.1
+      emissiveIntensity: 0.75
     });
 
     // Rampa/escada inclinada encostada na parede lateral + corrimão neon ciano
@@ -4588,6 +4646,24 @@ export function resetWorldState(keepPlayerPos = false) {
   coffeeMachines.forEach((cm) => {
     cm.cooldown = 0;
   });
+
+  // Restaurar janelas de vidro quebradas e reciclar estilhaços ao reiniciar o mapa
+  breakableWindows.forEach((win) => {
+    win.broken = false;
+    if (win.mesh) win.mesh.visible = true;
+    if (win.colliderObj && !colliders.includes(win.colliderObj)) {
+      colliders.push(win.colliderObj);
+    }
+  });
+  for (let i = glassShards.length - 1; i >= 0; i--) {
+    const sh = glassShards[i];
+    if (sh.mesh) {
+      refs.scene.remove(sh.mesh);
+      if (sh.mesh.geometry) sh.mesh.geometry.dispose();
+      if (sh.mesh.material) sh.mesh.material.dispose();
+    }
+    glassShards.splice(i, 1);
+  }
 
   // Restaurar celas de prisioneiros e geradores (RESCUE_01 / RESCUE_02)
   rescueCells.forEach((cell) => {

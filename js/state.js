@@ -561,6 +561,8 @@ export const multiFloorBuildings = []; // Descritores de pisos/escadas dos préd
 export const interiorGroups = [];  // Grupos de móveis/pickups internos para Interior Culling (> 95m)
 export const worldPickups = [];    // Kits 3D flutuantes (MEDKIT +40 HP, AMMO/BATERIA, CHIP +$150)
 export const coffeeMachines = [];  // Máquinas de café expresso (+25 HP + boost 15s)
+export const breakableWindows = []; // Janelas e vitrines de vidro quebráveis com Box3
+export const glassShards = [];     // Estilhaços 3D de vidro caindo com gravidade (auto-reciclados em 2s)
 export const remotePlayers = new Map(); // Jogadores remotos (id -> { group, parts, targetPos, targetYaw })
 export const playersMap = new Map();    // Todos os agentes ativos ('local' + remotos)
 export const missionServers = {};  // { COMPLEXO_CTOS: { mesh, core, particles, particleData }, DOCAS_BAIA_SF: ... }
@@ -816,11 +818,21 @@ export function isWaterArea(x, z) {
 }
 
 export function checkCollision(x, z, radius = PLAYER_RADIUS, ignoreCar = null, y = null, height = 1.8, ignoreTraffic = false) {
-  const entityY = y !== null ? y : getSurfaceHeight(x, z);
+  const entityY = y !== null ? y : getSurfaceHeight(x, z, y);
+  // Verifica se o ponto está sobre o vão da rampa de um prédio multi-andar (ignora laje do teto ao subir/descer)
+  let inStairwell = false;
+  for (let m = 0; m < multiFloorBuildings.length; m++) {
+    const mb = multiFloorBuildings[m];
+    if (x >= mb.stairMinX - 0.35 && x <= mb.stairMaxX + 0.35 && z >= mb.stairMinZ - 0.35 && z <= mb.stairMaxZ + 0.35) {
+      inStairwell = true;
+      break;
+    }
+  }
   for (let i = 0; i < colliders.length; i++) {
     const col = colliders[i];
     if (ignoreCar && col === ignoreCar.colliderObj) continue;
     if (ignoreTraffic && col.isTrafficCar) continue;
+    if (inStairwell && col.isFloorSlab) continue;
     const b = col.box;
     // Filtro espacial rápido (descarta caixas distantes > 25m antes do cálculo completo)
     if (x < b.min.x - 25 || x > b.max.x + 25 || z < b.min.z - 25 || z > b.max.z + 25) continue;

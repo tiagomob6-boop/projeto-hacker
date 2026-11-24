@@ -43,6 +43,8 @@ import {
   interiorGroups,
   worldPickups,
   coffeeMachines,
+  breakableWindows,
+  glassShards,
   remotePlayers,
   playersMap,
   colliders,
@@ -1084,6 +1086,66 @@ export function triggerElectricBox(box) {
   }
 }
 
+export function shatterWindow(win, impactDir = null) {
+  if (!win || win.broken) return;
+  win.broken = true;
+  if (win.mesh) win.mesh.visible = false;
+  if (win.colliderObj) {
+    const idx = colliders.indexOf(win.colliderObj);
+    if (idx !== -1) colliders.splice(idx, 1);
+  }
+  AudioManager.playGlassBreak();
+
+  // Gera 14 estilhaços 3D brilhantes caindo com gravidade (reciclados após 2s)
+  const shardCount = 14;
+  const dirX = impactDir ? impactDir.x : 0;
+  const dirZ = impactDir ? impactDir.z : 0;
+  for (let i = 0; i < shardCount; i++) {
+    const geo = new THREE.TetrahedronGeometry(0.14 + Math.random() * 0.14, 0);
+    const mat = new THREE.MeshBasicMaterial({
+      color: i % 2 === 0 ? 0xbae6fd : 0x38bdf8,
+      transparent: true,
+      opacity: 0.85,
+      side: THREE.DoubleSide
+    });
+    const shard = new THREE.Mesh(geo, mat);
+    shard.position.set(
+      win.center.x + (Math.random() - 0.5) * 0.5,
+      win.center.y + (Math.random() - 0.5) * 1.6,
+      win.center.z + (Math.random() - 0.5) * 1.8
+    );
+    refs.scene.add(shard);
+    glassShards.push({
+      mesh: shard,
+      vx: dirX * 5.5 + (Math.random() - 0.5) * 6.5,
+      vy: 1.5 + Math.random() * 3.8,
+      vz: dirZ * 5.5 + (Math.random() - 0.5) * 6.5,
+      rx: (Math.random() - 0.5) * 12,
+      ry: (Math.random() - 0.5) * 12,
+      life: 2.0
+    });
+  }
+}
+refs.onShatterWindow = shatterWindow;
+
+function checkEntityBreakWindows(x, y, z, radius, dirVec = null) {
+  for (let i = 0; i < breakableWindows.length; i++) {
+    const win = breakableWindows[i];
+    if (win.broken) continue;
+    const b = win.box;
+    if (
+      x >= b.min.x - radius &&
+      x <= b.max.x + radius &&
+      z >= b.min.z - radius &&
+      z <= b.max.z + radius &&
+      y + 1.5 >= b.min.y &&
+      y <= b.max.y + 0.5
+    ) {
+      shatterWindow(win, dirVec);
+    }
+  }
+}
+
 export function freeRescueCell(cell) {
   if (!cell || cell.freed) return;
   cell.freed = true;
@@ -2017,6 +2079,11 @@ export function updatePlayer(dt) {
     const moveZ = (fwdZ * inZ + rightZ * inX) * dSpeed * dt;
     const moveY = inY * 9.0 * dt;
 
+    // Drone em alta velocidade quebra vitrines/janelas ao colidir
+    if (inX !== 0 || inZ !== 0) {
+      checkEntityBreakWindows(dPos.x + moveX, dPos.y - 0.5, dPos.z + moveZ, 0.85, _tmpV1.set(moveX, 0, moveZ).normalize());
+    }
+
     // Colisão 3D separada nos eixos X, Z e Y para deslizar em paredes e nunca afundar no chão/água
     if (!checkDroneCollision(dPos.x + moveX, dPos.y, dPos.z, 0.45)) {
       dPos.x += moveX;
@@ -2244,6 +2311,11 @@ export function updatePlayer(dt) {
       }
     }
 
+    // Carros em movimento quebram vitrines de vidro ao impacto
+    if (Math.abs(car.speed) >= 3.5) {
+      checkEntityBreakWindows(cPos.x + stepX, cPos.y + 0.6, cPos.z + stepZ, 2.2, _tmpV1.set(fx, 0, fz));
+    }
+
     if (!checkCarCollision(cPos.x + stepX, cPos.z, car.mesh.rotation.y, car)) {
       cPos.x += stepX;
     } else {
@@ -2391,6 +2463,11 @@ export function updatePlayer(dt) {
 
     const stepX = moveX * currentSpeed * dt;
     const stepZ = moveZ * currentSpeed * dt;
+
+    // Jogador correndo (Shift) ou pulando (Space) quebra janelas de vidro ao atravessar
+    if (gameState.isSprinting || !gameState.isGrounded) {
+      checkEntityBreakWindows(pos.x + stepX, pos.y, pos.z + stepZ, 0.95, _tmpV1.set(moveX, 0, moveZ));
+    }
 
     // Movimentação livre no chão, calçadas, píeres e água (sem paredes invisíveis de água)
     if (!checkCollision(pos.x + stepX, pos.z, PLAYER_RADIUS, null, pos.y, 1.8)) {
@@ -3463,10 +3540,37 @@ export function updateInteractionsAndMission(dt) {
     }
   }
 
-  for (let i = 0; i < coffeeMachines.length; i++) {
+  for (let i = coffeeMachines.length - 1; i >= 0; i--) {
     if (coffeeMachines[i].cooldown > 0) {
       coffeeMachines[i].cooldown = Math.max(0, coffeeMachines[i].cooldown - dt);
     }
+  }
+
+  // Animação e reciclagem de estilhaços 3D de vidro (gravidade + dispose após 2s)
+  for (let i = glassShards.length - 1; i >= 0; i--) {
+    const sh = glassShards[i];
+    sh.life -= dt;
+    if (sh.life <= 0) {
+      refs.scene.remove(sh.mesh);
+      if (sh.mesh.geometry) sh.mesh.geometry.dispose();
+      if (sh.mesh.material) sh.mesh.material.dispose();
+      glassShards.splice(i, 1);
+      continue;
+    }
+    sh.vy -= 16.0 * dt;
+    sh.mesh.position.x += sh.vx * dt;
+    sh.mesh.position.y += sh.vy * dt;
+    sh.mesh.position.z += sh.vz * dt;
+    const floorY = getSurfaceHeight(sh.mesh.position.x, sh.mesh.position.z, sh.mesh.position.y) + 0.06;
+    if (sh.mesh.position.y < floorY) {
+      sh.mesh.position.y = floorY;
+      sh.vy *= -0.25;
+      sh.vx *= 0.6;
+      sh.vz *= 0.6;
+    }
+    sh.mesh.rotation.x += sh.rx * dt;
+    sh.mesh.rotation.y += sh.ry * dt;
+    sh.mesh.material.opacity = Math.min(0.85, sh.life * 0.6);
   }
 
   // Prompt de caixas de suprimentos nos prédios abertos (+$100 / +$200 ou +25 HP), Café e Terminal SFPD
