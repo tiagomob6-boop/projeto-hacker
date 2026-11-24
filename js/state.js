@@ -9,6 +9,7 @@ export const MISSION_STATE = {
   INFILTRATE: 'INFILTRATE',
   STEAL_DATA: 'STEAL_DATA',
   STEAL_CAR: 'STEAL_CAR',
+  RESCUE_PRISONER: 'RESCUE_PRISONER',
   ESCAPE: 'ESCAPE',
   VICTORY: 'VICTORY',
   GAMEOVER: 'GAMEOVER'
@@ -222,6 +223,101 @@ export const MAPS_CONFIG = {
       { waypoints: [[480, 0, 156], [480, 0, 178], [487, 0, 178], [487, 0, 156]], speed: 3.4, visionRange: 24 },
       { waypoints: [[510, 0, 178], [510, 0, 156], [503, 0, 156], [503, 0, 178]], speed: 3.5, visionRange: 24 },
       { waypoints: [[488, 0, 174], [502, 0, 174], [502, 0, 160], [488, 0, 160]], speed: 3.5, visionRange: 24 }
+    ]
+  },
+  HEIST_VALKYRIE_05: {
+    key: 'HEIST_VALKYRIE_05',
+    isVehicleTheft: true,
+    requiresInfiltration: true,
+    label: 'CONTRATO 05 // COFRE AUTOMOTIVO TWIN PEAKS',
+    desc: 'Infiltre-se no Cofre Automotivo próximo às colinas de Twin Peaks, hackeie o portão (E), roube o supercarro DedSec Valkyrie V12 (320 HP + Nitro) e entregue-o na Doca Industrial Leste. Recompensa: $4.500.',
+    reward: 4500,
+    deliveryLabel: 'DOCA INDUSTRIAL LESTE',
+    bounds: WORLD_BOUNDS,
+    radarScale: 0.95,
+    playerStart: [-220, 0, 364],
+    markerPos: [-220, 0.06, 366],
+    extractPos: [460, 0.06, -40],
+    carSpawn: { x: -220, z: 392, yaw: Math.PI, maxHp: 320, color: 0x0a0d16, neon: 0xffaa00, hasNitro: true, name: 'DedSec Valkyrie V12' },
+    gates: [
+      { x: -220, y: 2.2, z: 374, w: 8, h: 4.4, d: 0.6, panelPos: [-214.5, 0.75, 373.0], openX: -228.4 }
+    ],
+    cameras: [
+      { name: 'CAM_COFRE_01 // PORTÃO NORTE', pos: [-236.5, 4.9, 376], baseYaw: 0.68, basePitch: -0.35 },
+      { name: 'CAM_COFRE_02 // GALERIA SUL', pos: [-203.5, 4.9, 404], baseYaw: -2.42, basePitch: -0.35 }
+    ],
+    electricBoxes: [
+      { name: 'CAIXA_COFRE_VALKYRIE', pos: [-232, 0.85, 385] }
+    ],
+    guards: [
+      { waypoints: [[-233, 0, 379], [-207, 0, 379], [-207, 0, 387], [-233, 0, 387]], speed: 3.3, visionRange: 24 },
+      { waypoints: [[-207, 0, 401], [-233, 0, 401], [-233, 0, 393], [-207, 0, 393]], speed: 3.4, visionRange: 24 },
+      { waypoints: [[-234, 0, 382], [-234, 0, 402], [-227, 0, 402], [-227, 0, 382]], speed: 3.4, visionRange: 24 },
+      { waypoints: [[-206, 0, 402], [-206, 0, 382], [-213, 0, 382], [-213, 0, 402]], speed: 3.5, visionRange: 24 },
+      { waypoints: [[-227, 0, 398], [-213, 0, 398], [-213, 0, 384], [-227, 0, 384]], speed: 3.5, visionRange: 24 }
+    ]
+  },
+  RESCUE_01: {
+    key: 'RESCUE_01',
+    isRescue: true,
+    label: 'RESGATE 01 // GALPÃO ISOLADO NORTE',
+    desc: 'Infiltre-se no posto avançado em Downtown Norte, hackeie o terminal da cela (E) ou destrua o gerador próximo para libertar o hacker da DedSec e fuja até o Ponto de Extração. Recompensa: $3.200.',
+    reward: 3200,
+    wantedOnFree: 2,
+    bounds: WORLD_BOUNDS,
+    radarScale: 0.95,
+    playerStart: [-240, 0, -195],
+    markerPos: [-240, 0.06, -198],
+    extractPos: [-45, 0.04, 48],
+    cellPos: [-240, 0, -226],
+    panelPos: [-236.2, 0.85, -222.5],
+    generatorPos: [-244.5, 0.9, -224],
+    escapeDir: [0, 1],
+    gates: [],
+    cameras: [
+      { name: 'CAM_RESGATE01_A // PORTÃO SUL', pos: [-254, 4.8, -208], baseYaw: 2.35, basePitch: -0.35 },
+      { name: 'CAM_RESGATE01_B // CELA NORTE', pos: [-226, 4.8, -232], baseYaw: -0.75, basePitch: -0.35 }
+    ],
+    electricBoxes: [
+      { name: 'CAIXA_GALPAO_NORTE', pos: [-250, 0.85, -218] }
+    ],
+    guards: [
+      { waypoints: [[-251, 0, -211], [-229, 0, -211], [-229, 0, -219], [-251, 0, -219]], speed: 3.1, visionRange: 22 },
+      { waypoints: [[-229, 0, -231], [-251, 0, -231], [-251, 0, -222], [-229, 0, -222]], speed: 3.2, visionRange: 22 },
+      { waypoints: [[-252, 0, -213], [-252, 0, -230], [-245, 0, -230], [-245, 0, -213]], speed: 3.2, visionRange: 22 },
+      { waypoints: [[-228, 0, -230], [-228, 0, -213], [-235, 0, -213], [-235, 0, -230]], speed: 3.3, visionRange: 22 }
+    ]
+  },
+  RESCUE_02: {
+    key: 'RESCUE_02',
+    isRescue: true,
+    label: 'RESGATE 02 // TERMINAL MARÍTIMO SUL-LESTE',
+    desc: 'Invada a base costeira no extremo do Setor Portuário, hackeie o terminal da cela (E) ou destrua o gerador para libertar o informante e alcance o Ponto de Extração. Recompensa: $3.800.',
+    reward: 3800,
+    wantedOnFree: 3,
+    bounds: WORLD_BOUNDS,
+    radarScale: 0.95,
+    playerStart: [494, 0, 340],
+    markerPos: [497, 0.06, 340],
+    extractPos: [435, 0.04, 65],
+    cellPos: [526, 0, 340],
+    panelPos: [522.5, 0.85, 336.2],
+    generatorPos: [524, 0.9, 344.5],
+    escapeDir: [-1, 0],
+    gates: [],
+    cameras: [
+      { name: 'CAM_RESGATE02_A // ENTRADA OESTE', pos: [507, 4.9, 326], baseYaw: 0.72, basePitch: -0.35 },
+      { name: 'CAM_RESGATE02_B // CELA LESTE', pos: [533, 4.9, 353], baseYaw: -2.4, basePitch: -0.35 }
+    ],
+    electricBoxes: [
+      { name: 'CAIXA_TERMINAL_SULLESTE', pos: [514, 0.85, 329] }
+    ],
+    guards: [
+      { waypoints: [[509, 0, 329], [531, 0, 329], [531, 0, 336], [509, 0, 336]], speed: 3.2, visionRange: 24 },
+      { waypoints: [[531, 0, 351], [509, 0, 351], [509, 0, 344], [531, 0, 344]], speed: 3.3, visionRange: 24 },
+      { waypoints: [[509, 0, 331], [509, 0, 349], [516, 0, 349], [516, 0, 331]], speed: 3.3, visionRange: 24 },
+      { waypoints: [[531, 0, 349], [531, 0, 331], [523, 0, 331], [523, 0, 349]], speed: 3.4, visionRange: 24 },
+      { waypoints: [[515, 0, 347], [527, 0, 347], [527, 0, 333], [515, 0, 333]], speed: 3.5, visionRange: 24 }
     ]
   }
 };
@@ -442,6 +538,7 @@ export const lightPoles = [];      // Postes de iluminação urbana com colisão
 export const trafficLights = [];   // Semáforos hackeáveis nos cruzamentos (V + E)
 export const supplyBoxes = [];     // Caixas de suprimentos (+$100 ou +25 HP) nos interiores acessíveis
 export const policeCars = [];      // Viaturas de reforço policial ctOS spawnadas dinamicamente
+export const rescueCells = [];     // Celas de contenção de prisioneiros (RESCUE_01, RESCUE_02)
 export const remotePlayers = new Map(); // Jogadores remotos (id -> { group, parts, targetPos, targetYaw })
 export const playersMap = new Map();    // Todos os agentes ativos ('local' + remotos)
 export const missionServers = {};  // { COMPLEXO_CTOS: { mesh, core, particles, particleData }, DOCAS_BAIA_SF: ... }

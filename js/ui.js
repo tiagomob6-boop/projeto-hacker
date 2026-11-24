@@ -32,6 +32,7 @@ import {
   missionMarkers,
   stores,
   trafficLights,
+  rescueCells,
   formatTime,
   saveProgress,
   getSurfaceHeight
@@ -238,6 +239,7 @@ export function openTerminal(targetType = 'GATE') {
   gameState.terminalTarget = targetType;
 
   const isFirewall = targetType === 'FIREWALL';
+  const isCell = targetType === 'CELL';
   const preset = DIFFICULTY_PRESETS[gameState.difficulty];
   const duration = isFirewall ? preset.firewallTime : preset.gateTime;
   const pool = isFirewall ? FIREWALL_CODES : HACK_CODES;
@@ -248,6 +250,8 @@ export function openTerminal(targetType = 'GATE') {
   if (dom.terminalLogAction) {
     dom.terminalLogAction.textContent = isFirewall
       ? '> FIREWALL ATIVO NO SERVIDOR CENTRAL ctOS.'
+      : isCell
+      ? '> CONEXÃO ESTABELECIDA COM O TERMINAL DA CELA DE CONTENÇÃO.'
       : '> CONEXÃO ESTABELECIDA COM O PAINEL DO PORTÃO.';
   }
 
@@ -277,6 +281,17 @@ export function completeTerminalHack() {
     refs.serverMesh.userData.normalMaterial.emissive.setHex(0x00f0ff);
     refs.onFirewallDisabled?.();
     dom.hackFeedback.textContent = '> FIREWALL DESATIVADO // ALERTA GERAL ATIVADO!';
+    dom.hackFeedback.style.color = '#00ff88';
+    setTimeout(() => {
+      closeGateTerminal();
+    }, 450);
+    return;
+  }
+
+  if (gameState.terminalTarget === 'CELL') {
+    const cell = rescueCells[gameState.activeCellIndex];
+    if (cell) refs.onFreeRescueCell?.(cell);
+    dom.hackFeedback.textContent = '> CELA DESENERGIZADA // PRISIONEIRO LIBERTADO!';
     dom.hackFeedback.style.color = '#00ff88';
     setTimeout(() => {
       closeGateTerminal();
@@ -436,6 +451,9 @@ export function setMissionState(newState) {
     dom.missionObjective.textContent = `ENTREGUE O VEÍCULO EM: ${destLabel}`;
     dom.missionSub.textContent = `Fuja da perseguição policial e estacione o veículo intacto em ${destLabel}`;
     AudioManager.setMusicTempo(134);
+  } else if (newState === MISSION_STATE.RESCUE_PRISONER) {
+    dom.missionObjective.textContent = 'RESGATE O PRISIONEIRO NO POSTO AVANÇADO';
+    dom.missionSub.textContent = 'Hackeie o terminal da cela [E] ou destrua o gerador próximo para libertá-lo';
   } else if (newState === MISSION_STATE.ESCAPE) {
     dom.missionObjective.textContent = 'FUJA PARA A ZONA DE EXTRAÇÃO';
     dom.missionSub.textContent = 'Corra até o anel verde na rua para concluir a missão';
@@ -707,6 +725,10 @@ export function getActiveGpsTarget() {
     const dest = activeCfg?.extractPos || [-120, 0.06, 320];
     return { x: dest[0], z: dest[2] };
   }
+  if (gameState.mission === MISSION_STATE.RESCUE_PRISONER) {
+    const cell = rescueCells.find((c) => c.missionKey === gameState.activeMissionKey && !c.freed);
+    if (cell) return { x: cell.panelMesh.position.x, z: cell.panelMesh.position.z };
+  }
   if (gameState.mission === MISSION_STATE.ESCAPE && refs.extractionZoneGroup) {
     return { x: refs.extractionZoneGroup.position.x, z: refs.extractionZoneGroup.position.z };
   }
@@ -737,7 +759,7 @@ export function getActiveGpsTarget() {
   return null;
 }
 
-const MAP_BOUNDS = { minX: -280, maxX: 660, minZ: -160, maxZ: 520 };
+const MAP_BOUNDS = { minX: -280, maxX: 660, minZ: -260, maxZ: 520 };
 
 export function renderTacticalMap() {
   if (!dom.tacticalMapCanvas) return;
@@ -836,12 +858,16 @@ export function renderTacticalMap() {
     ctx.fillText(st.name, sp.x - 24, sp.y + 16);
   });
 
-  // Complexos protegidos & Pontos de Entrega dos Contratos 03 e 04 no Mapa Tático
+  // Complexos protegidos, Postos de Resgate & Pontos de Entrega no Mapa Tático
   [
     { x: -195, z: 220, label: 'DEPÓSITO BLUME [03]', color: '#ff00aa' },
     { x: 495, z: 165, label: 'HANGAR ctOS [04]', color: '#00ff88' },
+    { x: -220, z: 390, label: 'COFRE TWIN PEAKS [05]', color: '#ffaa00' },
+    { x: -240, z: -220, label: 'RESGATE 01 [NORTE]', color: '#00f0ff' },
+    { x: 520, z: 340, label: 'RESGATE 02 [SUL-LESTE]', color: '#ffaa00' },
     { x: 435, z: -135, label: 'DOCA NORTE', color: '#00ff88' },
-    { x: -210, z: -140, label: 'GARAGEM OESTE', color: '#00f0ff' }
+    { x: -210, z: -140, label: 'GARAGEM OESTE', color: '#00f0ff' },
+    { x: 460, z: -40, label: 'DOCA LESTE', color: '#ffaa00' }
   ].forEach((poi) => {
     const pp = toCanvas(poi.x, poi.z);
     ctx.strokeStyle = poi.color;
@@ -861,7 +887,9 @@ export function renderTacticalMap() {
       ? '#ff00aa'
       : m.key === 'HEIST_CTOS_04'
       ? '#00ff88'
-      : m.key === 'COMPLEXO_CTOS'
+      : m.key === 'HEIST_VALKYRIE_05' || m.key === 'RESCUE_02'
+      ? '#ffaa00'
+      : m.key === 'RESCUE_01' || m.key === 'COMPLEXO_CTOS'
       ? '#00f0ff'
       : '#ffaa00';
     ctx.lineWidth = 2;
@@ -1047,13 +1075,19 @@ export function triggerVictory() {
     'RANK B - OPERATIVO': 1300,
     'RANK C': 1000
   };
-  const reward = activeCfg.isVehicleTheft ? activeCfg.reward || 2000 : rewardMap[rank] || 1000;
+  const reward = activeCfg.isVehicleTheft || activeCfg.isRescue ? activeCfg.reward || 2000 : rewardMap[rank] || 1000;
   gameState.money += reward;
   updateMoneyHUD();
 
   dom.hud.classList.add('hidden');
   dom.finalTime.textContent = formatTime(gameState.elapsedTime);
-  if (dom.finalRank) dom.finalRank.textContent = activeCfg.isVehicleTheft ? 'ENTREGA VIP CONCLUÍDA' : rank;
+  if (dom.finalRank) {
+    dom.finalRank.textContent = activeCfg.isVehicleTheft
+      ? 'ENTREGA VIP CONCLUÍDA'
+      : activeCfg.isRescue
+      ? 'RESGATE CONCLUÍDO'
+      : rank;
+  }
   if (dom.finalReward) dom.finalReward.textContent = `+$${reward.toLocaleString('pt-BR')}`;
   if (dom.finalDetection) dom.finalDetection.textContent = `${Math.round(gameState.maxDetection)}%`;
   if (dom.finalHacks) dom.finalHacks.textContent = String(gameState.hacksUsed);
@@ -1179,7 +1213,9 @@ export function updateRadar() {
       ? '#ff00aa'
       : m.key === 'HEIST_CTOS_04'
       ? '#00ff88'
-      : m.key === 'COMPLEXO_CTOS'
+      : m.key === 'HEIST_VALKYRIE_05' || m.key === 'RESCUE_02'
+      ? '#ffaa00'
+      : m.key === 'RESCUE_01' || m.key === 'COMPLEXO_CTOS'
       ? '#00f0ff'
       : '#ffaa00';
     ctx.lineWidth = 2;

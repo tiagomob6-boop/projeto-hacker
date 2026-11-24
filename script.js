@@ -202,6 +202,7 @@ function setupInputs() {
       gameState.mission === MISSION_STATE.INFILTRATE ||
       gameState.mission === MISSION_STATE.STEAL_DATA ||
       gameState.mission === MISSION_STATE.STEAL_CAR ||
+      gameState.mission === MISSION_STATE.RESCUE_PRISONER ||
       gameState.mission === MISSION_STATE.ESCAPE;
     if (
       playing &&
@@ -238,6 +239,7 @@ function setupInputs() {
       gameState.mission === MISSION_STATE.INFILTRATE ||
       gameState.mission === MISSION_STATE.STEAL_DATA ||
       gameState.mission === MISSION_STATE.STEAL_CAR ||
+      gameState.mission === MISSION_STATE.RESCUE_PRISONER ||
       gameState.mission === MISSION_STATE.ESCAPE;
     if (!playing) return;
 

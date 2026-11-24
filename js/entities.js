@@ -37,6 +37,7 @@ import {
   trafficLights,
   supplyBoxes,
   policeCars,
+  rescueCells,
   remotePlayers,
   playersMap,
   colliders,
@@ -924,6 +925,38 @@ export function triggerElectricBox(box) {
   }
 }
 
+export function freeRescueCell(cell) {
+  if (!cell || cell.freed) return;
+  cell.freed = true;
+  cell.genHp = 0;
+  if (cell.barsGroup) cell.barsGroup.visible = false;
+  if (cell.cellCollider) {
+    const colIdx = colliders.indexOf(cell.cellCollider);
+    if (colIdx !== -1) colliders.splice(colIdx, 1);
+  }
+  if (cell.panelMesh?.userData?.normalMaterial?.emissive) {
+    cell.panelMesh.userData.normalMaterial.emissive.setHex(0x00ff88);
+  }
+  if (cell.genMesh?.userData?.normalMaterial?.emissive) {
+    cell.genMesh.userData.normalMaterial.emissive.setHex(0x222222);
+    cell.genMesh.userData.normalMaterial.emissiveIntensity = 0.1;
+  }
+  AudioManager.playGateMechanical();
+  cell.prisonerRunning = true;
+  cell.prisonerRunTimer = 9.0;
+
+  if (gameState.mission === MISSION_STATE.RESCUE_PRISONER && gameState.activeMissionKey === cell.missionKey) {
+    const cfg = MAPS_CONFIG[cell.missionKey];
+    triggerBaseAlert();
+    const wantedTarget = cfg?.wantedOnFree || 2;
+    addWantedLevel(Math.max(0, wantedTarget - gameState.wantedLevel), 'PERSEGUIÇÃO');
+    setMissionState(MISSION_STATE.ESCAPE);
+    dom.missionObjective.textContent = 'PRISIONEIRO LIBERTADO // FUJA PARA A EXTRAÇÃO';
+    dom.missionSub.textContent = '"Valeu, DedSec!" — Escape da perseguição até o anel verde de extração';
+  }
+}
+refs.onFreeRescueCell = freeRescueCell;
+
 export function handleInteractPress() {
   // Se já está em uma câmera, E também pode sair
   if (gameState.activeCamIndex >= 0) {
@@ -940,6 +973,16 @@ export function handleInteractPress() {
     if (!g.unlocked && pPos.distanceTo(g.panelMesh.position) < gateDistLimit) {
       gameState.activeGateIndex = i;
       openTerminal('GATE');
+      return;
+    }
+  }
+
+  // 1a. Checar terminais das celas de resgate (a pé ou via Drone Q)
+  for (let i = 0; i < rescueCells.length; i++) {
+    const cell = rescueCells[i];
+    if (!cell.freed && pPos.distanceTo(cell.panelMesh.position) < gateDistLimit) {
+      gameState.activeCellIndex = i;
+      openTerminal('CELL');
       return;
     }
   }
@@ -1393,6 +1436,44 @@ export function disembarkPoliceCar(car) {
 // ==========================================
 // MOVIMENTAÇÃO, COLISÃO, CARROS E CÂMERA
 // ==========================================
+function checkCarHitPedestrians(car, isPlayerCar = false) {
+  if (!car || car.destroyed || Math.abs(car.speed) < 5.0) return;
+  const cPos = car.mesh.position;
+  const moveSign = Math.sign(car.speed) || 1;
+  const fwdX = Math.sin(car.mesh.rotation.y) * moveSign;
+  const fwdZ = Math.cos(car.mesh.rotation.y) * moveSign;
+  const rightX = Math.cos(car.mesh.rotation.y);
+  const rightZ = -Math.sin(car.mesh.rotation.y);
+  const impactSpeed = Math.abs(car.speed);
+
+  for (const ped of pedestrians) {
+    if (ped.stunnedTimer > 0) continue;
+    const dx = ped.mesh.position.x - cPos.x;
+    const dz = ped.mesh.position.z - cPos.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist < 1.85 && Math.abs(ped.mesh.position.y - cPos.y) < 2.0) {
+      const latSign = dx * rightX + dz * rightZ >= 0 ? 1 : -1;
+      const launch = Math.min(13.5, Math.max(6.5, impactSpeed * 0.72));
+      ped.stunnedTimer = 14.0;
+      ped.callingPolice = false;
+      if (ped.phoneIcon) ped.phoneIcon.visible = false;
+      ped.knockTimer = 0.55;
+      ped.knockVx = fwdX * launch + rightX * latSign * 3.4;
+      ped.knockVz = fwdZ * launch + rightZ * latSign * 3.4;
+      ped.knockVy = 3.8;
+      ped.mesh.rotation.x = -Math.PI / 2;
+      AudioManager.playMetalCrash();
+      // Leve desaceleração sem travar o carro como se fosse um muro
+      car.speed *= 0.96;
+      if (isPlayerCar) {
+        reportCrimeToCivilians(ped.mesh.position, 24, 2);
+      } else {
+        reportCrimeToCivilians(ped.mesh.position, 18, 1);
+      }
+    }
+  }
+}
+
 export function updateCars(dt) {
   // Atualizar timers de semáforos hackeados
   trafficLights.forEach((tl, idx) => {
@@ -1585,6 +1666,7 @@ export function updateCars(dt) {
             car.mesh.updateMatrixWorld(true);
             car.colliderObj.box.setFromObject(car.mesh);
             updateCarPitch(car, dt);
+            checkCarHitPedestrians(car, false);
           } else {
             // Se encontrar bloqueio físico ou colidir, para e desembarca a tropa imediatamente
             car.speed = 0;
@@ -1885,13 +1967,22 @@ export function updatePlayer(dt) {
     if (!checkCarCollision(cPos.x + stepX, cPos.z, car.mesh.rotation.y, car)) {
       cPos.x += stepX;
     } else {
+      if (Math.abs(car.speed) >= 10.0) {
+        AudioManager.playMetalCrash();
+        reportCrimeToCivilians(cPos, 20, 1);
+      }
       car.speed *= 0.2;
     }
     if (!checkCarCollision(cPos.x, cPos.z + stepZ, car.mesh.rotation.y, car)) {
       cPos.z += stepZ;
     } else {
+      if (Math.abs(car.speed) >= 10.0) {
+        AudioManager.playMetalCrash();
+        reportCrimeToCivilians(cPos, 20, 1);
+      }
       car.speed *= 0.2;
     }
+    checkCarHitPedestrians(car, true);
 
     cPos.x = THREE.MathUtils.clamp(cPos.x, WORLD_BOUNDS.minX + 1, WORLD_BOUNDS.maxX - 1);
     cPos.z = THREE.MathUtils.clamp(cPos.z, WORLD_BOUNDS.minZ + 1, WORLD_BOUNDS.maxZ - 1);
@@ -2435,6 +2526,22 @@ export function updatePedestrians(dt) {
 
     if (ped.stunnedTimer > 0) {
       ped.stunnedTimer = Math.max(0, ped.stunnedTimer - dt);
+      // Física de arremesso pós-atropelamento antes de assentar no asfalto
+      if (ped.knockTimer > 0) {
+        ped.knockTimer = Math.max(0, ped.knockTimer - dt);
+        const kx = pos.x + (ped.knockVx || 0) * dt;
+        const kz = pos.z + (ped.knockVz || 0) * dt;
+        if (!checkCollision(kx, kz, 0.35) && !isWaterArea(kx, kz)) {
+          pos.x = kx;
+          pos.z = kz;
+        }
+        ped.knockVy = (ped.knockVy || 0) - 14.0 * dt;
+        const groundY = getSurfaceHeight(pos.x, pos.z) + 0.2;
+        pos.y = Math.max(groundY, pos.y + ped.knockVy * dt);
+        ped.knockVx = (ped.knockVx || 0) * Math.max(0, 1 - dt * 3.5);
+        ped.knockVz = (ped.knockVz || 0) * Math.max(0, 1 - dt * 3.5);
+        if (ped.knockTimer === 0) pos.y = groundY;
+      }
       if (ped.stunnedTimer === 0) {
         ped.mesh.rotation.x = 0;
         pos.y = getSurfaceHeight(pos.x, pos.z);
@@ -2474,11 +2581,43 @@ export function updatePedestrians(dt) {
       return;
     }
 
+    // IA Urbana: detectar carro se aproximando (< 10m à frente) e mergulhar/correr lateralmente para a calçada
+    if (!ped.dodgeTimer || ped.dodgeTimer <= 0) {
+      for (const car of cars) {
+        if (car.destroyed || Math.abs(car.speed) < 2.0) continue;
+        const cPos = car.mesh.position;
+        const dx = pos.x - cPos.x;
+        const dz = pos.z - cPos.z;
+        if (dx * dx + dz * dz > 110) continue;
+        const moveSign = Math.sign(car.speed) || 1;
+        const cfX = Math.sin(car.mesh.rotation.y) * moveSign;
+        const cfZ = Math.cos(car.mesh.rotation.y) * moveSign;
+        const crX = Math.cos(car.mesh.rotation.y);
+        const crZ = -Math.sin(car.mesh.rotation.y);
+        const proj = dx * cfX + dz * cfZ;
+        const lat = dx * crX + dz * crZ;
+        if (proj > 0.6 && proj < 10.0 && Math.abs(lat) < 2.8) {
+          const side = lat >= 0 ? 1 : -1;
+          ped.dodgeTimer = 1.3;
+          ped.dodgeDirX = crX * side;
+          ped.dodgeDirZ = crZ * side;
+          break;
+        }
+      }
+    }
+
     let moveX = 0;
     let moveZ = 0;
     let speed = ped.walkSpeed;
+    let dodging = false;
 
-    if (ped.panickedTimer > 0) {
+    if (ped.dodgeTimer > 0) {
+      ped.dodgeTimer = Math.max(0, ped.dodgeTimer - dt);
+      moveX = ped.dodgeDirX || 1;
+      moveZ = ped.dodgeDirZ || 0;
+      speed = 6.2;
+      dodging = true;
+    } else if (ped.panickedTimer > 0) {
       ped.panickedTimer = Math.max(0, ped.panickedTimer - dt);
       moveX = ped.panicDirX;
       moveZ = ped.panicDirZ;
@@ -2493,6 +2632,26 @@ export function updatePedestrians(dt) {
       } else {
         moveX = dx / dist;
         moveZ = dz / dist;
+        // Parar na faixa de pedestres se houver tráfego cruzando à frente
+        const aheadX = pos.x + moveX * 2.6;
+        const aheadZ = pos.z + moveZ * 2.6;
+        for (const car of cars) {
+          if (car.destroyed || Math.abs(car.speed) < 1.5) continue;
+          const distAhead = Math.hypot(car.mesh.position.x - aheadX, car.mesh.position.z - aheadZ);
+          if (distAhead < 6.5) {
+            const cfX = Math.sin(car.mesh.rotation.y);
+            const cfZ = Math.cos(car.mesh.rotation.y);
+            if (Math.abs(cfX * moveX + cfZ * moveZ) < 0.75) {
+              moveX = 0;
+              moveZ = 0;
+              ped.legL.rotation.x = 0;
+              ped.legR.rotation.x = 0;
+              ped.armL.rotation.x = 0;
+              ped.armR.rotation.x = 0;
+              break;
+            }
+          }
+        }
       }
     }
 
@@ -2506,7 +2665,7 @@ export function updatePedestrians(dt) {
       } else if (ped.panickedTimer > 0) {
         ped.panicDirX = -ped.panicDirX;
         ped.panicDirZ = -ped.panicDirZ;
-      } else {
+      } else if (!dodging) {
         ped.currentTarget = (ped.currentTarget + 1) % ped.waypoints.length;
       }
 
@@ -2516,12 +2675,13 @@ export function updatePedestrians(dt) {
       while (diff < -Math.PI) diff += Math.PI * 2;
       ped.mesh.rotation.y += diff * Math.min(1, dt * 8);
 
-      ped.phase += dt * (ped.panickedTimer > 0 ? 15 : 8.5);
-      const swing = Math.sin(ped.phase) * (ped.panickedTimer > 0 ? 0.65 : 0.4);
+      const running = ped.panickedTimer > 0 || dodging;
+      ped.phase += dt * (running ? 16 : 8.5);
+      const swing = Math.sin(ped.phase) * (running ? 0.68 : 0.4);
       ped.legL.rotation.x = swing;
       ped.legR.rotation.x = -swing;
-      ped.armL.rotation.x = ped.panickedTimer > 0 ? -2.1 + swing * 0.4 : -swing * 0.7;
-      ped.armR.rotation.x = ped.panickedTimer > 0 ? -2.1 - swing * 0.4 : swing * 0.7;
+      ped.armL.rotation.x = running ? -2.1 + swing * 0.4 : -swing * 0.7;
+      ped.armR.rotation.x = running ? -2.1 - swing * 0.4 : swing * 0.7;
     }
   });
 }
@@ -2917,6 +3077,35 @@ export function updateInteractionsAndMission(dt) {
     if (!g.unlocked && activePos.distanceTo(g.panelMesh.position) < gateLimit) {
       promptText = `[E] HACKEAR PAINEL DO PORTÃO ${gates.length > 1 ? i + 1 : ''}`.trim();
       break;
+    }
+  }
+
+  // Prompt dos terminais das celas de resgate + animação dos prisioneiros libertados correndo
+  for (const cell of rescueCells) {
+    if (!cell.freed && !promptText && activePos.distanceTo(cell.panelMesh.position) < gateLimit) {
+      promptText = '[E] HACKEAR TERMINAL DA CELA (LIBERTAR PRISIONEIRO)';
+    }
+    if (cell.prisonerRunning && cell.prisoner) {
+      cell.prisonerRunTimer = Math.max(0, cell.prisonerRunTimer - dt);
+      const [edx, edz] = cell.escapeDir || [0, 1];
+      const nx = cell.prisoner.position.x + edx * 6.4 * dt;
+      const nz = cell.prisoner.position.z + edz * 6.4 * dt;
+      if (!isWaterArea(nx, nz)) {
+        cell.prisoner.position.x = nx;
+        cell.prisoner.position.z = nz;
+        cell.prisoner.position.y = getSurfaceHeight(nx, nz);
+      }
+      cell.prisoner.rotation.y = Math.atan2(edx, edz);
+      cell.prisonerPhase += dt * 16;
+      const sw = Math.sin(cell.prisonerPhase) * 0.65;
+      cell.pLegL.rotation.x = sw;
+      cell.pLegR.rotation.x = -sw;
+      cell.pArmL.rotation.x = -sw * 0.8;
+      cell.pArmR.rotation.x = sw * 0.8;
+      if (cell.prisonerRunTimer === 0) {
+        cell.prisonerRunning = false;
+        cell.prisoner.visible = false;
+      }
     }
   }
 

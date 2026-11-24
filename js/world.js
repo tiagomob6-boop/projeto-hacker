@@ -38,6 +38,7 @@ import {
   trafficLights,
   supplyBoxes,
   policeCars,
+  rescueCells,
   missionServers,
   missionExtractions,
   serverParticleData,
@@ -404,6 +405,7 @@ export function buildMap() {
   trafficLights.length = 0;
   supplyBoxes.length = 0;
   policeCars.length = 0;
+  rescueCells.length = 0;
   refs.waterMesh = null;
   refs.dedsecCar = null;
   refs.showroomTurntable = null;
@@ -505,6 +507,7 @@ export function buildMap() {
   // Setor 4: Distrito Residencial & Colinas Sul + Ponte Sul
   buildSouthDistrictAndBridge();
   buildHeistCompounds();
+  buildRescueOutposts();
   buildUrbanDetailsAndMidBlocks();
   buildTerrainAndMountains();
 
@@ -522,7 +525,7 @@ export function buildMap() {
   buildBoatPiersAndBoats();
 
   // Câmeras, Caixas Elétricas e Guardas das missões e contratos VIP + Câmeras de rua ctOS
-  ['COMPLEXO_CTOS', 'DOCAS_BAIA_SF', 'VIP_CAR_01', 'VIP_CAR_02', 'HEIST_BLUME_03', 'HEIST_CTOS_04'].forEach((mKey) => {
+  ['COMPLEXO_CTOS', 'DOCAS_BAIA_SF', 'VIP_CAR_01', 'VIP_CAR_02', 'HEIST_BLUME_03', 'HEIST_CTOS_04', 'HEIST_VALKYRIE_05', 'RESCUE_01', 'RESCUE_02'].forEach((mKey) => {
     const mCfg = MAPS_CONFIG[mKey];
     buildSecurityCameras(mCfg, mKey);
     buildElectricBoxes(mCfg);
@@ -742,11 +745,60 @@ export function buildHeistCompounds() {
   buildMapGates(MAPS_CONFIG.HEIST_CTOS_04, 'HEIST_CTOS_04');
 
   // =========================================================
+  // CONTRATO 05: COFRE AUTOMOTIVO TWIN PEAKS (Distrito Sul, X: -220, Z: 390)
+  // =========================================================
+  const vx = -220;
+  const vz = 390;
+  const vw = 36; // X: -238 .. -202
+  const vd = 32; // Z: 374 .. 406
+  const vh = 5.4;
+  const vAccent = 0xffaa00;
+
+  addStaticBox(vw, 0.14, vd, vx, 0.02, vz, 0x121826, {
+    collide: false,
+    occlude: false,
+    edgesColor: vAccent,
+    edgesOpacity: 0.55
+  });
+  addStaticBox(0.9, vh, vd, vx - vw / 2, vh / 2, vz, 0x1a2030, { edgesColor: vAccent, edgesOpacity: 0.78 });
+  addStaticBox(0.9, vh, vd, vx + vw / 2, vh / 2, vz, 0x1a2030, { edgesColor: vAccent, edgesOpacity: 0.78 });
+  addStaticBox(vw, vh, 0.9, vx, vh / 2, vz + vd / 2, 0x1a2030, { edgesColor: vAccent, edgesOpacity: 0.78 });
+  const vSideW = (vw - 8) / 2;
+  addStaticBox(vSideW, vh, 0.9, vx - (4 + vSideW / 2), vh / 2, vz - vd / 2, 0x1a2030, { edgesColor: vAccent, edgesOpacity: 0.8 });
+  addStaticBox(vSideW, vh, 0.9, vx + (4 + vSideW / 2), vh / 2, vz - vd / 2, 0x1a2030, { edgesColor: vAccent, edgesOpacity: 0.8 });
+  addStaticBox(9.2, 0.75, 1.0, vx, vh + 0.35, vz - vd / 2, 0x141b2c, { collide: false, occlude: false, edgesColor: vAccent, edgesOpacity: 0.9 });
+  const vaultSign = new THREE.Mesh(
+    new THREE.PlaneGeometry(10.5, 1.9),
+    new THREE.MeshBasicMaterial({ map: TextureGenerator.getNeonSignTexture('COFRE TWIN PEAKS', '#ffaa00'), side: THREE.DoubleSide })
+  );
+  vaultSign.position.set(vx, vh + 1.55, vz - vd / 2 - 0.15);
+  refs.worldGroup.add(vaultSign);
+
+  [
+    [vx - 11, 1.1, vz - 6, 3.2, 2.2, 2.4],
+    [vx + 11, 1.1, vz - 6, 3.2, 2.2, 2.4],
+    [vx - 11, 1.1, vz + 8, 3.4, 2.2, 2.8],
+    [vx + 11, 1.1, vz + 8, 3.4, 2.2, 2.8]
+  ].forEach(([cx, cy, cz, cw, ch, cd]) => {
+    addStaticBox(cw, ch, cd, cx, cy, cz, 0x20293d, { edgesColor: vAccent, edgesOpacity: 0.6 });
+  });
+
+  radarWalls.push(
+    { x1: vx - vw / 2, z1: vz - vd / 2, x2: vx - vw / 2, z2: vz + vd / 2 },
+    { x1: vx + vw / 2, z1: vz - vd / 2, x2: vx + vw / 2, z2: vz + vd / 2 },
+    { x1: vx - vw / 2, z1: vz + vd / 2, x2: vx + vw / 2, z2: vz + vd / 2 },
+    { x1: vx - vw / 2, z1: vz - vd / 2, x2: vx - 4, z2: vz - vd / 2 },
+    { x1: vx + 4, z1: vz - vd / 2, x2: vx + vw / 2, z2: vz - vd / 2 }
+  );
+  buildMapGates(MAPS_CONFIG.HEIST_VALKYRIE_05, 'HEIST_VALKYRIE_05');
+
+  // =========================================================
   // PONTOS DE ENTREGA DOS NOVOS CONTRATOS (SEM PointLights EXTRAS)
   // =========================================================
   const deliverySpots = [
     { x: 435, z: -135, label: 'DOCA CLANDESTINA NORTE', color: 0x00ff88, hex: '#00ff88' },
-    { x: -210, z: -140, label: 'GARAGEM DEDSEC OESTE', color: 0x00f0ff, hex: '#00f0ff' }
+    { x: -210, z: -140, label: 'GARAGEM DEDSEC OESTE', color: 0x00f0ff, hex: '#00f0ff' },
+    { x: 460, z: -40, label: 'DOCA INDUSTRIAL LESTE', color: 0xffaa00, hex: '#ffaa00' }
   ];
   deliverySpots.forEach((ds) => {
     addStaticBox(24, 0.4, 20, ds.x, 4.8, ds.z, 0x141d2e, {
@@ -769,6 +821,184 @@ export function buildHeistCompounds() {
     );
     sign.position.set(ds.x, 4.1, ds.z + 10.2);
     refs.worldGroup.add(sign);
+  });
+}
+
+export function buildRescueOutposts() {
+  const outpostConfigs = [
+    {
+      missionKey: 'RESCUE_01',
+      cx: -240,
+      cz: -220,
+      w: 32,
+      d: 28,
+      h: 4.6,
+      openSide: 'SOUTH',
+      accent: 0x00f0ff,
+      hex: '#00f0ff',
+      signText: 'GALPÃO ISOLADO NORTE',
+      prisonerColor: 0x00f0ff
+    },
+    {
+      missionKey: 'RESCUE_02',
+      cx: 520,
+      cz: 340,
+      w: 32,
+      d: 30,
+      h: 4.8,
+      openSide: 'WEST',
+      accent: 0xffaa00,
+      hex: '#ffaa00',
+      signText: 'TERMINAL SUL-LESTE',
+      prisonerColor: 0xffaa00
+    }
+  ];
+
+  outpostConfigs.forEach((oc) => {
+    const cfg = MAPS_CONFIG[oc.missionKey];
+    const { cx, cz, w, d, h, accent } = oc;
+
+    // Piso do posto avançado
+    addStaticBox(w, 0.14, d, cx, 0.02, cz, 0x111827, {
+      collide: false,
+      occlude: false,
+      edgesColor: accent,
+      edgesOpacity: 0.5
+    });
+
+    // Muros perimetrais com abertura tática de 10m na face de entrada
+    if (oc.openSide === 'SOUTH') {
+      addStaticBox(w, h, 0.8, cx, h / 2, cz - d / 2, 0x172133, { edgesColor: accent, edgesOpacity: 0.72 });
+      addStaticBox(0.8, h, d, cx - w / 2, h / 2, cz, 0x172133, { edgesColor: accent, edgesOpacity: 0.72 });
+      addStaticBox(0.8, h, d, cx + w / 2, h / 2, cz, 0x172133, { edgesColor: accent, edgesOpacity: 0.72 });
+      const segW = (w - 10) / 2;
+      addStaticBox(segW, h, 0.8, cx - (5 + segW / 2), h / 2, cz + d / 2, 0x172133, { edgesColor: accent, edgesOpacity: 0.75 });
+      addStaticBox(segW, h, 0.8, cx + (5 + segW / 2), h / 2, cz + d / 2, 0x172133, { edgesColor: accent, edgesOpacity: 0.75 });
+      const sign = new THREE.Mesh(
+        new THREE.PlaneGeometry(10.5, 1.9),
+        new THREE.MeshBasicMaterial({ map: TextureGenerator.getNeonSignTexture(oc.signText, oc.hex), side: THREE.DoubleSide })
+      );
+      sign.position.set(cx, h + 1.1, cz + d / 2 + 0.15);
+      refs.worldGroup.add(sign);
+      radarWalls.push(
+        { x1: cx - w / 2, z1: cz - d / 2, x2: cx + w / 2, z2: cz - d / 2 },
+        { x1: cx - w / 2, z1: cz - d / 2, x2: cx - w / 2, z2: cz + d / 2 },
+        { x1: cx + w / 2, z1: cz - d / 2, x2: cx + w / 2, z2: cz + d / 2 }
+      );
+    } else {
+      addStaticBox(w, h, 0.8, cx, h / 2, cz - d / 2, 0x172133, { edgesColor: accent, edgesOpacity: 0.72 });
+      addStaticBox(w, h, 0.8, cx, h / 2, cz + d / 2, 0x172133, { edgesColor: accent, edgesOpacity: 0.72 });
+      addStaticBox(0.8, h, d, cx + w / 2, h / 2, cz, 0x172133, { edgesColor: accent, edgesOpacity: 0.72 });
+      const segD = (d - 10) / 2;
+      addStaticBox(0.8, h, segD, cx - w / 2, h / 2, cz - (5 + segD / 2), 0x172133, { edgesColor: accent, edgesOpacity: 0.75 });
+      addStaticBox(0.8, h, segD, cx - w / 2, h / 2, cz + (5 + segD / 2), 0x172133, { edgesColor: accent, edgesOpacity: 0.75 });
+      const sign = new THREE.Mesh(
+        new THREE.PlaneGeometry(10.5, 1.9),
+        new THREE.MeshBasicMaterial({ map: TextureGenerator.getNeonSignTexture(oc.signText, oc.hex), side: THREE.DoubleSide })
+      );
+      sign.rotation.y = -Math.PI / 2;
+      sign.position.set(cx - w / 2 - 0.15, h + 1.1, cz);
+      refs.worldGroup.add(sign);
+      radarWalls.push(
+        { x1: cx - w / 2, z1: cz - d / 2, x2: cx + w / 2, z2: cz - d / 2 },
+        { x1: cx - w / 2, z1: cz + d / 2, x2: cx + w / 2, z2: cz + d / 2 },
+        { x1: cx + w / 2, z1: cz - d / 2, x2: cx + w / 2, z2: cz + d / 2 }
+      );
+    }
+
+    // Caixas táticas de cobertura no pátio
+    [
+      [cx - 8, 1.0, cz - 5, 2.8, 2.0, 2.2],
+      [cx + 8, 1.0, cz + 5, 2.8, 2.0, 2.2],
+      [cx - 7, 1.0, cz + 6, 2.6, 2.0, 2.2]
+    ].forEach(([bx, by, bz, bw, bh, bd]) => {
+      addStaticBox(bw, bh, bd, bx, by, bz, 0x1e293b, { edgesColor: accent, edgesOpacity: 0.55 });
+    });
+
+    // Cela Energizada (barras de energia + colisor removível ao libertar)
+    const [cellX, , cellZ] = cfg.cellPos;
+    const barsGroup = new THREE.Group();
+    barsGroup.position.set(cellX, 0, cellZ);
+    const barMat = new THREE.MeshBasicMaterial({
+      color: 0xff0055,
+      transparent: true,
+      opacity: 0.45,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+    const cageMesh = new THREE.Mesh(new THREE.BoxGeometry(3.6, 3.0, 3.6), barMat);
+    cageMesh.position.y = 1.5;
+    const cageEdges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(cageMesh.geometry),
+      new THREE.LineBasicMaterial({ color: 0xff0055, transparent: true, opacity: 0.95 })
+    );
+    cageMesh.add(cageEdges);
+    barsGroup.add(cageMesh);
+    refs.worldGroup.add(barsGroup);
+    barsGroup.updateMatrixWorld(true);
+    const cellCollider = { box: new THREE.Box3().setFromObject(cageMesh), mesh: cageMesh, isRescueCell: true };
+    colliders.push(cellCollider);
+
+    // NPC Prisioneiro DedSec / Informante dentro da cela
+    const prisoner = new THREE.Group();
+    const pJacket = new THREE.MeshStandardMaterial({ color: 0x151e30, roughness: 0.65 });
+    const pTrim = new THREE.MeshBasicMaterial({ color: oc.prisonerColor });
+    const pPants = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.8 });
+    const pSkin = new THREE.MeshStandardMaterial({ color: 0xc99678, roughness: 0.65 });
+
+    const pTorso = new THREE.Mesh(new THREE.CapsuleGeometry(0.17, 0.34, 6, 10), pJacket);
+    pTorso.position.y = 1.14;
+    const pStripe = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.08, 0.24), pTrim);
+    pStripe.position.y = 1.24;
+    const pHead = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 10), pSkin);
+    pHead.position.y = 1.58;
+    const pLegL = new THREE.Mesh(new THREE.CapsuleGeometry(0.065, 0.42, 4, 8), pPants);
+    pLegL.position.set(-0.1, 0.42, 0);
+    const pLegR = new THREE.Mesh(new THREE.CapsuleGeometry(0.065, 0.42, 4, 8), pPants);
+    pLegR.position.set(0.1, 0.42, 0);
+    const pArmL = new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.36, 4, 8), pJacket);
+    pArmL.position.set(-0.24, 1.08, 0);
+    const pArmR = new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.36, 4, 8), pJacket);
+    pArmR.position.set(0.24, 1.08, 0);
+    prisoner.add(pTorso, pStripe, pHead, pLegL, pLegR, pArmL, pArmR);
+    prisoner.position.set(cellX, 0, cellZ);
+    refs.worldGroup.add(prisoner);
+
+    // Terminal Hackeável da Cela (E)
+    const [px, py, pz] = cfg.panelPos;
+    const panelMesh = createHackableDevice(0.75, 1.5, 0.55, px, py, pz, accent, `CELA_${oc.missionKey}`);
+
+    // Gerador Destrutível da Cela (pode ser destruído a tiros para desativar a cela)
+    const [gx, gy, gz] = cfg.generatorPos;
+    const genMesh = createHackableDevice(1.3, 1.7, 1.1, gx, gy, gz, 0xff3344, `GERADOR_${oc.missionKey}`);
+    genMesh.updateMatrixWorld(true);
+    const genBox = new THREE.Box3().setFromObject(genMesh);
+
+    rescueCells.push({
+      missionKey: oc.missionKey,
+      barsGroup,
+      cageMesh,
+      cellCollider,
+      panelMesh,
+      genMesh,
+      genBox,
+      genHp: 40,
+      genMaxHp: 40,
+      freed: false,
+      prisoner,
+      pLegL,
+      pLegR,
+      pArmL,
+      pArmR,
+      prisonerInitialPos: new THREE.Vector3(cellX, 0, cellZ),
+      prisonerRunning: false,
+      prisonerRunTimer: 0,
+      prisonerPhase: 0,
+      escapeDir: cfg.escapeDir || [0, 1]
+    });
+
+    // Zona de Extração distante (anel verde sem PointLight)
+    buildExtractionZone(cfg.extractPos[0], cfg.extractPos[2], oc.missionKey);
   });
 }
 
@@ -1688,7 +1918,7 @@ export function buildTraversableGoldenGate() {
 }
 
 export function buildMissionMarkers() {
-  ['COMPLEXO_CTOS', 'DOCAS_BAIA_SF', 'VIP_CAR_01', 'VIP_CAR_02', 'HEIST_BLUME_03', 'HEIST_CTOS_04'].forEach((mKey) => {
+  ['COMPLEXO_CTOS', 'DOCAS_BAIA_SF', 'VIP_CAR_01', 'VIP_CAR_02', 'HEIST_BLUME_03', 'HEIST_CTOS_04', 'HEIST_VALKYRIE_05', 'RESCUE_01', 'RESCUE_02'].forEach((mKey) => {
     const mCfg = MAPS_CONFIG[mKey];
     const [mx, my, mz] = mCfg.markerPos;
     const color = mKey.startsWith('VIP_CAR')
@@ -1697,6 +1927,12 @@ export function buildMissionMarkers() {
       ? 0xff00aa
       : mKey === 'HEIST_CTOS_04'
       ? 0x00ff88
+      : mKey === 'HEIST_VALKYRIE_05'
+      ? 0xffaa00
+      : mKey === 'RESCUE_01'
+      ? 0x00f0ff
+      : mKey === 'RESCUE_02'
+      ? 0xffaa00
       : mKey === 'COMPLEXO_CTOS'
       ? 0x00f0ff
       : 0xffaa00;
@@ -3109,6 +3345,7 @@ export function buildCars() {
     { x: DOCKS_OFFSET_X + 76, z: 14, yaw: -Math.PI * 0.5, color: 0x3b4252, neon: 0xd946ef, bodyType: 'SUV', isDedsec: false, isDrivable: true, maxHp: 220, vipMissionKey: 'VIP_CAR_02', hasDriver: false },
     { x: -195, z: 222, yaw: Math.PI, color: 0x0b0e17, neon: 0xff00aa, bodyType: 'SPORT', isDedsec: false, isDrivable: true, maxHp: 240, maxSpeed: 21, accel: 20, vipMissionKey: 'HEIST_BLUME_03', requiresGateUnlock: true, hasDriver: false },
     { x: 495, z: 168, yaw: Math.PI, color: 0x0f172a, neon: 0x00f0ff, bodyType: 'SPORT', isDedsec: false, isDrivable: true, maxHp: 300, maxSpeed: 24, accel: 22, hasNitro: true, vipMissionKey: 'HEIST_CTOS_04', requiresGateUnlock: true, hasDriver: false },
+    { x: -220, z: 392, yaw: Math.PI, color: 0x0a0d16, neon: 0xffaa00, bodyType: 'SPORT', isDedsec: false, isDrivable: true, maxHp: 320, maxSpeed: 36, accel: 34, hasNitro: true, vipMissionKey: 'HEIST_VALKYRIE_05', requiresGateUnlock: true, hasDriver: false },
     { x: -40, z: 28, yaw: 0, color: 0x141720, neon: 0xff0044, bodyType: 'SUV', isDedsec: false, isDrivable: true, isPatrol: true, hasDriver: true },
     { x: 16, z: 16, yaw: -Math.PI / 2, color: 0x141720, neon: 0xff0044, bodyType: 'SUV', isDedsec: false, isDrivable: true, isPatrol: true, hasDriver: true },
     { x: -16, z: 16, yaw: Math.PI / 2, color: 0x26314a, neon: 0xffaa00, bodyType: 'HATCH', isDedsec: false, isDrivable: true, hasDriver: true },
@@ -3879,6 +4116,35 @@ export function resetWorldState(keepPlayerPos = false) {
     box.mesh.userData.normalMaterial.emissive.setHex(0xffaa00);
   });
 
+  // Restaurar celas de prisioneiros e geradores (RESCUE_01 / RESCUE_02)
+  rescueCells.forEach((cell) => {
+    cell.freed = false;
+    cell.genHp = cell.genMaxHp;
+    cell.prisonerRunning = false;
+    cell.prisonerRunTimer = 0;
+    cell.prisonerPhase = 0;
+    if (cell.barsGroup) cell.barsGroup.visible = true;
+    if (cell.cellCollider && !colliders.includes(cell.cellCollider)) {
+      colliders.push(cell.cellCollider);
+    }
+    if (cell.prisoner) {
+      cell.prisoner.visible = true;
+      cell.prisoner.position.copy(cell.prisonerInitialPos);
+      cell.prisoner.rotation.y = 0;
+      cell.pLegL.rotation.x = 0;
+      cell.pLegR.rotation.x = 0;
+      cell.pArmL.rotation.x = 0;
+      cell.pArmR.rotation.x = 0;
+    }
+    if (cell.panelMesh?.userData?.normalMaterial?.emissive) {
+      cell.panelMesh.userData.normalMaterial.emissive.setHex(cell.missionKey === 'RESCUE_01' ? 0x00f0ff : 0xffaa00);
+    }
+    if (cell.genMesh?.userData?.normalMaterial?.emissive) {
+      cell.genMesh.userData.normalMaterial.emissive.setHex(0xff3344);
+      cell.genMesh.userData.normalMaterial.emissiveIntensity = 0.65;
+    }
+  });
+
   dom.detectionContainer.classList.add('hidden');
   dom.downloadContainer.classList.add('hidden');
   dom.alertVignette.classList.add('hidden');
@@ -3908,7 +4174,11 @@ export function startContract(missionKey) {
   dom.hud.classList.remove('hidden');
 
   const mCfg = MAPS_CONFIG[missionKey];
-  if (mCfg?.isVehicleTheft) {
+  if (mCfg?.isRescue) {
+    gameState.targetCar = null;
+    if (refs.vehicleDeliveryGroup) refs.vehicleDeliveryGroup.visible = false;
+    setMissionState(MISSION_STATE.RESCUE_PRISONER);
+  } else if (mCfg?.isVehicleTheft) {
     gameState.targetCar = cars.find((c) => c.vipMissionKey === missionKey) || null;
     if (refs.vehicleDeliveryGroup && mCfg.extractPos) {
       refs.vehicleDeliveryGroup.position.set(mCfg.extractPos[0], mCfg.extractPos[1], mCfg.extractPos[2]);

@@ -15,6 +15,7 @@ import {
   guards,
   cars,
   policeCars,
+  rescueCells,
   pedestrians,
   projectiles,
   guardProjectiles,
@@ -383,6 +384,29 @@ export function updateProjectiles(dt) {
       }
       if (!p.isTaser) {
         reportCrimeToCivilians(hitPed.mesh.position, 22, 2);
+      }
+      disposePlayerProjectile(p);
+      projectiles.splice(i, 1);
+      continue;
+    }
+
+    // Acerto no gerador das celas de resgate (destruir gerador liberta o prisioneiro)
+    let hitGenCell = null;
+    for (const cell of rescueCells) {
+      if (cell.freed || !cell.genBox) continue;
+      if (cell.genBox.clone().expandByScalar(0.28).containsPoint(p.pos)) {
+        hitGenCell = cell;
+        break;
+      }
+    }
+    if (hitGenCell) {
+      spawnTaserFlash(p.pos, 0xffaa00);
+      triggerHitmarker(true);
+      hitGenCell.genHp = Math.max(0, hitGenCell.genHp - (p.isTaser ? 15 : p.damage || 25));
+      if (hitGenCell.genHp <= 0) {
+        AudioManager.playExplosion();
+        spawnImpactFlash(hitGenCell.genMesh.position.clone().add(new THREE.Vector3(0, 0.8, 0)), 0xff5500);
+        refs.onFreeRescueCell?.(hitGenCell);
       }
       disposePlayerProjectile(p);
       projectiles.splice(i, 1);
