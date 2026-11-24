@@ -557,7 +557,10 @@ export const supplyBoxes = [];     // Caixas de suprimentos (+$100 ou +25 HP) no
 export const policeCars = [];      // Viaturas de reforço policial ctOS spawnadas dinamicamente
 export const rescueCells = [];     // Celas de contenção de prisioneiros (RESCUE_01, RESCUE_02)
 export const steamPipes = [];      // Tubulações subterrâneas de vapor nas avenidas (V + E)
-export const multiFloorBuildings = []; // Descritores de pisos/escadas dos prédios abertos de 5 andares
+export const multiFloorBuildings = []; // Descritores de pisos/escadas dos prédios abertos (2 a 5 andares)
+export const interiorGroups = [];  // Grupos de móveis/pickups internos para Interior Culling (> 95m)
+export const worldPickups = [];    // Kits 3D flutuantes (MEDKIT +40 HP, AMMO/BATERIA, CHIP +$150)
+export const coffeeMachines = [];  // Máquinas de café expresso (+25 HP + boost 15s)
 export const remotePlayers = new Map(); // Jogadores remotos (id -> { group, parts, targetPos, targetYaw })
 export const playersMap = new Map();    // Todos os agentes ativos ('local' + remotos)
 export const missionServers = {};  // { COMPLEXO_CTOS: { mesh, core, particles, particleData }, DOCAS_BAIA_SF: ... }
@@ -586,6 +589,7 @@ export const gameState = {
   blackoutTimer: 0,
   blackoutCooldown: 0,
   callVehicleCooldown: 0,
+  coffeeBoostTimer: 0,
   radioStation: 'OFF',
   authOpen: true,
   currentUser: null,
@@ -651,24 +655,20 @@ export const raycaster = new THREE.Raycaster();
 // TEXTURAS PROCEDURAIS (HTML5 CANVAS -> CanvasTexture)
 
 export function getSurfaceHeight(x, z, currentY = null) {
-  // Prédios abertos de múltiplos andares (Térreo 0.2, 2º 4.2, 3º 8.2, 4º 12.2, 5º/Cobertura 16.2 + rampa de escada)
+  // Prédios abertos de múltiplos andares (2 a 5 andares: 0.2, 4.2, 8.2, 12.2, 16.2 + rampa lateral)
   for (let i = 0; i < multiFloorBuildings.length; i++) {
     const b = multiFloorBuildings[i];
     if (x >= b.minX && x <= b.maxX && z >= b.minZ && z <= b.maxZ) {
       const refY = currentY !== null ? currentY : 0.2;
-      // Zona de escada / rampa interna
+      // Zona de escada / rampa lateral encostada na parede
       if (x >= b.stairMinX && x <= b.stairMaxX && z >= b.stairMinZ && z <= b.stairMaxZ) {
         const t = THREE.MathUtils.clamp((z - b.stairMinZ) / (b.stairMaxZ - b.stairMinZ), 0, 1);
-        const flights = [
-          0.2 + t * 4.0,
-          4.2 + (1 - t) * 4.0,
-          8.2 + t * 4.0,
-          12.2 + (1 - t) * 4.0
-        ];
         let bestH = 0.2;
         let bestDiff = Infinity;
-        for (let f = 0; f < flights.length; f++) {
-          const fh = flights[f];
+        const numFlights = b.floors.length - 1;
+        for (let f = 0; f < numFlights; f++) {
+          const base = b.floors[f];
+          const fh = f % 2 === 0 ? base + t * 4.0 : base + (1 - t) * 4.0;
           if (fh <= refY + 1.85 && fh >= refY - 2.8) {
             const diff = Math.abs(fh - refY);
             if (diff < bestDiff) {

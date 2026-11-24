@@ -40,6 +40,9 @@ import {
   policeCars,
   rescueCells,
   steamPipes,
+  interiorGroups,
+  worldPickups,
+  coffeeMachines,
   remotePlayers,
   playersMap,
   colliders,
@@ -1184,6 +1187,19 @@ export function handleInteractPress() {
       AudioManager.playTerminalSuccess();
       if (dom.missionSub) dom.missionSub.textContent = '> REGISTROS SFPD APAGADOS // NÍVEL DE PROCURADO ZERADO!';
       return;
+    }
+
+    // 1e. Máquina de Café Expresso nos Bistrôs (+25 HP + boost de velocidade por 15s)
+    for (const cm of coffeeMachines) {
+      if (cm.cooldown <= 0 && pPos.distanceTo(cm.pos) < 3.2) {
+        cm.cooldown = 20.0;
+        gameState.hp = Math.min(gameState.maxHp || 100, gameState.hp + 25);
+        gameState.coffeeBoostTimer = 15.0;
+        updateHpHUD();
+        AudioManager.playTerminalSuccess();
+        if (dom.missionSub) dom.missionSub.textContent = '> CAFÉ EXPRESSO CONSUMIDO (+25 HP // BOOST DE VELOCIDADE 15s)!';
+        return;
+      }
     }
 
     // 2. Checar firewall do servidor central antes do download
@@ -2347,11 +2363,15 @@ export function updatePlayer(dt) {
       : 'FURTIVO';
   }
 
-  const baseSpeed = gameState.isCrouching
+  if (gameState.coffeeBoostTimer > 0) {
+    gameState.coffeeBoostTimer = Math.max(0, gameState.coffeeBoostTimer - dt);
+  }
+  const boostMult = gameState.coffeeBoostTimer > 0 ? 1.32 : 1.0;
+  const baseSpeed = (gameState.isCrouching
     ? PLAYER_CROUCH_SPEED
     : gameState.isSprinting
     ? PLAYER_SPRINT_SPEED
-    : PLAYER_SPEED;
+    : PLAYER_SPEED) * boostMult;
   const currentSpeed = gameState.isSwimming
     ? (gameState.isSprinting ? 7.2 : 4.0)
     : baseSpeed;
@@ -3163,7 +3183,7 @@ export function updateGuards(dt) {
               g.mesh.position.z += sideZ;
             }
           }
-          g.mesh.position.y = getSurfaceHeight(g.mesh.position.x, g.mesh.position.z);
+          g.mesh.position.y = getSurfaceHeight(g.mesh.position.x, g.mesh.position.z, g.mesh.position.y);
         }
       }
 
@@ -3393,10 +3413,74 @@ export function updateInteractionsAndMission(dt) {
     }
   }
 
-  // Prompt de caixas de suprimentos nos prédios abertos (+$100 / +$200 ou +25 HP) e Terminal SFPD
+  // Interior Culling (> 95m da câmera ativa -> oculta móveis e pickups internos mantendo 60 FPS)
+  const camPos = refs.camera?.position;
+  if (camPos) {
+    const interiorCullSq = 95 * 95;
+    for (let i = 0; i < interiorGroups.length; i++) {
+      const ig = interiorGroups[i];
+      const dx = ig.x - camPos.x;
+      const dz = ig.z - camPos.z;
+      ig.group.visible = dx * dx + dz * dz <= interiorCullSq;
+    }
+  }
+
+  // Pickups 3D flutuantes e giratórios (MEDKIT +40 HP, AMMO/BATERIA, CHIP +$150 | respawn 45s)
+  const tNow = gameState.elapsedTime || performance.now() * 0.001;
+  for (let i = 0; i < worldPickups.length; i++) {
+    const pk = worldPickups[i];
+    if (pk.respawnTimer > 0) {
+      pk.respawnTimer = Math.max(0, pk.respawnTimer - dt);
+      if (pk.respawnTimer === 0 && pk.mesh) pk.mesh.visible = true;
+      continue;
+    }
+    if (!pk.mesh || !pk.mesh.parent?.visible) continue;
+    pk.mesh.rotation.y += dt * 2.2;
+    pk.mesh.position.y = pk.baseY + Math.sin(tNow * 3.0 + pk.phase) * 0.12;
+    if (!isDrone && !gameState.drivingCar && !gameState.drivingBoat) {
+      const dFlat = Math.hypot(pPos.x - pk.pos.x, pPos.z - pk.pos.z);
+      if (dFlat < 1.85 && Math.abs(pPos.y + 0.6 - pk.pos.y) < 1.6) {
+        pk.respawnTimer = 45.0;
+        pk.mesh.visible = false;
+        if (pk.type === 'MEDKIT') {
+          gameState.hp = Math.min(gameState.maxHp || 100, gameState.hp + 40);
+          updateHpHUD();
+          AudioManager.playTerminalSuccess();
+          if (dom.missionSub) dom.missionSub.textContent = '> KIT MÉDICO COLETADO (+40 HP)!';
+        } else if (pk.type === 'AMMO') {
+          gameState.weaponCooldown = 0;
+          gameState.empCooldown = 0;
+          gameState.blackoutCooldown = 0;
+          AudioManager.playElectricZap();
+          if (dom.missionSub) dom.missionSub.textContent = '> MUNIÇÃO & BATERIA DEDSEC RECARREGADAS!';
+        } else {
+          gameState.money += 150;
+          updateMoneyHUD();
+          AudioManager.playTerminalSuccess();
+          if (dom.missionSub) dom.missionSub.textContent = '> CHIP CRIPTOGRAFADO COLETADO (+$150 // SAVE SINCRONIZADO)!';
+        }
+      }
+    }
+  }
+
+  for (let i = 0; i < coffeeMachines.length; i++) {
+    if (coffeeMachines[i].cooldown > 0) {
+      coffeeMachines[i].cooldown = Math.max(0, coffeeMachines[i].cooldown - dt);
+    }
+  }
+
+  // Prompt de caixas de suprimentos nos prédios abertos (+$100 / +$200 ou +25 HP), Café e Terminal SFPD
   if (!isDrone && !promptText && gameState.activeCamIndex < 0) {
     if (refs.precinctTerminalMesh && pPos.distanceTo(refs.precinctTerminalMesh.position) < 4.0) {
       promptText = '[E] HACKEAR TERMINAL SFPD (ZERAR NÍVEL DE PROCURADO)';
+    }
+    if (!promptText) {
+      for (const cm of coffeeMachines) {
+        if (cm.cooldown <= 0 && pPos.distanceTo(cm.pos) < 3.2) {
+          promptText = '[E] TOMAR CAFÉ EXPRESSO (+25 HP + BOOST 15s)';
+          break;
+        }
+      }
     }
     for (const sb of supplyBoxes) {
       if (!promptText && !sb.used && pPos.distanceTo(sb.pos) < 3.0) {

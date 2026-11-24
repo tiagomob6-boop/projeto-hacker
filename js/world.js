@@ -41,6 +41,9 @@ import {
   rescueCells,
   steamPipes,
   multiFloorBuildings,
+  interiorGroups,
+  worldPickups,
+  coffeeMachines,
   missionServers,
   missionExtractions,
   serverParticleData,
@@ -318,6 +321,38 @@ export const TextureGenerator = {
     return this.cache.headlightBeam;
   },
 
+  getInteriorFloorTexture(theme = 'OFFICE') {
+    const key = `floor_${theme}`;
+    if (!this.cache[key]) {
+      const c = this._makeCanvas(128, 128);
+      const ctx = c.getContext('2d');
+      const palettes = {
+        TECH: ['#101829', '#1b2944', '#00f0ff'],
+        BISTRO: ['#241914', '#33221a', '#ffaa00'],
+        CLINIC: ['#cbd5e1', '#e2e8f0', '#00f0ff'],
+        HOTEL: ['#1c162b', '#2b2042', '#d946ef'],
+        OFFICE: ['#141d2e', '#1e2c45', '#38bdf8']
+      };
+      const [bg, tile, line] = palettes[theme] || palettes.OFFICE;
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, 128, 128);
+      ctx.fillStyle = tile;
+      ctx.fillRect(2, 2, 60, 60);
+      ctx.fillRect(66, 66, 60, 60);
+      ctx.strokeStyle = line;
+      ctx.globalAlpha = 0.25;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(1, 1, 126, 126);
+      ctx.globalAlpha = 1;
+      const tex = new THREE.CanvasTexture(c);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(4, 4);
+      this.cache[key] = tex;
+    }
+    return this.cache[key];
+  },
+
   getNeonSignTexture(text, colorHex = '#00f0ff') {
     const key = `sign_${text}_${colorHex}`;
     if (!this.cache[key]) {
@@ -412,6 +447,9 @@ export function buildMap() {
   rescueCells.length = 0;
   steamPipes.length = 0;
   multiFloorBuildings.length = 0;
+  interiorGroups.length = 0;
+  worldPickups.length = 0;
+  coffeeMachines.length = 0;
   refs.precinctTerminalMesh = null;
   refs.waterMesh = null;
   refs.dedsecCar = null;
@@ -629,19 +667,22 @@ export function buildSouthDistrictAndBridge() {
   garSign.position.set(-120, 4.1, 308.7);
   refs.worldGroup.add(garSign);
 
-  // Quarteirões variados de Downtown & Financial e Residencial Sul + Galpões Industriais Leste
+  // Quarteirões variados de Downtown & Financial, Residencial Sul e Industrial Leste — TODOS ABERTOS E TEMÁTICOS
+  const southThemes = ['HOTEL', 'TECH', 'BISTRO', 'CLINIC', 'OFFICE', 'HOTEL', 'TECH', 'OFFICE', 'BISTRO'];
   [
-    [-110, -40, 22, 32, 20, 0x00f0ff],
-    [-160, 20, 24, 38, 22, 0xff0055],
-    [-110, 180, 20, 24, 18, 0x38bdf8],
-    [-180, 260, 22, 22, 20, 0xffaa00],
-    [-80, 420, 24, 18, 22, 0x00ff88],
-    [-180, 460, 22, 20, 20, 0xff0055],
-    [560, -40, 26, 16, 24, 0xffaa00],
-    [620, 120, 28, 18, 26, 0x00f0ff],
-    [560, 240, 24, 15, 22, 0xff0055]
-  ].forEach(([bx, bz, bw, bh, bd, acc]) => {
-    buildDetailedBuilding(bx, bz, bw, bh, bd, { accent: acc });
+    [-110, -40, 20, 20, 18, 0x00f0ff],
+    [-160, 20, 20, 16, 18, 0xff0055],
+    [-110, 180, 18, 12, 16, 0x38bdf8],
+    [-180, 260, 20, 12, 18, 0xffaa00],
+    [-80, 420, 20, 16, 18, 0x00ff88],
+    [-180, 460, 20, 20, 18, 0xff0055],
+    [560, -40, 22, 12, 18, 0xffaa00],
+    [620, 120, 22, 16, 18, 0x00f0ff],
+    [560, 240, 20, 12, 18, 0xff0055]
+  ].forEach(([bx, bz, bw, bh, bd, acc], idx) => {
+    const theme = southThemes[idx % southThemes.length];
+    const doorSide = bx < 200 ? 'EAST' : 'WEST';
+    buildEnterableBuilding(bx, bz, bw, bh, bd, { accent: acc, doorSide, theme, multiFloor: true });
   });
 }
 
@@ -1425,8 +1466,18 @@ export function buildUrbanDetailsAndMidBlocks() {
     [526, 206, 22, 18, 18, 0x00f0ff],
     [542, 148, 22, 15, 20, 0xff0055]
   ];
-  midBlocks.forEach(([bx, bz, bw, bh, bd, acc]) => {
-    buildDetailedBuilding(bx, bz, bw, bh, bd, { accent: acc });
+  const midThemes = ['TECH', 'BISTRO', 'CLINIC', 'HOTEL', 'OFFICE'];
+  midBlocks.forEach(([bx, bz, bw, bh, bd, acc], idx) => {
+    const theme = midThemes[idx % midThemes.length];
+    const doorSide = bx < 0 || bx > 450 ? 'EAST' : 'WEST';
+    const floors = theme === 'HOTEL' || theme === 'OFFICE' ? 5 : 2 + (idx % 2);
+    buildEnterableBuilding(bx, bz, bw, Math.min(20, bh), bd, {
+      accent: acc,
+      doorSide,
+      theme,
+      floors,
+      multiFloor: true
+    });
   });
 
   // 1b. Calçadas elevadas (0.16m, cinza-azulado claro + meio-fio neon sutil) via InstancedMesh sob todos os quarteirões
@@ -2540,253 +2591,318 @@ export function buildDetailedBuilding(x, z, w, h, d, style = {}) {
   blinkingLights.push({ mat: beaconMat, phase: Math.random() * Math.PI * 2 });
 }
 
-export function buildEnterableBuilding(x, z, w, h, d, opts = {}) {
-  const accent = opts.accent || 0x00f0ff;
-  const doorSide = opts.doorSide || 'EAST';
-  const theme = opts.theme || 'CAFE';
-  const floorH = 4.6;
-  const doorW = 4.4;
-  const wallT = 0.55;
+function spawnWorldPickup(type, x, y, z, parentGroup) {
+  const grp = new THREE.Group();
+  grp.position.set(x, y + 0.55, z);
+  if (type === 'MEDKIT') {
+    const box = new THREE.Mesh(
+      new THREE.BoxGeometry(0.62, 0.42, 0.48),
+      new THREE.MeshStandardMaterial({ color: 0xf1f5f9, emissive: 0x334155, emissiveIntensity: 0.35, roughness: 0.35 })
+    );
+    const crossMat = new THREE.MeshBasicMaterial({ color: 0xff1133 });
+    const c1 = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.1, 0.52), crossMat);
+    const c2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.3, 0.52), crossMat);
+    grp.add(box, c1, c2);
+  } else if (type === 'AMMO') {
+    const box = new THREE.Mesh(
+      new THREE.BoxGeometry(0.66, 0.4, 0.44),
+      new THREE.MeshStandardMaterial({ color: 0x1e293b, emissive: 0x06384d, emissiveIntensity: 0.5, roughness: 0.4 })
+    );
+    const cell = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.14, 0.48), new THREE.MeshBasicMaterial({ color: 0x00f0ff }));
+    grp.add(box, cell);
+  } else {
+    // CHIP de dados criptografados (+$150)
+    const chip = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.34, 0),
+      new THREE.MeshBasicMaterial({ color: 0xffd700 })
+    );
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.42, 0.5, 16),
+      new THREE.MeshBasicMaterial({ color: 0x00ff88, side: THREE.DoubleSide })
+    );
+    ring.rotation.x = Math.PI / 2;
+    grp.add(chip, ring);
+  }
+  (parentGroup || refs.worldGroup).add(grp);
+  worldPickups.push({
+    id: worldPickups.length,
+    type,
+    mesh: grp,
+    pos: new THREE.Vector3(x, y + 0.55, z),
+    baseY: y + 0.55,
+    respawnTimer: 0,
+    phase: Math.random() * Math.PI * 2
+  });
+}
 
-  // Piso interno iluminado
-  addStaticBox(w - 0.6, 0.14, d - 0.6, x, 0.12, z, 0x131c30, {
+export function buildEnterableBuilding(x, z, w, h, d, opts = {}) {
+  const theme = opts.theme || 'TECH';
+  const themeDefaults = {
+    TECH: { title: 'BYTE & SILICON TECH', accent: 0x00f0ff, floors: 2 },
+    BISTRO: { title: 'NEON RAMEN & CAFÉ', accent: 0xffaa00, floors: 2 },
+    CLINIC: { title: 'BAY MED // BIO-CARE', accent: 0x38bdf8, floors: 2 },
+    HOTEL: { title: 'GRAND SF HOTEL', accent: 0xd946ef, floors: 5 },
+    OFFICE: { title: 'BLUME / ctOS TOWER', accent: 0xff0055, floors: 5 }
+  };
+  const tDef = themeDefaults[theme] || themeDefaults.TECH;
+  const accent = opts.accent || tDef.accent;
+  const bTitle = opts.title || tDef.title;
+  const doorSide = opts.doorSide || 'EAST';
+  const floorStep = 4.0;
+  const numFloors = THREE.MathUtils.clamp(opts.floors || tDef.floors || 2, 2, 5);
+  const levels = [0.2, 4.2, 8.2, 12.2, 16.2].slice(0, numFloors);
+  const topFloorY = levels[levels.length - 1];
+  const wallT = 0.55;
+  const doorW = 4.6;
+
+  // Grupo interno para Interior Culling (> 95m da câmera ativa -> visible = false)
+  const interiorGroup = new THREE.Group();
+  interiorGroup.visible = false;
+  refs.worldGroup.add(interiorGroup);
+  interiorGroups.push({ group: interiorGroup, x, z });
+
+  const addInteriorBox = (bw, bh, bd, bx, by, bz, col, boxOpts = {}) => {
+    const m = addStaticBox(bw, bh, bd, bx, by, bz, col, { castShadow: false, ...boxOpts });
+    interiorGroup.add(m);
+    return m;
+  };
+
+  // Textura procedural do piso por tema
+  const floorTex = TextureGenerator.getInteriorFloorTexture(theme);
+  addStaticBox(w - 0.6, 0.16, d - 0.6, x, 0.12, z, 0xffffff, {
+    map: floorTex,
     collide: false,
     occlude: false,
+    castShadow: false,
     edgesColor: accent,
-    edgesOpacity: 0.45
+    edgesOpacity: 0.4
   });
 
-  // Paredes do térreo (com vão de entrada livre na face voltada para a avenida)
-  addStaticBox(w, floorH, wallT, x, floorH / 2, z - d / 2, 0x192338, { edgesColor: accent, edgesOpacity: 0.45 });
-  addStaticBox(w, floorH, wallT, x, floorH / 2, z + d / 2, 0x192338, { edgesColor: accent, edgesOpacity: 0.45 });
+  // Geometria da escada lateral encostada na parede dos fundos (nunca cruza o meio da sala)
+  const backDir = doorSide === 'EAST' ? -1 : 1;
+  const stairW = 2.6;
+  const stairCenterX = backDir < 0 ? x - w / 2 + 0.65 + stairW / 2 : x + w / 2 - 0.65 - stairW / 2;
+  const stairMinX = stairCenterX - stairW / 2;
+  const stairMaxX = stairCenterX + stairW / 2;
+  const stairLen = Math.min(9.0, Math.max(5.4, d - 4.4));
+  const stairMinZ = z - stairLen / 2;
+  const stairMaxZ = z + stairLen / 2;
+  const roomW = w - stairW - 1.5;
+  const roomCenterX = backDir < 0 ? x + (stairW + 0.35) / 2 : x - (stairW + 0.35) / 2;
 
-  const segD = (d - doorW) / 2;
+  multiFloorBuildings.push({
+    minX: x - w / 2 + 0.3,
+    maxX: x + w / 2 - 0.3,
+    minZ: z - d / 2 + 0.3,
+    maxZ: z + d / 2 - 0.3,
+    stairMinX,
+    stairMaxX,
+    stairMinZ,
+    stairMaxZ,
+    floors: levels
+  });
+
+  // Paredes perimetrais externas (Térreo + andares superiores até o terraço topFloorY)
+  const wallCol = theme === 'CLINIC' ? 0x2a394f : 0x162034;
+  addStaticBox(w, topFloorY, wallT, x, topFloorY / 2, z - d / 2, wallCol, { edgesColor: accent, edgesOpacity: 0.45 });
+  addStaticBox(w, topFloorY, wallT, x, topFloorY / 2, z + d / 2, wallCol, { edgesColor: accent, edgesOpacity: 0.45 });
+
+  const segD = Math.max(1.2, (d - doorW) / 2);
   const bHexStr = `#${accent.toString(16).padStart(6, '0')}`;
-  const bTitle = opts.title || 'EDIFÍCIO ctOS';
+  const glassMat = new THREE.MeshStandardMaterial({
+    color: accent,
+    transparent: true,
+    opacity: 0.25,
+    roughness: 0.15,
+    metalness: 0.25,
+    side: THREE.DoubleSide
+  });
+
   if (doorSide === 'EAST') {
-    // Parede oeste fechada, parede leste com porta aberta
-    addStaticBox(wallT, floorH, d, x - w / 2, floorH / 2, z, 0x192338, { edgesColor: accent, edgesOpacity: 0.45 });
-    addStaticBox(wallT, floorH, segD, x + w / 2, floorH / 2, z - (doorW / 2 + segD / 2), 0x192338, { edgesColor: accent, edgesOpacity: 0.55 });
-    addStaticBox(wallT, floorH, segD, x + w / 2, floorH / 2, z + (doorW / 2 + segD / 2), 0x192338, { edgesColor: accent, edgesOpacity: 0.55 });
-    // Letreiro 3D legível acima da porta
+    addStaticBox(wallT, topFloorY, d, x - w / 2, topFloorY / 2, z, wallCol, { edgesColor: accent, edgesOpacity: 0.45 });
+    // Fachada leste: porta dupla aberta no térreo (y = 0..4.2) + parede superior + vitrines de vidro (opacity 0.25)
+    addStaticBox(wallT, 4.2, segD, x + w / 2, 2.1, z - (doorW / 2 + segD / 2), wallCol, { edgesColor: accent, edgesOpacity: 0.55 });
+    addStaticBox(wallT, 4.2, segD, x + w / 2, 2.1, z + (doorW / 2 + segD / 2), wallCol, { edgesColor: accent, edgesOpacity: 0.55 });
+    if (topFloorY > 4.2) {
+      const uh = topFloorY - 4.2;
+      addStaticBox(wallT, uh, d, x + w / 2, 4.2 + uh / 2, z, wallCol, { edgesColor: accent, edgesOpacity: 0.45 });
+    }
+    const winMesh = new THREE.Mesh(new THREE.PlaneGeometry(d - 1.2, Math.max(2.6, topFloorY - 4.6)), glassMat);
+    winMesh.rotation.y = Math.PI / 2;
+    winMesh.position.set(x + w / 2 + 0.3, 4.2 + Math.max(1.3, (topFloorY - 4.6) / 2), z);
+    refs.worldGroup.add(winMesh);
+
     const bSign = new THREE.Mesh(
-      new THREE.PlaneGeometry(6.2, 1.45),
+      new THREE.PlaneGeometry(Math.min(9.5, d - 2), 1.45),
       new THREE.MeshBasicMaterial({ map: TextureGenerator.getNeonSignTexture(bTitle, bHexStr), side: THREE.DoubleSide })
     );
     bSign.rotation.y = Math.PI / 2;
-    bSign.position.set(x + w / 2 + 0.38, floorH - 0.35, z);
+    bSign.position.set(x + w / 2 + 0.42, 4.15, z);
     refs.worldGroup.add(bSign);
   } else {
-    // Parede leste fechada, parede oeste com porta aberta
-    addStaticBox(wallT, floorH, d, x + w / 2, floorH / 2, z, 0x192338, { edgesColor: accent, edgesOpacity: 0.45 });
-    addStaticBox(wallT, floorH, segD, x - w / 2, floorH / 2, z - (doorW / 2 + segD / 2), 0x192338, { edgesColor: accent, edgesOpacity: 0.55 });
-    addStaticBox(wallT, floorH, segD, x - w / 2, floorH / 2, z + (doorW / 2 + segD / 2), 0x192338, { edgesColor: accent, edgesOpacity: 0.55 });
+    addStaticBox(wallT, topFloorY, d, x + w / 2, topFloorY / 2, z, wallCol, { edgesColor: accent, edgesOpacity: 0.45 });
+    addStaticBox(wallT, 4.2, segD, x - w / 2, 2.1, z - (doorW / 2 + segD / 2), wallCol, { edgesColor: accent, edgesOpacity: 0.55 });
+    addStaticBox(wallT, 4.2, segD, x - w / 2, 2.1, z + (doorW / 2 + segD / 2), wallCol, { edgesColor: accent, edgesOpacity: 0.55 });
+    if (topFloorY > 4.2) {
+      const uh = topFloorY - 4.2;
+      addStaticBox(wallT, uh, d, x - w / 2, 4.2 + uh / 2, z, wallCol, { edgesColor: accent, edgesOpacity: 0.45 });
+    }
+    const winMesh = new THREE.Mesh(new THREE.PlaneGeometry(d - 1.2, Math.max(2.6, topFloorY - 4.6)), glassMat);
+    winMesh.rotation.y = -Math.PI / 2;
+    winMesh.position.set(x - w / 2 - 0.3, 4.2 + Math.max(1.3, (topFloorY - 4.6) / 2), z);
+    refs.worldGroup.add(winMesh);
+
     const bSign = new THREE.Mesh(
-      new THREE.PlaneGeometry(6.2, 1.45),
+      new THREE.PlaneGeometry(Math.min(9.5, d - 2), 1.45),
       new THREE.MeshBasicMaterial({ map: TextureGenerator.getNeonSignTexture(bTitle, bHexStr), side: THREE.DoubleSide })
     );
     bSign.rotation.y = -Math.PI / 2;
-    bSign.position.set(x - w / 2 - 0.38, floorH - 0.35, z);
+    bSign.position.set(x - w / 2 - 0.42, 4.15, z);
     refs.worldGroup.add(bSign);
   }
 
-  // Laje do teto do térreo + torre superior OU 5 andares acessíveis mobiliados (multiFloor: true)
-  if (opts.multiFloor) {
-    const floorStep = 4.0;
-    const levels = [0.2, 4.2, 8.2, 12.2, 16.2];
-    const totalH = 16.2;
-    const backDir = doorSide === 'EAST' ? -1 : 1;
-    const stairW = 2.8;
-    const stairCenterX = backDir < 0 ? x - w / 2 + 0.6 + stairW / 2 : x + w / 2 - 0.6 - stairW / 2;
-    const stairMinX = stairCenterX - stairW / 2;
-    const stairMaxX = stairCenterX + stairW / 2;
-    const stairMinZ = z - 4.8;
-    const stairMaxZ = z + 4.8;
-    const roomW = w - stairW - 1.4;
-    const roomCenterX = backDir < 0 ? x + (stairW + 0.3) / 2 : x - (stairW + 0.3) / 2;
+  // Lajes dos andares superiores (com recorte exato acima da escada) + rampas laterais + corrimãos neon ciano
+  const rampHyp = Math.hypot(stairLen, floorStep);
+  const rampAng = Math.atan2(floorStep, stairLen);
+  const landingD = Math.max(1.1, (d - stairLen) / 2 - 0.35);
+  const handrailX = backDir < 0 ? stairMaxX : stairMinX;
 
-    multiFloorBuildings.push({
-      minX: x - w / 2 + 0.3,
-      maxX: x + w / 2 - 0.3,
-      minZ: z - d / 2 + 0.3,
-      maxZ: z + d / 2 - 0.3,
-      stairMinX,
-      stairMaxX,
-      stairMinZ,
-      stairMaxZ,
-      floors: levels
+  for (let fl = 1; fl < numFloors; fl++) {
+    const fy = levels[fl];
+    // Laje principal do andar (Box3 em colliders/occluders)
+    addStaticBox(roomW, 0.24, d - 0.7, roomCenterX, fy - 0.12, z, 0xffffff, {
+      map: floorTex,
+      castShadow: false,
+      edgesColor: accent,
+      edgesOpacity: 0.35
+    });
+    // Patamares norte e sul alinhados fora do vão da escada
+    addStaticBox(stairW + 0.3, 0.24, landingD, stairCenterX, fy - 0.12, z - d / 2 + 0.35 + landingD / 2, 0x18253d, {
+      castShadow: false,
+      edgesColor: accent,
+      edgesOpacity: 0.4
+    });
+    addStaticBox(stairW + 0.3, 0.24, landingD, stairCenterX, fy - 0.12, z + d / 2 - 0.35 - landingD / 2, 0x18253d, {
+      castShadow: false,
+      edgesColor: accent,
+      edgesOpacity: 0.4
     });
 
-    // Paredes dos andares superiores (2º ao 4º andar: y = 4.6 .. 16.2) com faixas neon
-    const upperWallH = totalH - floorH;
-    const upperWallY = floorH + upperWallH / 2;
-    addStaticBox(w, upperWallH, wallT, x, upperWallY, z - d / 2, 0x162034, { edgesColor: accent, edgesOpacity: 0.45 });
-    addStaticBox(w, upperWallH, wallT, x, upperWallY, z + d / 2, 0x162034, { edgesColor: accent, edgesOpacity: 0.45 });
-    addStaticBox(wallT, upperWallH, d, x - w / 2, upperWallY, z, 0x162034, { edgesColor: accent, edgesOpacity: 0.45 });
-    addStaticBox(wallT, upperWallH, d, x + w / 2, upperWallY, z, 0x162034, { edgesColor: accent, edgesOpacity: 0.45 });
+    // Faixa de LED emissiva no teto do andar inferior (iluminação procedural sem PointLight!)
+    addInteriorBox(roomW * 0.65, 0.08, 0.35, roomCenterX, fy - 0.28, z, accent, {
+      collide: false,
+      occlude: false,
+      emissive: accent,
+      emissiveIntensity: 1.1
+    });
 
-    // Lajes dos andares 2, 3, 4 e 5 (cobertura) com vão da escada aberto + Box3 em colliders/occluders
-    const stairLen = stairMaxZ - stairMinZ; // 9.6m
-    const rampHyp = Math.hypot(stairLen, floorStep);
-    const rampAng = Math.atan2(floorStep, stairLen);
-    const landingD = Math.max(1.2, (d - stairLen) / 2 - 0.3);
+    // Rampa/escada inclinada encostada na parede lateral + corrimão neon ciano
+    const dirSign = (fl - 1) % 2 === 0 ? 1 : -1;
+    const rampMat = new THREE.MeshStandardMaterial({ color: 0x1e2c46, roughness: 0.75, metalness: 0.25 });
+    const rampMesh = new THREE.Mesh(new THREE.BoxGeometry(stairW - 0.12, 0.22, rampHyp), rampMat);
+    rampMesh.position.set(stairCenterX, levels[fl - 1] + floorStep / 2 - 0.12, z);
+    rampMesh.rotation.x = dirSign > 0 ? -rampAng : rampAng;
+    rampMesh.userData.normalMaterial = rampMat;
+    rampMesh.userData.nethackMaterial = new THREE.MeshBasicMaterial({ color: 0x00f0ff, wireframe: true });
+    structureMeshes.push(rampMesh);
+    occluders.push(rampMesh);
+    refs.worldGroup.add(rampMesh);
 
-    for (let fl = 1; fl <= 4; fl++) {
+    // Corrimão neon ciano lateral
+    const railMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(0.1, 0.1, rampHyp),
+      new THREE.MeshBasicMaterial({ color: 0x00f0ff })
+    );
+    railMesh.position.set(handrailX, levels[fl - 1] + floorStep / 2 + 0.85, z);
+    railMesh.rotation.x = dirSign > 0 ? -rampAng : rampAng;
+    interiorGroup.add(railMesh);
+  }
+
+  // Parapeito de segurança no último andar / terraço panorâmico
+  addStaticBox(w, 1.1, 0.45, x, topFloorY + 0.55, z - d / 2 + 0.22, 0x202d45, { edgesColor: accent, edgesOpacity: 0.7 });
+  addStaticBox(w, 1.1, 0.45, x, topFloorY + 0.55, z + d / 2 - 0.22, 0x202d45, { edgesColor: accent, edgesOpacity: 0.7 });
+  addStaticBox(0.45, 1.1, d, x - w / 2 + 0.22, topFloorY + 0.55, z, 0x202d45, { edgesColor: accent, edgesOpacity: 0.7 });
+  addStaticBox(0.45, 1.1, d, x + w / 2 - 0.22, topFloorY + 0.55, z, 0x202d45, { edgesColor: accent, edgesOpacity: 0.7 });
+
+  // =========================================================
+  // MOBÍLIA TEMÁTICA POR ANDAR (DENTRO DE interiorGroup PARA CULLING > 95m)
+  // =========================================================
+  const f0 = levels[0];
+  if (theme === 'TECH') {
+    // Térreo: bancadas com PCs gamer/workstations (gabinete LED, monitor duplo emissivo, teclado, cadeira)
+    [-2.8, 2.8].forEach((oz) => {
+      addInteriorBox(2.4, 0.85, 1.1, roomCenterX, f0 + 0.42, z + oz, 0x1b263b, { edgesColor: 0x00f0ff, edgesOpacity: 0.6 });
+      addInteriorBox(0.32, 0.52, 0.48, roomCenterX - 0.9, f0 + 1.1, z + oz, 0x0f172a, { edgesColor: 0xff00aa, edgesOpacity: 0.9 });
+      addInteriorBox(0.75, 0.48, 0.1, roomCenterX - 0.1, f0 + 1.18, z + oz, 0x00f0ff, { collide: false, occlude: false, emissive: 0x00f0ff, emissiveIntensity: 1.0 });
+      addInteriorBox(0.75, 0.48, 0.1, roomCenterX + 0.72, f0 + 1.18, z + oz, 0x38bdf8, { collide: false, occlude: false, emissive: 0x38bdf8, emissiveIntensity: 1.0 });
+      addInteriorBox(0.55, 0.75, 0.55, roomCenterX, f0 + 0.38, z + oz + 0.95, 0x162033, { occlude: false });
+    });
+    // Andar superior: racks de servidores piscando + painel de rede hackeável (+$200)
+    const fTop = levels[numFloors - 1];
+    addInteriorBox(1.4, 2.4, 1.2, roomCenterX, fTop + 1.2, z - 2.6, 0x0e1629, { edgesColor: 0x00f0ff, edgesOpacity: 0.85 });
+    const netPanel = createHackableDevice(0.95, 1.35, 0.65, roomCenterX, fTop + 0.7, z + 2.6, 0x00ff88, `PAINEL_REDE_TECH_${supplyBoxes.length}`);
+    interiorGroup.add(netPanel);
+    supplyBoxes.push({ id: supplyBoxes.length, mesh: netPanel, pos: new THREE.Vector3(roomCenterX, fTop + 0.7, z + 2.6), rewardType: 'MONEY', rewardAmount: 200, used: false });
+    spawnWorldPickup('CHIP', roomCenterX, f0, z, interiorGroup);
+  } else if (theme === 'BISTRO') {
+    // Balcão iluminado, cozinha com fogão/coifa, mesas redondas e máquina de café expresso (E -> +25 HP + boost 15s)
+    addInteriorBox(1.2, 1.05, 4.6, roomCenterX - backDir * 1.4, f0 + 0.52, z, 0x261c17, { edgesColor: 0xffaa00, edgesOpacity: 0.75 });
+    addInteriorBox(1.4, 0.65, 2.2, roomCenterX - backDir * 1.4, f0 + 2.9, z, 0x334155, { collide: false, occlude: false, edgesColor: 0x94a3b8 });
+    [-3.0, 3.0].forEach((oz) => {
+      addInteriorBox(1.3, 0.8, 1.3, roomCenterX + backDir * 0.6, f0 + 0.4, z + oz, 0x2d211a, { edgesColor: 0xffaa00, edgesOpacity: 0.45 });
+      addInteriorBox(0.45, 0.16, 0.45, roomCenterX + backDir * 0.6, f0 + 3.2, z + oz, 0xffaa00, { collide: false, occlude: false, emissive: 0xffaa00, emissiveIntensity: 1.1 });
+    });
+    const coffeeX = roomCenterX - backDir * 1.4;
+    const coffeeZ = z - 1.6;
+    const coffeeMesh = createHackableDevice(0.65, 0.75, 0.65, coffeeX, f0 + 1.4, coffeeZ, 0xffaa00, `CAFE_EXPRESSO_${coffeeMachines.length}`);
+    interiorGroup.add(coffeeMesh);
+    coffeeMachines.push({ id: coffeeMachines.length, mesh: coffeeMesh, pos: new THREE.Vector3(coffeeX, f0 + 1.0, coffeeZ), cooldown: 0 });
+    spawnWorldPickup('MEDKIT', roomCenterX, levels[numFloors - 1], z, interiorGroup);
+  } else if (theme === 'CLINIC') {
+    // Recepção branca/ciano, maca hospitalar, armários de medicamentos e Kits Médicos
+    addInteriorBox(1.1, 1.05, 3.8, roomCenterX, f0 + 0.52, z - 2.6, 0xe2e8f0, { edgesColor: 0x00f0ff, edgesOpacity: 0.7 });
+    addInteriorBox(2.2, 0.72, 1.0, roomCenterX, f0 + 0.36, z + 2.4, 0xf8fafc, { edgesColor: 0x38bdf8, edgesOpacity: 0.65 });
+    addInteriorBox(0.8, 2.1, 2.2, roomCenterX - backDir * 1.8, f0 + 1.05, z + 2.4, 0xcbd5e1, { edgesColor: 0x00f0ff, edgesOpacity: 0.55 });
+    spawnWorldPickup('MEDKIT', roomCenterX, f0, z + 0.2, interiorGroup);
+    spawnWorldPickup('MEDKIT', roomCenterX, levels[numFloors - 1], z, interiorGroup);
+  } else if (theme === 'HOTEL') {
+    // Lobby com sofá em L, tapete, recepção e elevador visual
+    addInteriorBox(1.1, 1.05, 4.2, roomCenterX, f0 + 0.52, z - 2.8, 0x261d38, { edgesColor: 0xd946ef, edgesOpacity: 0.7 });
+    addInteriorBox(2.6, 0.75, 1.0, roomCenterX, f0 + 0.38, z + 2.8, 0x3b1f54, { edgesColor: 0xd946ef, edgesOpacity: 0.5 });
+    addInteriorBox(1.0, 0.75, 2.2, roomCenterX + 0.8, f0 + 0.38, z + 3.8, 0x3b1f54, { edgesColor: 0xd946ef, edgesOpacity: 0.5 });
+    // 2º ao 4º andar: quartos mobiliados (cama de casal com cabeceira, criado-mudo, guarda-roupa e TV emissiva)
+    for (let fl = 1; fl < numFloors - 1; fl++) {
       const fy = levels[fl];
-      // Laje principal do andar (fora do vão da escada)
-      addStaticBox(roomW, 0.24, d - 0.7, roomCenterX, fy - 0.12, z, 0x131d32, {
-        edgesColor: accent,
-        edgesOpacity: 0.4
-      });
-      // Patamares norte e sul ligando a escada ao andar
-      addStaticBox(stairW + 0.4, 0.24, landingD, stairCenterX, fy - 0.12, z - d / 2 + 0.35 + landingD / 2, 0x18253d, {
-        edgesColor: accent,
-        edgesOpacity: 0.45
-      });
-      addStaticBox(stairW + 0.4, 0.24, landingD, stairCenterX, fy - 0.12, z + d / 2 - 0.35 - landingD / 2, 0x18253d, {
-        edgesColor: accent,
-        edgesOpacity: 0.45
-      });
-
-      // Rampa/escada inclinada ligando andar (fl-1) ao andar fl
-      const dirSign = (fl - 1) % 2 === 0 ? 1 : -1;
-      const rampMesh = new THREE.Mesh(
-        new THREE.BoxGeometry(stairW - 0.15, 0.22, rampHyp),
-        new THREE.MeshStandardMaterial({ color: 0x1e2c46, roughness: 0.75, metalness: 0.25 })
-      );
-      rampMesh.position.set(stairCenterX, levels[fl - 1] + floorStep / 2 - 0.12, z);
-      rampMesh.rotation.x = dirSign > 0 ? -rampAng : rampAng;
-      rampMesh.receiveShadow = true;
-      rampMesh.userData.normalMaterial = rampMesh.material;
-      rampMesh.userData.nethackMaterial = new THREE.MeshBasicMaterial({ color: accent, wireframe: true });
-      structureMeshes.push(rampMesh);
-      occluders.push(rampMesh);
-      refs.worldGroup.add(rampMesh);
+      addInteriorBox(2.3, 0.55, 2.1, roomCenterX, fy + 0.28, z - 2.8, 0x2b1d3d, { edgesColor: 0xd946ef, edgesOpacity: 0.5 });
+      addInteriorBox(0.22, 1.35, 2.2, roomCenterX - 1.15, fy + 0.68, z - 2.8, 0x1d142b, { edgesColor: 0xd946ef, edgesOpacity: 0.6 });
+      addInteriorBox(0.7, 0.6, 0.7, roomCenterX, fy + 0.3, z - 4.3, 0x201830, { occlude: false });
+      addInteriorBox(0.9, 2.2, 1.8, roomCenterX, fy + 1.1, z + 3.2, 0x1c2538, { edgesColor: accent, edgesOpacity: 0.45 });
+      addInteriorBox(0.14, 1.25, 2.6, roomCenterX + 1.8, fy + 1.8, z, accent, { collide: false, occlude: false, emissive: accent, emissiveIntensity: 0.95 });
     }
-
-    // Mobília temática do 2º e 3º andares (y = 4.2 e 8.2): camas, mesas e TVs holográficas
-    [4.2, 8.2].forEach((fy) => {
-      // Cama dupla moderna
-      addStaticBox(2.4, 0.55, 2.0, roomCenterX, fy + 0.28, z - 3.6, 0x2a1f3d, { edgesColor: accent, edgesOpacity: 0.5 });
-      // Mesa de trabalho + cadeira
-      addStaticBox(1.8, 0.85, 1.0, roomCenterX, fy + 0.42, z + 3.4, 0x1e2a40, { edgesColor: accent, edgesOpacity: 0.45 });
-      // TV holográfica na parede frontal
-      const frontX = doorSide === 'EAST' ? x + w / 2 - 0.45 : x - w / 2 + 0.45;
-      addStaticBox(0.14, 1.35, 2.8, frontX, fy + 1.85, z, accent, {
-        collide: false,
-        occlude: false,
-        emissive: accent,
-        emissiveIntensity: 0.9
-      });
-    });
-
-    // Mobília temática do 4º andar (y = 12.2): estações de trabalho e servidores ctOS
-    const f4 = 12.2;
-    [-3.2, 3.2].forEach((oz) => {
-      addStaticBox(2.4, 0.9, 1.1, roomCenterX, f4 + 0.45, z + oz, 0x1b263b, { edgesColor: 0x00f0ff, edgesOpacity: 0.6 });
-      addStaticBox(0.9, 0.55, 0.14, roomCenterX, f4 + 1.25, z + oz, 0x00f0ff, {
-        collide: false,
-        occlude: false,
-        emissive: 0x00f0ff,
-        emissiveIntensity: 0.95
-      });
-    });
-    addStaticBox(1.4, 2.4, 1.2, roomCenterX + (backDir < 0 ? 2.4 : -2.4), f4 + 1.2, z, 0x10182b, {
-      edgesColor: 0xff0055,
-      edgesOpacity: 0.85
-    });
-
-    // 5º Andar / Cobertura (y = 16.2): parapeito, antenas ctOS e caixa de suprimentos +$200
-    const f5 = 16.2;
-    addStaticBox(w, 1.1, 0.45, x, f5 + 0.55, z - d / 2 + 0.22, 0x202d45, { edgesColor: accent, edgesOpacity: 0.7 });
-    addStaticBox(w, 1.1, 0.45, x, f5 + 0.55, z + d / 2 - 0.22, 0x202d45, { edgesColor: accent, edgesOpacity: 0.7 });
-    addStaticBox(0.45, 1.1, d, x - w / 2 + 0.22, f5 + 0.55, z, 0x202d45, { edgesColor: accent, edgesOpacity: 0.7 });
-    addStaticBox(0.45, 1.1, d, x + w / 2 - 0.22, f5 + 0.55, z, 0x202d45, { edgesColor: accent, edgesOpacity: 0.7 });
-    // Antena de comunicações no terraço
-    addStaticBox(0.28, 4.8, 0.28, roomCenterX, f5 + 2.4, z - 4.2, 0x3b4a68, { edgesColor: accent, edgesOpacity: 0.8 });
-    // Caixa de suprimentos VIP no terraço (+$200)
-    const roofSupX = roomCenterX;
-    const roofSupZ = z + 3.6;
-    const roofSupMesh = createHackableDevice(1.05, 0.78, 1.05, roofSupX, f5 + 0.42, roofSupZ, 0x00ff88, `SUPRIMENTO_COBERTURA_${theme}`);
-    supplyBoxes.push({
-      id: supplyBoxes.length,
-      mesh: roofSupMesh,
-      pos: new THREE.Vector3(roofSupX, f5 + 0.42, roofSupZ),
-      rewardType: 'MONEY',
-      rewardAmount: 200,
-      used: false
-    });
+    spawnWorldPickup('CHIP', roomCenterX, levels[Math.min(2, numFloors - 1)], z, interiorGroup);
+    // 5º andar: terraço panorâmico com antena e caixa de suprimentos +$200
+    addInteriorBox(0.28, 4.6, 0.28, roomCenterX, topFloorY + 2.3, z - 3.6, 0x3b4a68, { edgesColor: accent, edgesOpacity: 0.8 });
+    const roofSup = createHackableDevice(1.0, 0.76, 1.0, roomCenterX, topFloorY + 0.42, z + 3.2, 0x00ff88, `SUPRIMENTO_HOTEL_${supplyBoxes.length}`);
+    interiorGroup.add(roofSup);
+    supplyBoxes.push({ id: supplyBoxes.length, mesh: roofSup, pos: new THREE.Vector3(roomCenterX, topFloorY + 0.42, z + 3.2), rewardType: 'MONEY', rewardAmount: 200, used: false });
   } else {
-    const upperH = Math.max(6, h - floorH);
-    const facadeTex = TextureGenerator.getBuildingFacadeTexture(2, 3);
-    const upperMat = new THREE.MeshStandardMaterial({
-      color: 0xd0dcf5,
-      map: facadeTex,
-      emissive: 0x18253d,
-      emissiveMap: facadeTex,
-      emissiveIntensity: 0.65,
-      roughness: 0.6
+    // OFFICE (BLUME / ctOS TOWER): baias com divisórias de vidro, sala de reunião, vigilância e servidor no topo
+    [-3.0, 3.0].forEach((oz) => {
+      addInteriorBox(2.2, 0.85, 1.1, roomCenterX, f0 + 0.42, z + oz, 0x1b263b, { edgesColor: accent, edgesOpacity: 0.55 });
+      addInteriorBox(2.2, 1.3, 0.08, roomCenterX, f0 + 1.1, z + oz - 0.6, 0x00f0ff, { collide: false, occlude: false, emissive: 0x00f0ff, emissiveIntensity: 0.25 });
     });
-    const upperMesh = new THREE.Mesh(new THREE.BoxGeometry(w - 0.3, upperH, d - 0.3), upperMat);
-    upperMesh.position.set(x, floorH + upperH / 2, z);
-    upperMesh.castShadow = true;
-    upperMesh.userData.normalMaterial = upperMat;
-    upperMesh.userData.nethackMaterial = new THREE.MeshBasicMaterial({ color: 0x0b3a5c, wireframe: true, transparent: true, opacity: 0.45 });
-    structureMeshes.push(upperMesh);
-    refs.worldGroup.add(upperMesh);
-    // Colisão da torre superior (acima de y = floorH): bloqueia o Drone sem afetar quem anda no térreo
-    upperMesh.updateMatrixWorld(true);
-    colliders.push({ box: new THREE.Box3().setFromObject(upperMesh), mesh: upperMesh });
+    for (let fl = 1; fl < numFloors - 1; fl++) {
+      const fy = levels[fl];
+      // Mesa longa de reunião / vigilância
+      addInteriorBox(2.0, 0.85, 5.2, roomCenterX, fy + 0.42, z, 0x192438, { edgesColor: accent, edgesOpacity: 0.55 });
+      addInteriorBox(0.14, 1.4, 3.2, roomCenterX + 1.8, fy + 1.85, z, accent, { collide: false, occlude: false, emissive: accent, emissiveIntensity: 0.9 });
+    }
+    // Topo: servidor central + pickup de munição/bateria DedSec
+    addInteriorBox(1.6, 2.6, 1.4, roomCenterX, topFloorY + 1.3, z - 2.4, 0x0f172a, { edgesColor: 0xff0055, edgesOpacity: 0.9 });
+    spawnWorldPickup('AMMO', roomCenterX, topFloorY, z + 2.2, interiorGroup);
+    spawnWorldPickup('CHIP', roomCenterX, f0, z, interiorGroup);
   }
 
-  // Tela holográfica na parede dos fundos
-  const backX = doorSide === 'EAST' ? x - w / 2 + 0.45 : x + w / 2 - 0.45;
-  addStaticBox(0.14, 1.8, 3.8, backX, 2.3, z, accent, {
-    collide: false,
-    occlude: false,
-    emissive: accent,
-    emissiveIntensity: 0.95
-  });
-
-  // Mobília interna com colisão e oclusão (para cobertura em tiroteios internos)
-  const midDir = doorSide === 'EAST' ? -1 : 1;
-  // Balcão / Parede divisória central baixa (cobertura tática)
-  addStaticBox(1.1, 1.15, 4.6, x + midDir * 2.4, 0.65, z, 0x222f47, { edgesColor: accent, edgesOpacity: 0.6 });
-
-  if (theme === 'CAFE' || theme === 'HIDEOUT') {
-    // Mesas, cadeiras e sofá
-    [-3.4, 3.4].forEach((oz) => {
-      addStaticBox(1.6, 0.85, 1.6, x - midDir * 1.4, 0.48, z + oz, 0x26344d, { edgesColor: accent, edgesOpacity: 0.45 });
-      addStaticBox(0.65, 0.55, 0.65, x - midDir * 2.5, 0.32, z + oz, 0x1b2438, { occlude: false });
-    });
-    // Sofá lateral
-    addStaticBox(1.2, 0.85, 3.2, x + midDir * 4.6, 0.48, z - 3.6, 0x2d1e3e, { edgesColor: accent, edgesOpacity: 0.4 });
-  } else {
-    // Escritório ctOS / Oficina: mesas com terminais de computador e bancadas
-    [-3.4, 3.4].forEach((oz) => {
-      addStaticBox(2.2, 0.95, 1.1, x - midDir * 1.0, 0.52, z + oz, 0x202b40, { edgesColor: accent, edgesOpacity: 0.5 });
-      addStaticBox(0.85, 0.55, 0.14, x - midDir * 1.0, 1.32, z + oz, accent, {
-        collide: false,
-        occlude: false,
-        emissive: accent,
-        emissiveIntensity: 0.9
-      });
-    });
-  }
-
-  // Caixa de Suprimentos interativa (+$100 ou +25 HP com E)
-  const rewardType = theme === 'CAFE' || theme === 'GARAGE' ? 'MONEY' : 'HP';
-  const supColor = rewardType === 'MONEY' ? 0x00ff88 : 0x00f0ff;
-  const supX = x + midDir * 4.4;
-  const supZ = z + 3.6;
-  const supMesh = createHackableDevice(0.95, 0.72, 0.95, supX, 0.48, supZ, supColor, `SUPRIMENTO_${theme}`);
-  supplyBoxes.push({
-    id: supplyBoxes.length,
-    mesh: supMesh,
-    pos: new THREE.Vector3(supX, 0.48, supZ),
-    rewardType,
-    used: false
-  });
   radarBuildings.push({ x, z, w, d });
 }
 
@@ -2864,13 +2980,13 @@ export function buildEnvironment(cfg) {
     });
   });
 
-  // Quarteirões urbanos: 4 prédios principais abertos (Hotel Grand SF e Escritório ctOS com 5 andares mobiliados!)
-  buildEnterableBuilding(-52, 16, 14, 18, 14, { accent: 0x00f0ff, doorSide: 'EAST', theme: 'CAFE', title: 'CAFÉ CYBER' });
-  buildEnterableBuilding(-52, 42, 14, 22, 16, { accent: 0xffaa00, doorSide: 'EAST', theme: 'CAFE', title: 'HOTEL GRAND SF', multiFloor: true });
-  buildDetailedBuilding(-52, -14, 14, 20, 16, { accent: 0x38bdf8 });
-  buildEnterableBuilding(52, 16, 14, 22, 14, { accent: 0xff0055, doorSide: 'WEST', theme: 'OFFICE', title: 'ESCRITÓRIO ctOS', multiFloor: true });
-  buildEnterableBuilding(52, 42, 14, 24, 16, { accent: 0x00ff88, doorSide: 'WEST', theme: 'HIDEOUT', title: 'ESCONDERIJO DEDSEC' });
-  buildDetailedBuilding(52, -14, 14, 21, 16, { accent: 0xffaa00 });
+  // Quarteirões urbanos em Downtown: TODOS abertos, mobiliados e temáticos (2 a 5 andares)
+  buildEnterableBuilding(-52, 16, 14, 10, 14, { accent: 0x00f0ff, doorSide: 'EAST', theme: 'TECH', floors: 2 });
+  buildEnterableBuilding(-52, 42, 14, 22, 16, { accent: 0xd946ef, doorSide: 'EAST', theme: 'HOTEL', floors: 5 });
+  buildEnterableBuilding(-52, -14, 14, 10, 16, { accent: 0xffaa00, doorSide: 'EAST', theme: 'BISTRO', floors: 2 });
+  buildEnterableBuilding(52, 16, 14, 22, 14, { accent: 0xff0055, doorSide: 'WEST', theme: 'OFFICE', floors: 5 });
+  buildEnterableBuilding(52, 42, 14, 10, 16, { accent: 0x38bdf8, doorSide: 'WEST', theme: 'CLINIC', floors: 2 });
+  buildEnterableBuilding(52, -14, 14, 10, 16, { accent: 0x00f0ff, doorSide: 'WEST', theme: 'TECH', floors: 3 });
 
   // Arranha-céus detalhados do skyline ao fundo (fora da área jogável)
   buildDetailedBuilding(-76, -32, 14, 34, 14, { accent: 0x00f0ff, collide: false, occlude: false });
@@ -3197,9 +3313,9 @@ export function buildDocksEnvironment(cfg) {
     emissiveIntensity: 1.4
   });
 
-  // Armazéns portuários detalhados
-  buildDetailedBuilding(dx - 34, 58, 10, 14, 12, { accent: 0xffaa00 });
-  buildDetailedBuilding(dx + 34, 58, 10, 14, 12, { accent: 0x00f0ff });
+  // Armazéns portuários abertos temáticos
+  buildEnterableBuilding(dx - 34, 58, 12, 10, 12, { accent: 0xffaa00, doorSide: 'EAST', theme: 'BISTRO', floors: 2 });
+  buildEnterableBuilding(dx + 34, 58, 12, 10, 12, { accent: 0x00f0ff, doorSide: 'WEST', theme: 'TECH', floors: 2 });
 
   buildMapGates(cfg, 'DOCAS_BAIA_SF');
   buildServerUnit(cfg.serverPos[0], cfg.serverPos[2], 'DOCAS_BAIA_SF');
@@ -4244,6 +4360,7 @@ export function resetWorldState(keepPlayerPos = false) {
   gameState.playerVelY = 0;
   gameState.isGrounded = true;
   gameState.callVehicleCooldown = 0;
+  gameState.coffeeBoostTimer = 0;
   AudioManager.stopRadio();
   gameState.cameraYaw = 0;
   gameState.cameraPitch = 0.34;
@@ -4462,6 +4579,14 @@ export function resetWorldState(keepPlayerPos = false) {
     sp.activeTimer = 0;
     sp.cooldown = 0;
     if (sp.steamPoints) sp.steamPoints.visible = false;
+  });
+
+  worldPickups.forEach((pk) => {
+    pk.respawnTimer = 0;
+    if (pk.mesh) pk.mesh.visible = true;
+  });
+  coffeeMachines.forEach((cm) => {
+    cm.cooldown = 0;
   });
 
   // Restaurar celas de prisioneiros e geradores (RESCUE_01 / RESCUE_02)
