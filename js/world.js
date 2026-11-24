@@ -1078,10 +1078,10 @@ export function buildTerrainAndMountains() {
     return mesh;
   }
 
-  // 1. Cadeia de Montanhas ao Norte da Ponte Golden Gate (Marin Headlands) e Margens da Baía
+  // 1. Cadeia de Montanhas ao Norte da Ponte Golden Gate (Marin Headlands) e Margens Externas da Baía
   const mountainRanges = [
-    // Marin Headlands (Norte da Golden Gate, Z: -490..-255)
-    { x: -160, z: -290, rx: 95, rz: 75, h: 72, color: 0x182b24, emissive: 0x0c2420, rotY: 0.4 },
+    // Marin Headlands (Norte da Golden Gate, Z: -490..-310, totalmente fora da malha urbana)
+    { x: -160, z: -345, rx: 88, rz: 70, h: 72, color: 0x182b24, emissive: 0x0c2420, rotY: 0.4 },
     { x: -40, z: -340, rx: 115, rz: 85, h: 98, color: 0x1d2330, emissive: 0x102234, rotY: 1.1 },
     { x: 95, z: -305, rx: 105, rz: 72, h: 84, color: 0x182b24, emissive: 0x0b2522, rotY: 0.2 },
     { x: 225, z: -335, rx: 120, rz: 88, h: 112, color: 0x1d2330, emissive: 0x12263b, rotY: 2.1 },
@@ -1116,17 +1116,13 @@ export function buildTerrainAndMountains() {
     });
   });
 
-  // 2. Colinas verdes escalonadas com árvores nos parques e bordas do Distrito Sul
+  // 2. Colinas verdes escalonadas com árvores apenas nas bordas externas do Distrito Sul (zero colinas dentro da cidade)
   const hillTrees = [];
   const steppedHills = [
-    // Bordas do Distrito Sul
-    { x: -245, z: 505, rx: 46, rz: 36, h: 14, color: 0x182b24 },
-    { x: -150, z: 515, rx: 42, rz: 32, h: 12, color: 0x1b332a },
-    { x: -35, z: 510, rx: 44, rz: 34, h: 13, color: 0x182b24 },
-    // Parques e bordas internas
-    { x: -140, z: 86, rx: 14, rz: 12, h: 4.2, color: 0x1b362c, collide: false },
-    { x: 24, z: 124, rx: 12, rz: 10, h: 3.6, color: 0x1b362c, collide: false },
-    { x: -156, z: 252, rx: 15, rz: 13, h: 4.5, color: 0x182b24, collide: false }
+    // Bordas externas ao sul do Distrito Sul (Z >= 505, fora de praças e avenidas)
+    { x: -245, z: 515, rx: 46, rz: 36, h: 14, color: 0x182b24 },
+    { x: -150, z: 525, rx: 42, rz: 32, h: 12, color: 0x1b332a },
+    { x: -35, z: 520, rx: 44, rz: 34, h: 13, color: 0x182b24 }
   ];
 
   steppedHills.forEach((hDef) => {
@@ -2799,6 +2795,8 @@ export function buildExtractionZone(ex, ez, missionKey) {
   beam.position.y = 4.5;
   group.add(beam);
 
+  // Inicia oculta: apenas a zona de extração da missão ativa em MISSION_STATE.ESCAPE fica visível
+  group.visible = false;
   refs.worldGroup.add(group);
   missionExtractions[missionKey] = { group, ring, beam };
   if (missionKey === 'COMPLEXO_CTOS') {
@@ -2842,12 +2840,12 @@ export function buildDocksEnvironment(cfg) {
     edgesOpacity: 0.9
   });
 
-  // Rampa suave de conexão do píer de lanchas (X: 396..404, Z: 62) diretamente ao pátio das Docas
-  addStaticBox(12.0, 0.25, 20.0, dx - 41, -0.125, 62, 0x1c2538, {
+  // Faixa luminosa verde alinhada exatamente à borda oeste do cais das Docas (X = 400.15, Z = 52..72), sem saliências ou z-fighting
+  addStaticBox(0.3, 0.06, 20.0, dx - 44.85, 0.03, 62, 0x00ff88, {
     collide: false,
     occlude: false,
-    edgesColor: 0x00ff88,
-    edgesOpacity: 0.55
+    emissive: 0x00ff88,
+    emissiveIntensity: 0.85
   });
   // Pórtico luminoso na entrada das Docas (Z = 24..46)
   addStaticBox(1.4, 6.0, 1.4, dx - 44, 3.0, 24, 0x222c42, { edgesColor: 0x00f0ff, edgesOpacity: 0.65 });
@@ -3861,12 +3859,12 @@ export function buildBoatPiersAndBoats() {
   rampE2.rotation.z = 0.05;
   addStaticBox(5.0, 0.35, 7.0, 398.5, -0.425, -120, pierMatColor, { ...pierMatOpts, edgesColor: 0xff0055, edgesOpacity: 0.65 });
 
-  // Lanchas posicionadas diretamente dentro da água (x = 84 no lado de Downtown e x = 394 no lado das Docas, y = -0.42)
+  // Lanchas posicionadas totalmente dentro da água (x >= 84 no lado oeste e x <= 392 no lado leste, sem proa atravessar o cais)
   const boatConfigs = [
-    { x: 84, z: 62, yaw: Math.PI / 2, color: 0x111a2e, neon: 0x00f0ff },
-    { x: 394, z: 62, yaw: -Math.PI / 2, color: 0x111a2e, neon: 0x00ff88 },
-    { x: 84, z: 220, yaw: Math.PI / 2, color: 0x141f36, neon: 0xffaa00 },
-    { x: 394, z: -120, yaw: -Math.PI / 2, color: 0x141f36, neon: 0xff0055 }
+    { x: 86, z: 62, yaw: Math.PI / 2, color: 0x111a2e, neon: 0x00f0ff },
+    { x: 390, z: 62, yaw: -Math.PI / 2, color: 0x111a2e, neon: 0x00ff88 },
+    { x: 86, z: 220, yaw: Math.PI / 2, color: 0x141f36, neon: 0xffaa00 },
+    { x: 390, z: -120, yaw: -Math.PI / 2, color: 0x141f36, neon: 0xff0055 }
   ];
 
   boatConfigs.forEach((bCfg, idx) => {
@@ -4241,6 +4239,11 @@ export function startContract(missionKey) {
   gameState.activeMissionKey = missionKey;
   gameState.selectedMap = missionKey;
 
+  // Ocultar todas as zonas de extração (somente a zona ativa em MISSION_STATE.ESCAPE será exibida)
+  Object.values(missionExtractions).forEach((ex) => {
+    if (ex?.group) ex.group.visible = false;
+  });
+
   if (missionServers[missionKey]) {
     refs.serverMesh = missionServers[missionKey].mesh;
     refs.serverCoreMesh = missionServers[missionKey].core;
@@ -4287,6 +4290,9 @@ export function returnToFreeRoam() {
   gameState.activeMissionKey = null;
   gameState.targetCar = null;
   if (refs.vehicleDeliveryGroup) refs.vehicleDeliveryGroup.visible = false;
+  Object.values(missionExtractions).forEach((ex) => {
+    if (ex?.group) ex.group.visible = false;
+  });
   gameState.markerCooldown = 3.5;
   // Garante que o jogador saia do carro entregue (contratos VIP) e fique visível
   gameState.drivingCar = null;

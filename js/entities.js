@@ -32,6 +32,7 @@ import {
   fleeingDrivers,
   boats,
   missionMarkers,
+  missionExtractions,
   stores,
   lightPoles,
   trafficLights,
@@ -1908,11 +1909,25 @@ export function updatePlayer(dt) {
     const nextX = THREE.MathUtils.clamp(boat.mesh.position.x + fx * boat.speed * dt, WORLD_BOUNDS.minX + 4, WORLD_BOUNDS.maxX - 4);
     const nextZ = THREE.MathUtils.clamp(boat.mesh.position.z + fz * boat.speed * dt, WORLD_BOUNDS.minZ + 4, WORLD_BOUNDS.maxZ - 4);
 
-    if (isWaterForBoats(nextX, nextZ)) {
+    const bowX = nextX + fx * 2.6;
+    const bowZ = nextZ + fz * 2.6;
+    const sternX = nextX - fx * 2.2;
+    const sternZ = nextZ - fz * 2.2;
+
+    if (
+      isWaterForBoats(nextX, nextZ) &&
+      isWaterForBoats(bowX, bowZ) &&
+      isWaterForBoats(sternX, sternZ) &&
+      !isPierArea(bowX, bowZ) &&
+      !isPierArea(nextX, nextZ)
+    ) {
       boat.mesh.position.x = nextX;
       boat.mesh.position.z = nextZ;
     } else {
+      // Empuxo suave de volta para a água caso encoste na borda do píer/cais
       boat.speed = 0;
+      if (boat.mesh.position.x < 84) boat.mesh.position.x = 84;
+      if (boat.mesh.position.x > 392) boat.mesh.position.x = 392;
     }
 
     boat.mesh.position.y = -0.42 + Math.sin(gameState.elapsedTime * 2.5 + boat.id) * 0.05;
@@ -3087,6 +3102,17 @@ export function updateInteractionsAndMission(dt) {
       g.gateMesh.position.x = THREE.MathUtils.lerp(g.initialX, g.openX, g.openProgress);
     }
   });
+
+  // Visibilidade estrita das zonas de extração e entrega: ocultas em FREE_ROAM e apenas 1 ativa por vez
+  const showEscape = gameState.mission === MISSION_STATE.ESCAPE;
+  Object.values(missionExtractions).forEach((ex) => {
+    if (ex?.group) {
+      ex.group.visible = showEscape && ex.group === refs.extractionZoneGroup;
+    }
+  });
+  if (refs.vehicleDeliveryGroup) {
+    refs.vehicleDeliveryGroup.visible = gameState.mission === MISSION_STATE.STEAL_CAR;
+  }
 
   // Rotação do núcleo do servidor e pulso da zona de extração
   if (refs.serverCoreMesh) {
