@@ -12,6 +12,7 @@ import {
   gameState,
   colliders,
   occluders,
+  nearbyOccluders,
   structureMeshes,
   hackableMeshes,
   securityCameras,
@@ -386,10 +387,22 @@ export function initThree() {
 
   refs.camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 2400);
 
-  refs.renderer = new THREE.WebGLRenderer({ canvas: dom.canvas, antialias: true });
+  const isMobile =
+    'ontouchstart' in window || (navigator.maxTouchPoints || 0) > 0 || window.innerWidth < 900;
+  if (isMobile) {
+    gameState.shadowsEnabled = false;
+    gameState.rainEnabled = false;
+    if (dom.btnToggleShadows) {
+      dom.btnToggleShadows.textContent = 'SOMBRAS: OFF';
+      dom.btnToggleShadows.classList.remove('active');
+    }
+    if (dom.btnRain) dom.btnRain.textContent = 'CHUVA: OFF';
+  }
+
+  refs.renderer = new THREE.WebGLRenderer({ canvas: dom.canvas, antialias: !isMobile });
   refs.renderer.setSize(window.innerWidth, window.innerHeight);
-  refs.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-  refs.renderer.shadowMap.enabled = true;
+  refs.renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1.25 : 1.5));
+  refs.renderer.shadowMap.enabled = gameState.shadowsEnabled;
   refs.renderer.shadowMap.type = THREE.PCFShadowMap;
 
   refs.clock = new THREE.Clock();
@@ -425,6 +438,7 @@ export function buildMap() {
 
   colliders.length = 0;
   occluders.length = 0;
+  nearbyOccluders.length = 0;
   structureMeshes.length = 0;
   hackableMeshes.length = 0;
   securityCameras.length = 0;
@@ -5222,7 +5236,8 @@ export function updateVisualEffects(dt, nowSec) {
     refs.extractionBeam.material.opacity = 0.13 + Math.sin(nowSec * 3.2) * 0.04;
   }
 
-  if (refs.bayWaterGeo) {
+  refs._waterFrameToggle = !refs._waterFrameToggle;
+  if (refs.bayWaterGeo && refs._waterFrameToggle) {
     const posAttr = refs.bayWaterGeo.attributes.position;
     const base = refs.bayWaterGeo.userData.basePositions;
     for (let i = 0; i < posAttr.count; i++) {

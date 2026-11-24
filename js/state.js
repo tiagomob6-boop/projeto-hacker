@@ -606,6 +606,33 @@ export const serverParticleData = [];
 // Listas de mundo e gameplay
 export const colliders = [];   // { box: THREE.Box3, mesh, isGate?: boolean, gateIndex?: number }
 export const occluders = [];   // Meshes que bloqueiam visão dos guardas
+export const nearbyOccluders = []; // Cache espacial (raio 85m) atualizado a cada 0.5s para Raycaster rápido
+let _nearbyOccTimer = 0;
+
+export function updateNearbyOccluders(dt, originPos, force = false) {
+  if (!originPos) return;
+  _nearbyOccTimer -= dt;
+  if (!force && _nearbyOccTimer > 0 && nearbyOccluders.length > 0) return;
+  _nearbyOccTimer = 0.5;
+  nearbyOccluders.length = 0;
+  const ox = originPos.x;
+  const oz = originPos.z;
+  const maxDistSq = 85 * 85;
+  for (let i = 0; i < occluders.length; i++) {
+    const obj = occluders[i];
+    if (!obj) continue;
+    const p = obj.parent && obj.parent !== refs.worldGroup ? obj.parent.position : obj.position;
+    const dx = p.x - ox;
+    const dz = p.z - oz;
+    if (dx * dx + dz * dz <= maxDistSq) {
+      nearbyOccluders.push(obj);
+    }
+  }
+}
+
+export function getRaycastOccluders() {
+  return nearbyOccluders.length > 0 ? nearbyOccluders : occluders;
+}
 export const structureMeshes = []; // Meshes afetados pelo wireframe NetHack
 export const hackableMeshes = [];  // Dispositivos destacáveis no NetHack
 export const securityCameras = []; // { id, name, mesh, pos, baseYaw, basePitch, yawOffset, pitchOffset, coneMesh, coneMat, disabledTimer, sweepPhase, currentYaw }

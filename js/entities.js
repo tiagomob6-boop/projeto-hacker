@@ -21,6 +21,8 @@ import {
   gameState,
   raycaster,
   occluders,
+  updateNearbyOccluders,
+  getRaycastOccluders,
   hackableMeshes,
   securityCameras,
   guards,
@@ -89,6 +91,7 @@ const _tmpV2 = new THREE.Vector3();
 const _tmpV3 = new THREE.Vector3();
 const _tmpV4 = new THREE.Vector3();
 const _tmpV5 = new THREE.Vector3();
+const _tmpV6 = new THREE.Vector3();
 const CULL_DIST_SQ = 160 * 160;
 
 function createAgentNameTag(labelText) {
@@ -997,6 +1000,7 @@ export function buildGuards(cfg, missionKey = 'COMPLEXO_CTOS') {
       sparkData,
       state: GUARD_STATE.PATROL,
       lastKnownPos: null,
+      _lastKnownVec: new THREE.Vector3(),
       lookAroundTimer: 0,
       lookBaseYaw: 0,
       investigateTarget: null,
@@ -2048,6 +2052,9 @@ export function updateCars(dt) {
 }
 
 export function updatePlayer(dt) {
+  if (refs.playerGroup) {
+    updateNearbyOccluders(dt, gameState.droneActive && refs.droneGroup ? refs.droneGroup.position : refs.playerGroup.position);
+  }
   if (gameState.terminalOpen || gameState.activeCamIndex >= 0) return;
 
   // Pulsação do LED da mochila hacker
@@ -2287,7 +2294,7 @@ export function updatePlayer(dt) {
       if (car.nitroTrailCd <= 0) {
         const backX = car.mesh.position.x - Math.sin(car.mesh.rotation.y) * 2.2;
         const backZ = car.mesh.position.z - Math.cos(car.mesh.rotation.y) * 2.2;
-        spawnTaserFlash(new THREE.Vector3(backX, car.mesh.position.y + 0.45, backZ), 0xff0055);
+        spawnTaserFlash(_tmpV1.set(backX, car.mesh.position.y + 0.45, backZ), 0xff0055);
         car.nitroTrailCd = 0.07;
       }
     }
@@ -2701,7 +2708,7 @@ export function updateCamera() {
       _tmpV2.copy(_tmpV1).sub(dPos).normalize();
       raycaster.set(dPos, _tmpV2);
       raycaster.far = _tmpV1.distanceTo(dPos);
-      const hits = raycaster.intersectObjects(occluders, false);
+      const hits = raycaster.intersectObjects(getRaycastOccluders(), false);
       const targetCamPos =
         hits.length > 0
           ? _tmpV3.copy(dPos).addScaledVector(_tmpV2, Math.max(0.55, hits[0].distance - 0.22))
@@ -2903,13 +2910,21 @@ export function updateSecurityCameras(dt, playerPos, playerCenter) {
     _tmpV2.set(camObj.pos.x + sinY * 0.45, camObj.pos.y, camObj.pos.z + cosY * 0.45);
 
     // Recorta o comprimento do cone laser vermelho se encontrar parede/marquise/teto à frente
-    if (camObj.laserMesh) {
-      raycaster.set(_tmpV2, _tmpV1);
-      raycaster.far = camObj.visionRange;
-      const coneBlock = raycaster.intersectObjects(occluders, false);
-      const effectiveLen = coneBlock.length > 0 ? Math.max(0.5, coneBlock[0].distance) : camObj.visionRange;
-      const scaleRatio = effectiveLen / camObj.visionRange;
-      camObj.laserMesh.scale.set(scaleRatio, scaleRatio, scaleRatio);
+    // Otimização MED-04: pula raycast de câmeras > 110m e atualiza a cada 3 frames usando cache espacial
+    const camDx = camObj.pos.x - playerPos.x;
+    const camDz = camObj.pos.z - playerPos.z;
+    const camDistSq = camDx * camDx + camDz * camDz;
+    const rayOccluders = getRaycastOccluders();
+    if (camObj.laserMesh && camDistSq <= 110 * 110) {
+      camObj._laserTick = ((camObj._laserTick ?? idx) + 1) % 3;
+      if (camObj._laserTick === 0) {
+        raycaster.set(_tmpV2, _tmpV1);
+        raycaster.far = camObj.visionRange;
+        const coneBlock = raycaster.intersectObjects(rayOccluders, false);
+        const effectiveLen = coneBlock.length > 0 ? Math.max(0.5, coneBlock[0].distance) : camObj.visionRange;
+        const scaleRatio = effectiveLen / camObj.visionRange;
+        camObj.laserMesh.scale.set(scaleRatio, scaleRatio, scaleRatio);
+      }
     }
 
     _tmpV3.copy(playerCenter).sub(_tmpV2);
@@ -2922,7 +2937,7 @@ export function updateSecurityCameras(dt, playerPos, playerCenter) {
         _tmpV4.copy(playerCenter).sub(_tmpV2).normalize();
         raycaster.set(_tmpV2, _tmpV4);
         raycaster.far = Math.max(0.1, dist - 0.3);
-        const blocked = raycaster.intersectObjects(occluders, false);
+        const blocked = raycaster.intersectObjects(rayOccluders, false);
         if (blocked.length === 0) {
           camSpotted = true;
           if (camObj.alertCooldown <= 0) {
@@ -3193,7 +3208,10 @@ export function updateGuards(dt) {
         g.mesh.position.y = getSurfaceHeight(g.mesh.position.x, g.mesh.position.z, g.mesh.position.y);
         if (g.sparkPoints) g.sparkPoints.visible = false;
         g.state = gameState.baseAlert ? GUARD_STATE.COMBAT : GUARD_STATE.INVESTIGATE;
-        g.lastKnownPos = g.mesh.position.clone();
+        if (g._lastKnownVec) {
+          g._lastKnownVec.copy(g.mesh.position);
+          g.lastKnownPos = g._lastKnownVec;
+        }
         g.lookAroundTimer = 3.0;
         g.lookBaseYaw = g.mesh.rotation.y;
       }
@@ -3222,7 +3240,7 @@ export function updateGuards(dt) {
           _tmpV4.copy(playerCenter).sub(_tmpV3).normalize();
           raycaster.set(_tmpV3, _tmpV4);
           raycaster.far = Math.max(0.1, _tmpV3.distanceTo(playerCenter) - 0.25);
-          const blocked = raycaster.intersectObjects(occluders, false);
+          const blocked = raycaster.intersectObjects(getRaycastOccluders(), false);
           g._cachedSeesPlayer = blocked.length === 0;
         }
         guardSeesPlayer = !!g._cachedSeesPlayer;
@@ -3236,19 +3254,27 @@ export function updateGuards(dt) {
     if (guardSeesPlayer) {
       spottedThisFrame = true;
       g.state = GUARD_STATE.COMBAT;
-      if (!g.lastKnownPos) g.lastKnownPos = new THREE.Vector3();
-      g.lastKnownPos.copy(playerPos);
+      if (g._lastKnownVec) {
+        g._lastKnownVec.copy(playerPos);
+        g.lastKnownPos = g._lastKnownVec;
+      } else if (g.lastKnownPos) {
+        g.lastKnownPos.copy(playerPos);
+      }
       g.lookAroundTimer = 0;
     } else if (isContractGuard && gameState.baseAlert) {
       g.state = GUARD_STATE.COMBAT;
-      if (!g.lastKnownPos) g.lastKnownPos = new THREE.Vector3();
-      g.lastKnownPos.copy(playerPos);
+      if (g._lastKnownVec) {
+        g._lastKnownVec.copy(playerPos);
+        g.lastKnownPos = g._lastKnownVec;
+      } else if (g.lastKnownPos) {
+        g.lastKnownPos.copy(playerPos);
+      }
     }
 
-    // 2. Máquina de estados de movimentação e combate
+    // 2. Máquina de estados de movimentação e combate (Zero-GC com _tmpV6)
     if (g.state === GUARD_STATE.COMBAT) {
       const targetPos = g.lastKnownPos || playerPos;
-      const toTarget = targetPos.clone().sub(g.mesh.position);
+      const toTarget = _tmpV6.copy(targetPos).sub(g.mesh.position);
       toTarget.y = 0;
       const dist = toTarget.length();
 
@@ -3314,7 +3340,7 @@ export function updateGuards(dt) {
       }
     } else if (g.state === GUARD_STATE.DISTRACTED && g.investigateTarget) {
       g.investigateTimer = Math.max(0, g.investigateTimer - dt);
-      const toInv = g.investigateTarget.clone().sub(g.mesh.position);
+      const toInv = _tmpV6.copy(g.investigateTarget).sub(g.mesh.position);
       toInv.y = 0;
       const distInv = toInv.length();
       if (distInv > 1.7) {
@@ -3331,7 +3357,7 @@ export function updateGuards(dt) {
         g.state = GUARD_STATE.PATROL;
       }
     } else if (g.state === GUARD_STATE.INVESTIGATE && g.lastKnownPos) {
-      const toLast = g.lastKnownPos.clone().sub(g.mesh.position);
+      const toLast = _tmpV6.copy(g.lastKnownPos).sub(g.mesh.position);
       toLast.y = 0;
       const distLast = toLast.length();
 
@@ -3359,7 +3385,7 @@ export function updateGuards(dt) {
       }
     } else {
       const target = g.waypoints[g.currentTarget];
-      const toTarget = target.clone().sub(g.mesh.position);
+      const toTarget = _tmpV6.copy(target).sub(g.mesh.position);
       toTarget.y = 0;
       const distToWp = toTarget.length();
 
@@ -3695,17 +3721,19 @@ export function updateInteractionsAndMission(dt) {
     }
   }
 
-  // Prompt de Profiler ctOS em pedestres (Visão NetHack) e caixas elétricas
+  // Prompt de Profiler ctOS em pedestres (Visão NetHack) e caixas elétricas (Zero-GC)
   if (!promptText && gameState.activeCamIndex < 0) {
-    const camDir = new THREE.Vector3();
+    const camDir = _tmpV1;
     refs.camera.getWorldDirection(camDir);
 
     if (gameState.netHackActive) {
       for (const sp of steamPipes) {
         if (sp.cooldown > 0 || sp.activeTimer > 0) continue;
         const distSp = activePos.distanceTo(sp.pos);
-        const toSp = sp.pos.clone().add(new THREE.Vector3(0, 0.5, 0)).sub(refs.camera.position).normalize();
-        if ((distSp < 42 && camDir.dot(toSp) > 0.86) || (gameState.drivingCar && distSp < 14)) {
+        _tmpV2.copy(sp.pos);
+        _tmpV2.y += 0.5;
+        _tmpV2.sub(refs.camera.position).normalize();
+        if ((distSp < 42 && camDir.dot(_tmpV2) > 0.86) || (gameState.drivingCar && distSp < 14)) {
           promptText = '[E] DETONAR TUBULAÇÃO DE VAPOR (IMOBILIZAR VIATURAS)';
           break;
         }
@@ -3716,8 +3744,10 @@ export function updateInteractionsAndMission(dt) {
       for (const tl of trafficLights) {
         if (tl.hackedTimer > 0) continue;
         const distTl = activePos.distanceTo(tl.pos);
-        const toTl = tl.pos.clone().add(new THREE.Vector3(0, 4.8, 0)).sub(refs.camera.position).normalize();
-        if (distTl < 36 && camDir.dot(toTl) > 0.88) {
+        _tmpV2.copy(tl.pos);
+        _tmpV2.y += 4.8;
+        _tmpV2.sub(refs.camera.position).normalize();
+        if (distTl < 36 && camDir.dot(_tmpV2) > 0.88) {
           promptText = '[E] HACKEAR SEMÁFORO (CAOS NO TRÁFEGO)';
           break;
         }
@@ -3728,8 +3758,8 @@ export function updateInteractionsAndMission(dt) {
       for (const camObj of securityCameras) {
         if (camObj.disabledTimer > 0) continue;
         const distCam = activePos.distanceTo(camObj.pos);
-        const toCam = camObj.pos.clone().sub(refs.camera.position).normalize();
-        if (distCam < 26 && camDir.dot(toCam) > 0.90) {
+        _tmpV2.copy(camObj.pos).sub(refs.camera.position).normalize();
+        if (distCam < 26 && camDir.dot(_tmpV2) > 0.90) {
           promptText = `[E] DESATIVAR CÂMERA (15s) // ${camObj.name}`;
           break;
         }
@@ -3739,8 +3769,10 @@ export function updateInteractionsAndMission(dt) {
     if (!promptText && gameState.netHackActive) {
       for (const ped of pedestrians) {
         const distPed = activePos.distanceTo(ped.mesh.position);
-        const toPed = ped.mesh.position.clone().add(new THREE.Vector3(0, 1.3, 0)).sub(refs.camera.position).normalize();
-        if (distPed < 22 && camDir.dot(toPed) > 0.91) {
+        _tmpV2.copy(ped.mesh.position);
+        _tmpV2.y += 1.3;
+        _tmpV2.sub(refs.camera.position).normalize();
+        if (distPed < 22 && camDir.dot(_tmpV2) > 0.91) {
           promptText = ped.profile.hacked
             ? `PROFILER: ${ped.profile.name} (${ped.profile.job}) — CONTA HACKEADA`
             : `[E] PROFILER: ${ped.profile.name} (${ped.profile.job}) — HACKEAR CONTA (+$75)`;
@@ -3751,17 +3783,17 @@ export function updateInteractionsAndMission(dt) {
 
     if (!promptText) {
       for (const box of electricBoxes) {
-      const distBox = activePos.distanceTo(box.mesh.position);
-      const toBox = box.mesh.position.clone().sub(refs.camera.position).normalize();
-      const lookingInNetHack = gameState.netHackActive && distBox < 28 && camDir.dot(toBox) > 0.90;
-      if ((!isDrone && distBox < 3.6) || lookingInNetHack) {
-        promptText =
-          box.cooldown > 0
-            ? `CAIXA ELÉTRICA EM RECARGA (${Math.ceil(box.cooldown)}s)`
-            : '[E] SOBRECARREGAR CAIXA ELÉTRICA (DISTRAÇÃO)';
-        break;
+        const distBox = activePos.distanceTo(box.mesh.position);
+        _tmpV2.copy(box.mesh.position).sub(refs.camera.position).normalize();
+        const lookingInNetHack = gameState.netHackActive && distBox < 28 && camDir.dot(_tmpV2) > 0.90;
+        if ((!isDrone && distBox < 3.6) || lookingInNetHack) {
+          promptText =
+            box.cooldown > 0
+              ? `CAIXA ELÉTRICA EM RECARGA (${Math.ceil(box.cooldown)}s)`
+              : '[E] SOBRECARREGAR CAIXA ELÉTRICA (DISTRAÇÃO)';
+          break;
+        }
       }
-    }
     }
   }
 

@@ -11,6 +11,7 @@ import {
   gameState,
   raycaster,
   occluders,
+  getRaycastOccluders,
   securityCameras,
   guards,
   cars,
@@ -349,7 +350,7 @@ export function updateProjectiles(dt) {
     const step = p.speed * dt;
     raycaster.set(p.pos, p.dir);
     raycaster.far = step + 0.2;
-    const hitObs = raycaster.intersectObjects(occluders, false);
+    const hitObs = raycaster.intersectObjects(getRaycastOccluders(), false);
 
     p.pos.addScaledVector(p.dir, step);
     p.mesh.position.copy(p.pos);
@@ -499,7 +500,7 @@ export function updateGuardProjectiles(dt) {
 
     raycaster.set(gp.pos, gp.dir);
     raycaster.far = step + 0.2;
-    const hitObs = raycaster.intersectObjects(occluders, false);
+    const hitObs = raycaster.intersectObjects(getRaycastOccluders(), false);
 
     gp.pos.addScaledVector(gp.dir, step);
     gp.mesh.position.copy(gp.pos);
