@@ -1200,8 +1200,10 @@ export async function initCloudDb() {
   try {
     const cfg = await import('./config.js');
     dbUrl = (cfg?.NEON_DATABASE_URL || '').trim();
-  } catch {
-    // js/config.js ausente no GitHub Pages (está no .gitignore): segue no modo localStorage
+  } catch (err) {
+    if (err?.code !== 'ERR_MODULE_NOT_FOUND') {
+      console.warn('[DedSec Cloud] Aviso ao carregar js/config.js:', err);
+    }
     dbUrl = '';
   }
   if (!dbUrl) return { online: false };
