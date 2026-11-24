@@ -1067,12 +1067,18 @@ export function buildTerrainAndMountains() {
     }
 
     if (opts.collide !== false) {
-      const colRadiusX = rx * (opts.collideScale ?? 0.72);
-      const colRadiusZ = rz * (opts.collideScale ?? 0.72);
-      const box = new THREE.Box3(
-        new THREE.Vector3(x - colRadiusX, -2, z - colRadiusZ),
-        new THREE.Vector3(x + colRadiusX, (opts.baseY ?? -0.6) + height, z + colRadiusZ)
-      );
+      mesh.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(mesh);
+      // Ajusta levemente a Box3 à base real da rocha/montanha (sem bloquear passeios vizinhos nem deixar buracos na face)
+      const scaleXZ = opts.collideScale ?? 0.90;
+      const center = new THREE.Vector3();
+      const size = new THREE.Vector3();
+      box.getCenter(center);
+      box.getSize(size);
+      const halfX = (size.x * 0.5) * scaleXZ;
+      const halfZ = (size.z * 0.5) * scaleXZ;
+      box.min.set(center.x - halfX, -2, center.z - halfZ);
+      box.max.set(center.x + halfX, opts.maxColY ?? box.max.y, center.z + halfZ);
       colliders.push({ box, mesh });
     }
     return mesh;
@@ -1130,9 +1136,9 @@ export function buildTerrainAndMountains() {
       shape: 'dodeca',
       emissive: 0x0a261d,
       emissiveIntensity: 0.28,
-      collide: hDef.collide !== false,
-      occlude: hDef.collide !== false,
-      collideScale: 0.68
+      collide: true,
+      occlude: true,
+      collideScale: 0.90
     });
     const treeCount = hDef.rx > 25 ? 7 : 3;
     for (let t = 0; t < treeCount; t++) {
@@ -1172,25 +1178,34 @@ export function buildTerrainAndMountains() {
   }
 
   // 3. Colina-Mirante Acessível no Distrito Sul (X: 28..48, Z: 355..425, topo y = 11.5m)
-  // Encostas rochosas e verdes cercando o mirante sem invadir a pista
-  createDeformedMountain(22, 11.2, 22, 38, 415, 0x182b24, {
+  // Base rochosa sob o platô (colisão sólida abaixo do deck y <= 10.6m; topo livre para caminhar/dirigir)
+  createDeformedMountain(11, 10.8, 11, 38, 415, 0x182b24, {
     shape: 'dodeca',
     emissive: 0x0b2820,
     emissiveIntensity: 0.28,
-    collide: false,
-    occlude: false
+    collide: true,
+    occlude: true,
+    collideScale: 0.88,
+    maxColY: 10.6
   });
-  createDeformedMountain(15, 8.5, 24, 16, 398, 0x1d2330, {
+  // Encostas rochosas laterais e traseira cercando o mirante (colisão e oclusão sólidas, sem invadir a pista X: 28..48)
+  createDeformedMountain(12, 8.5, 22, 14, 400, 0x1d2330, {
     shape: 'dodeca',
-    collideScale: 0.65
+    collide: true,
+    occlude: true,
+    collideScale: 0.90
   });
-  createDeformedMountain(15, 8.5, 24, 60, 398, 0x1d2330, {
+  createDeformedMountain(12, 8.5, 22, 62, 400, 0x1d2330, {
     shape: 'dodeca',
-    collideScale: 0.65
+    collide: true,
+    occlude: true,
+    collideScale: 0.90
   });
-  createDeformedMountain(20, 10.5, 16, 38, 440, 0x1d2330, {
+  createDeformedMountain(18, 10.5, 14, 38, 442, 0x1d2330, {
     shape: 'dodeca',
-    collideScale: 0.7
+    collide: true,
+    occlude: true,
+    collideScale: 0.90
   });
 
   // Rampa asfaltada suave (Z: 355..405, elevação 0 -> 11.5m) e platô do Mirante (Z: 405..425)
