@@ -40,6 +40,7 @@ import {
   supplyBoxes,
   policeCars,
   rescueCells,
+  jailPrisoners,
   steamPipes,
   multiFloorBuildings,
   interiorGroups,
@@ -469,6 +470,7 @@ export function buildMap() {
   supplyBoxes.length = 0;
   policeCars.length = 0;
   rescueCells.length = 0;
+  jailPrisoners.length = 0;
   steamPipes.length = 0;
   multiFloorBuildings.length = 0;
   interiorGroups.length = 0;
@@ -477,6 +479,13 @@ export function buildMap() {
   breakableWindows.length = 0;
   glassShards.length = 0;
   refs.precinctTerminalMesh = null;
+  refs.jailGateMesh = null;
+  refs.jailGateCollider = null;
+  refs.jailTerminalMesh = null;
+  refs.jailIntercomMesh = null;
+  refs.jailCell2GateMesh = null;
+  refs.jailCell2GateCollider = null;
+  refs.jailCell2TerminalMesh = null;
   refs.waterMesh = null;
   refs.dedsecCar = null;
   refs.showroomTurntable = null;
@@ -1178,55 +1187,104 @@ export function buildVerticalMissions() {
 }
 
 export function buildPolicePrecinct() {
-  // Delegacia Central SFPD // ctOS PRECINCT no canto vazio Nordeste (X: 485, Z: -245)
-  const px = 485;
-  const pz = -245;
-  const w = 26;
-  const d = 18;
-  const h = 9.0; // 2 andares (térreo aberto + 2º andar + terraço com heliponto)
+  // Delegacia Central SFPD // ctOS PRECINCT — canto Nordeste recuado da avenida (X: 502, Z: -252)
+  // Avenida de ligação ocupa X: 460..476 | Calçada/Acesso: X: 476..480 | Pátio: X: 480..524 | Prédio: X: 488..516
+  const px = 502;
+  const pz = -252;
+  const w = 28;
+  const d = 20;
+  const floorH = 4.5;
+  const h = 9.0; // 2 andares (térreo aberto com celas + 2º andar + terraço com heliponto)
   const accent = 0x38bdf8;
 
-  // Avenida de ligação ligando as Docas (Z=-35) até o pátio da Delegacia (Z=-220)
-  addStaticBox(16, 0.08, 210, 470, 0.01, -135, 0x151e30, {
+  // 1. Avenida de ligação Norte-Sul (X: 460..476, Z: -232..-32) — sem sobreposição com pátio nem prédio
+  addStaticBox(16, 0.04, 200, 468, 0.005, -132, 0x151e30, {
+    collide: false,
+    occlude: false,
+    edgesColor: accent,
+    edgesOpacity: 0.28
+  });
+  // Faixa tracejada central da avenida
+  for (let lz = -222; lz <= -42; lz += 14) {
+    addStaticBox(0.28, 0.02, 5.5, 468, 0.022, lz, 0x38bdf8, {
+      collide: false,
+      occlude: false,
+      emissive: 0x38bdf8,
+      emissiveIntensity: 0.45
+    });
+  }
+
+  // 2. Faixa de calçada Oeste (X: 476..480) com vão livre de 16m (Z: -234..-218) para entrada de viaturas sem degrau
+  addStaticBox(4.0, 0.03, 30, 478, 0.01, -249, 0x1a253b, {
     collide: false,
     occlude: false,
     edgesColor: accent,
     edgesOpacity: 0.35
   });
-
-  // Pátio da Delegacia (X: 465..505, Z: -236..-212)
-  addStaticBox(42, 0.12, 34, px, 0.02, pz + 14, 0x121b2e, {
+  addStaticBox(4.0, 0.03, 6, 478, 0.01, -215, 0x1a253b, {
     collide: false,
     occlude: false,
     edgesColor: accent,
-    edgesOpacity: 0.55
+    edgesOpacity: 0.35
+  });
+  // Asfalto de transição da entrada do estacionamento (X: 476..480, Z: -234..-218) no mesmo nível da pista
+  addStaticBox(4.0, 0.04, 16, 478, 0.005, -226, 0x141d2f, {
+    collide: false,
+    occlude: false
   });
 
-  // Prédio de 2 andares (térreo com porta dupla aberta voltada para o pátio sul +Z)
-  const floorH = 4.5;
-  const doorW = 6.0;
-  const wallT = 0.65;
-  const segW = (w - doorW) / 2;
+  // 3. Pátio da Delegacia (X: 480..524, Z: -242..-212) — totalmente a leste da avenida, sem degrau
+  addStaticBox(44, 0.04, 30, px, 0.005, -227, 0x121b2e, {
+    collide: false,
+    occlude: false,
+    edgesColor: accent,
+    edgesOpacity: 0.42
+  });
+  // Muretas baixas apenas nas bordas Leste e Sul do pátio (nunca invadindo a avenida a Oeste)
+  addStaticBox(0.5, 0.65, 30, 523.75, 0.325, -227, 0x1d2b44, { edgesColor: accent, edgesOpacity: 0.5 });
+  addStaticBox(44, 0.65, 0.5, px, 0.325, -212.25, 0x1d2b44, { edgesColor: accent, edgesOpacity: 0.5 });
 
-  // Paredes do térreo
-  addStaticBox(w, floorH, wallT, px, floorH / 2, pz - d / 2, 0x18233a, { edgesColor: accent, edgesOpacity: 0.65 });
-  addStaticBox(wallT, floorH, d, px - w / 2, floorH / 2, pz, 0x18233a, { edgesColor: accent, edgesOpacity: 0.65 });
-  addStaticBox(wallT, floorH, d, px + w / 2, floorH / 2, pz, 0x18233a, { edgesColor: accent, edgesOpacity: 0.65 });
-  addStaticBox(segW, floorH, wallT, px - (doorW / 2 + segW / 2), floorH / 2, pz + d / 2, 0x18233a, { edgesColor: accent, edgesOpacity: 0.7 });
-  addStaticBox(segW, floorH, wallT, px + (doorW / 2 + segW / 2), floorH / 2, pz + d / 2, 0x18233a, { edgesColor: accent, edgesOpacity: 0.7 });
+  // 4. Prédio da Delegacia (X: 488..516, Z: -262..-242)
+  // Piso interno contínuo (Y = 0.02)
+  addStaticBox(w, 0.02, d, px, 0.01, pz, 0x162238, {
+    collide: false,
+    occlude: false
+  });
+  // Painéis LED emissivos no teto do térreo (iluminação limpa, ZERO PointLights)
+  [
+    [492.2, -257.0, 4.8, 1.4],
+    [492.2, -247.0, 4.8, 1.4],
+    [504.5, -252.0, 8.5, 1.8]
+  ].forEach(([lx, lz, lw, ld]) => {
+    addStaticBox(lw, 0.08, ld, lx, floorH - 0.12, lz, 0x7dd3fc, {
+      collide: false,
+      occlude: false,
+      emissive: 0x38bdf8,
+      emissiveIntensity: 0.95
+    });
+  });
+
+  // Paredes externas do térreo (porta dupla de 6m centrada em X = 505 na fachada Sul Z = -242)
+  const wallT = 0.65;
+  addStaticBox(w, floorH, wallT, px, floorH / 2, pz - d / 2, 0x18233a, { edgesColor: accent, edgesOpacity: 0.65 }); // Norte (Z=-262)
+  addStaticBox(wallT, floorH, d, px - w / 2, floorH / 2, pz, 0x18233a, { edgesColor: accent, edgesOpacity: 0.65 }); // Oeste (X=488)
+  addStaticBox(wallT, floorH, d, px + w / 2, floorH / 2, pz, 0x18233a, { edgesColor: accent, edgesOpacity: 0.65 }); // Leste (X=516)
+  // Fachada Sul (Z=-242): segmento Oeste (X: 488..502 = 14m) e segmento Leste (X: 508..516 = 8m) -> vão de 6m (X: 502..508)
+  addStaticBox(14.0, floorH, wallT, 495.0, floorH / 2, pz + d / 2, 0x18233a, { edgesColor: accent, edgesOpacity: 0.7 });
+  addStaticBox(8.0, floorH, wallT, 512.0, floorH / 2, pz + d / 2, 0x18233a, { edgesColor: accent, edgesOpacity: 0.7 });
 
   // 2º andar sólido + laje de cobertura (y = 4.5 .. 9.0)
   addStaticBox(w, 4.5, d, px, 6.75, pz, 0x131d33, { edgesColor: accent, edgesOpacity: 0.72 });
 
   // Letreiro luminoso 3D na fachada sul
   const sign = new THREE.Mesh(
-    new THREE.PlaneGeometry(13.5, 2.2),
+    new THREE.PlaneGeometry(14.5, 2.3),
     new THREE.MeshBasicMaterial({ map: TextureGenerator.getNeonSignTexture('SFPD // ctOS PRECINCT', '#38bdf8'), side: THREE.DoubleSide })
   );
   sign.position.set(px, 6.8, pz + d / 2 + 0.45);
   refs.worldGroup.add(sign);
 
-  // Heliponto no terraço (y = 9.05) com marcação 'H' procedural
+  // Heliponto no terraço (y = 9.06) com marcação 'H' procedural
   const hCanvas = TextureGenerator._makeCanvas(256, 256);
   const hCtx = hCanvas.getContext('2d');
   hCtx.fillStyle = '#0f172a';
@@ -1250,16 +1308,252 @@ export function buildPolicePrecinct() {
   helipad.position.set(px, h + 0.06, pz);
   refs.worldGroup.add(helipad);
 
-  // Sala de controle interna + Terminal Hackeável que zera Nível de Procurado (wantedLevel = 0 com E)
-  addStaticBox(5.2, 1.0, 1.3, px, 0.55, pz - 4.0, 0x1e2c46, { edgesColor: accent, edgesOpacity: 0.65 });
-  const termMesh = createHackableDevice(1.1, 1.65, 0.75, px, 0.85, pz - 2.6, 0x00ff88, 'TERMINAL_SFPD_LIMPAR_PROCURADO');
+  // ==========================================
+  // 5. ALA DE DETENÇÃO INTERNA — 2 CELAS COM GRADES, MÓVEIS, VÃO PARA DRONE E PRISIONEIROS
+  // ==========================================
+  const barMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.85, roughness: 0.25 });
+  const barNetHackMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff, wireframe: true });
+  const cellBarH = 3.3; // Vão livre entre Y = 3.3 e Y = 4.5 (1.2m) para passagem do Drone (Q)!
+
+  // Divisória sólida entre Cela 01 (Norte: Z=-261.6..-252.2) e Cela 02 (Sul: Z=-251.8..-242.4)
+  addStaticBox(7.7, floorH, 0.42, 492.2, floorH / 2, -252.0, 0x1e293b, { edgesColor: accent, edgesOpacity: 0.45 });
+
+  // Helper para segmento fixo de grades verticais (com colisão apenas até Y = 3.3 para manter vão do Drone)
+  const buildBarSegment = (xPos, zStart, zEnd) => {
+    const segLen = Math.abs(zEnd - zStart);
+    const zMid = (zStart + zEnd) * 0.5;
+    // Trilhos inferior e superior
+    addStaticBox(0.18, 0.14, segLen, xPos, 0.07, zMid, 0x334155, { collide: false, occlude: false });
+    addStaticBox(0.18, 0.16, segLen, xPos, cellBarH - 0.08, zMid, 0x334155, { collide: false, occlude: false });
+    const count = Math.max(2, Math.floor(segLen / 0.36));
+    const step = segLen / count;
+    for (let i = 0; i <= count; i++) {
+      const bz = zStart + i * step;
+      const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, cellBarH, 6), barMat);
+      bar.position.set(xPos, cellBarH * 0.5, bz);
+      bar.userData.normalMaterial = barMat;
+      bar.userData.nethackMaterial = barNetHackMat;
+      refs.worldGroup.add(bar);
+      structureMeshes.push(bar);
+    }
+    // Colisor único para o segmento de grades (Y: 0..3.3, aberto acima para o Drone!)
+    const colBox = new THREE.Box3(
+      new THREE.Vector3(xPos - 0.16, 0, Math.min(zStart, zEnd)),
+      new THREE.Vector3(xPos + 0.16, cellBarH, Math.max(zStart, zEnd))
+    );
+    colliders.push({ box: colBox, mesh: null });
+  };
+
+  // Helper para porta eletrônica deslizante de cela
+  const buildSlidingCellGate = (xPos, zCenter, widthZ, lockColor) => {
+    const gateGroup = new THREE.Group();
+    gateGroup.position.set(xPos, 0, zCenter);
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.82, roughness: 0.28 });
+    const topRail = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.18, widthZ), frameMat);
+    topRail.position.set(0, cellBarH - 0.09, 0);
+    gateGroup.add(topRail);
+    const botRail = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.14, widthZ), frameMat);
+    botRail.position.set(0, 0.07, 0);
+    gateGroup.add(botRail);
+    const midRail = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.12, widthZ), frameMat);
+    midRail.position.set(0, 1.55, 0);
+    gateGroup.add(midRail);
+    const barCount = 8;
+    for (let i = 0; i <= barCount; i++) {
+      const bz = -widthZ * 0.5 + (i / barCount) * widthZ;
+      const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, cellBarH, 6), barMat);
+      bar.position.set(0, cellBarH * 0.5, bz);
+      gateGroup.add(bar);
+    }
+    const lockLedMat = new THREE.MeshBasicMaterial({ color: lockColor });
+    const lockLed = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.28, 0.18), lockLedMat);
+    lockLed.position.set(0, 1.35, widthZ * 0.42);
+    gateGroup.add(lockLed);
+    gateGroup.userData.lockLedMat = lockLedMat;
+    refs.worldGroup.add(gateGroup);
+
+    const colliderObj = {
+      box: new THREE.Box3(
+        new THREE.Vector3(xPos - 0.18, 0, zCenter - widthZ * 0.5),
+        new THREE.Vector3(xPos + 0.18, cellBarH, zCenter + widthZ * 0.5)
+      ),
+      mesh: gateGroup,
+      isJailGate: true
+    };
+    colliders.push(colliderObj);
+    return { gateGroup, colliderObj };
+  };
+
+  // Helper para mobília de cela (beliche metálico, banco e vaso metálico)
+  const buildCellFurniture = (bunkX, bunkZ, benchX, benchZ, toiletX, toiletZ) => {
+    // Beliche metálico (2 andares)
+    addStaticBox(2.2, 0.12, 1.0, bunkX, 0.55, bunkZ, 0x334155, { edgesColor: 0x64748b, edgesOpacity: 0.5 });
+    addStaticBox(2.05, 0.14, 0.9, bunkX, 0.68, bunkZ, 0x1e3a5f, { collide: false, occlude: false });
+    addStaticBox(2.2, 0.12, 1.0, bunkX, 1.65, bunkZ, 0x334155, { collide: false, occlude: false, edgesColor: 0x64748b, edgesOpacity: 0.5 });
+    addStaticBox(2.05, 0.14, 0.9, bunkX, 1.78, bunkZ, 0x1e3a5f, { collide: false, occlude: false });
+    [
+      [-1.02, -0.44], [1.02, -0.44], [-1.02, 0.44], [1.02, 0.44]
+    ].forEach(([ox, oz]) => {
+      addStaticBox(0.08, 2.0, 0.08, bunkX + ox, 1.0, bunkZ + oz, 0x475569, { collide: false, occlude: false });
+    });
+    // Banco metálico lateral
+    addStaticBox(0.65, 0.48, 2.2, benchX, 0.24, benchZ, 0x3b485e, { edgesColor: 0x64748b, edgesOpacity: 0.45 });
+    // Vaso sanitário metálico de prisão
+    const toiletBase = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.24, 0.18, 0.45, 10),
+      barMat
+    );
+    toiletBase.position.set(toiletX, 0.225, toiletZ);
+    refs.worldGroup.add(toiletBase);
+    addStaticBox(0.5, 0.65, 0.28, toiletX, 0.62, toiletZ - 0.26, 0x94a3b8, { collide: false, occlude: false });
+  };
+
+  // --- CELA 01 (Norte — Cela do Jogador): X: 488.4..496.0, Z: -261.6..-252.2 ---
+  buildBarSegment(496.0, -261.6, -258.5);
+  buildBarSegment(496.0, -255.5, -252.2);
+  const cell1Gate = buildSlidingCellGate(496.0, -257.0, 3.0, 0xff0055);
+  refs.jailGateMesh = cell1Gate.gateGroup;
+  refs.jailGateCollider = cell1Gate.colliderObj;
+  refs.jailGateClosedZ = -257.0;
+  refs.jailGateOpenZ = -253.8;
+  buildCellFurniture(490.2, -260.4, 489.1, -256.4, 494.4, -260.6);
+
+  // Painel eletrônico externo da Cela 01 (hackeável via Drone [Q] pelo vão superior ou NetHack [V]+[E])
+  refs.jailTerminalMesh = createHackableDevice(0.38, 0.72, 0.52, 496.55, 1.35, -254.1, 0x00f0ff, 'TERMINAL_CELA_SFPD_01');
+  // Intercomunicador de Fiança ($500) na parede interna sul da Cela 01
+  refs.jailIntercomMesh = createHackableDevice(0.45, 0.62, 0.16, 492.6, 1.4, -252.35, 0xffaa00, 'INTERCOM_FIANCA_SFPD');
+
+  // --- CELA 02 (Sul — Cela dos Prisioneiros NPCs): X: 488.4..496.0, Z: -251.8..-242.4 ---
+  buildBarSegment(496.0, -251.8, -248.6);
+  buildBarSegment(496.0, -245.6, -242.4);
+  const cell2Gate = buildSlidingCellGate(496.0, -247.1, 3.0, 0xffaa00);
+  refs.jailCell2GateMesh = cell2Gate.gateGroup;
+  refs.jailCell2GateCollider = cell2Gate.colliderObj;
+  buildCellFurniture(490.2, -250.6, 489.1, -246.5, 494.4, -243.4);
+  refs.jailCell2TerminalMesh = createHackableDevice(0.38, 0.72, 0.52, 496.55, 1.35, -244.6, 0x00f0ff, 'TERMINAL_CELA_SFPD_02');
+
+  // --- PRISIONEIROS NPCs (Uniforme laranja/cinza de detento + Profiler ctOS + animação idle/caminhada curta) ---
+  const spawnJailPrisoner = (cfg) => {
+    const group = new THREE.Group();
+    const suitMat = new THREE.MeshStandardMaterial({ color: cfg.suitColor, roughness: 0.72, metalness: 0.08 });
+    const pantsMat = new THREE.MeshStandardMaterial({ color: cfg.pantsColor, roughness: 0.78 });
+    const skinMat = new THREE.MeshStandardMaterial({ color: cfg.skinColor, roughness: 0.65 });
+    const hairMat = new THREE.MeshStandardMaterial({ color: 0x1e1b18, roughness: 0.85 });
+
+    const legL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.72, 0.18), pantsMat);
+    legL.position.set(-0.12, 0.36, 0);
+    const legR = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.72, 0.18), pantsMat);
+    legR.position.set(0.12, 0.36, 0);
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.64, 0.25), suitMat);
+    torso.position.set(0, 1.04, 0);
+    const armL = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.56, 0.14), suitMat);
+    armL.position.set(-0.32, 1.02, 0);
+    const armR = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.56, 0.14), suitMat);
+    armR.position.set(0.32, 1.02, 0);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.28, 0.28), skinMat);
+    head.position.set(0, 1.54, 0);
+    const hair = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.1, 0.3), hairMat);
+    hair.position.set(0, 1.68, 0);
+
+    group.add(legL, legR, torso, armL, armR, head, hair);
+    group.position.set(cfg.waypoints[0][0], 0.02, cfg.waypoints[0][1]);
+    refs.worldGroup.add(group);
+
+    jailPrisoners.push({
+      mesh: group,
+      legL,
+      legR,
+      armL,
+      armR,
+      head,
+      cellId: cfg.cellId,
+      waypoints: cfg.waypoints.map(([wx, wz]) => new THREE.Vector3(wx, 0.02, wz)),
+      wpIndex: 0,
+      idleTimer: cfg.initialIdle || 1.5,
+      walkPhase: Math.random() * Math.PI * 2,
+      profile: cfg.profile,
+      dialogues: cfg.dialogues,
+      dialogueIndex: 0
+    });
+  };
+
+  spawnJailPrisoner({
+    cellId: 1,
+    suitColor: 0xf97316,
+    pantsColor: 0xea580c,
+    skinColor: 0xd6a582,
+    initialIdle: 1.2,
+    waypoints: [
+      [490.8, -258.2],
+      [494.1, -258.2],
+      [493.8, -254.2]
+    ],
+    profile: {
+      name: 'MARCUS "GHOST" VANCE',
+      tag: 'DETENTO #4091 // INVASÃO DE SERVIDOR ctOS',
+      cell: 'CELA 01'
+    },
+    dialogues: [
+      'MARCUS: "Ei, DedSec! As grades só vão até 3.3m — lança o Drone [Q] pelo vão do teto até o painel externo!"',
+      'MARCUS: "Ou ativa a Visão NetHack [V] mirando no painel azul lá fora e aperta [E] pra destravar!"',
+      'MARCUS: "Se tiver $500 sobrando, o intercomunicador laranja na parede sul paga fiança na hora."'
+    ]
+  });
+
+  spawnJailPrisoner({
+    cellId: 2,
+    suitColor: 0xf97316,
+    pantsColor: 0xc2410c,
+    skinColor: 0xc6865c,
+    initialIdle: 2.0,
+    waypoints: [
+      [491.0, -248.6],
+      [494.4, -248.6],
+      [494.2, -245.5]
+    ],
+    profile: {
+      name: 'CARLOS MENDEZ',
+      tag: 'DETENTO #4088 // ROUBO DE VEÍCULO BLUME',
+      cell: 'CELA 02'
+    },
+    dialogues: [
+      'CARLOS: "Esses tiras da SFPD pegaram meu carro esportivo na ponte... cinco minutos aqui parecem uma eternidade!"',
+      'CARLOS: "Se você destravar a Cela 02 também, a gente distrai os guardas da recepção!"'
+    ]
+  });
+
+  spawnJailPrisoner({
+    cellId: 2,
+    suitColor: 0x9ca3af,
+    pantsColor: 0x64748b,
+    skinColor: 0xe2b89b,
+    initialIdle: 0.8,
+    waypoints: [
+      [491.8, -244.4],
+      [494.6, -244.6],
+      [492.4, -246.8]
+    ],
+    profile: {
+      name: 'ELENA "BYTE" SATO',
+      tag: 'DETENTO #4102 // SABOTAGEM DE DRONE SFPD',
+      cell: 'CELA 02'
+    },
+    dialogues: [
+      'ELENA: "O painel da grade usa protocolo ctOS antigo. Qualquer sinal de Drone [Q] ou NetHack [V] derruba a tranca!"',
+      'ELENA: "Só cuidado: fugir da cela dispara alerta de 2 estrelas na hora."'
+    ]
+  });
+
+  // 6. Sala de controle / Recepção interna (Leste) + Terminal Hackeável (zera Procurado)
+  addStaticBox(5.2, 1.0, 1.3, 508.5, 0.55, -255.2, 0x1e2c46, { edgesColor: accent, edgesOpacity: 0.65 });
+  const termMesh = createHackableDevice(1.1, 1.65, 0.75, 508.5, 0.85, -253.4, 0x00ff88, 'TERMINAL_SFPD_LIMPAR_PROCURADO');
   refs.precinctTerminalMesh = termMesh;
 
-  // 3 Viaturas policiais estacionadas no pátio frontal (dirigíveis com F)
+  // 7. 3 Viaturas policiais estacionadas no pátio frontal (alinhadas no pátio X: 480..524, Z: -242..-212)
   [
-    { x: px - 10, z: pz + 16, yaw: 0 },
-    { x: px, z: pz + 18, yaw: 0 },
-    { x: px + 10, z: pz + 16, yaw: 0 }
+    { x: 492, z: -224, yaw: 0 },
+    { x: 502, z: -224, yaw: 0 },
+    { x: 512, z: -224, yaw: 0 }
   ].forEach((pc, idx) => {
     const { carGroup, bodyMesh, driverMesh } = buildCarMesh(0x111827, 0x38bdf8, true, 'SUV', false);
     carGroup.position.set(pc.x, 0, pc.z);
@@ -1296,6 +1590,22 @@ export function buildPolicePrecinct() {
       headlight: null
     });
   });
+
+  // 8. 2 Policiais de Patrulha da Delegacia SFPD (recepção e pátio frontal — tentam prender em alerta baixo)
+  const beforePrecinctGuards = guards.length;
+  buildGuards(
+    {
+      guards: [
+        { waypoints: [[499.5, 0.02, -258], [504.5, 0.02, -258], [504.5, 0.02, -245], [499.5, 0.02, -245]], speed: 2.5, visionRange: 18 },
+        { waypoints: [[485, 0, -236], [517, 0, -236], [517, 0, -218], [485, 0, -218]], speed: 2.8, visionRange: 22 }
+      ]
+    },
+    'SFPD_PRECINCT'
+  );
+  for (let i = beforePrecinctGuards; i < guards.length; i++) {
+    guards[i].isPolice = true;
+    guards[i].isPrecinctGuard = true;
+  }
 
   radarBuildings.push({ x: px, z: pz, w, d });
 }
@@ -4517,6 +4827,23 @@ export function resetWorldState(keepPlayerPos = false) {
   gameState.wantedStatus = 'OCULTO';
   gameState.ctosRevealTimer = 0;
   gameState.policeSpawnCooldown = 0;
+  gameState.isJailed = false;
+  gameState.jailTimer = 0;
+  gameState.jailGateLocked = true;
+  gameState.jailCell2Locked = true;
+  gameState.weaponsConfiscated = false;
+  gameState.recentLethalShotTimer = 0;
+  if (refs.jailGateMesh) {
+    refs.jailGateMesh.position.z = refs.jailGateClosedZ ?? -257.0;
+    if (refs.jailGateMesh.userData?.lockLedMat) refs.jailGateMesh.userData.lockLedMat.color.setHex(0xff0055);
+  }
+  if (refs.jailGateCollider) {
+    refs.jailGateCollider.box.min.set(495.82, 0, -258.5);
+    refs.jailGateCollider.box.max.set(496.18, 3.3, -255.5);
+    if (!colliders.includes(refs.jailGateCollider)) colliders.push(refs.jailGateCollider);
+  }
+  const jailBannerEl = document.getElementById('jail-banner');
+  if (jailBannerEl) jailBannerEl.classList.add('hidden');
   gameState.blackoutTimer = 0;
   gameState.blackoutCooldown = 0;
   gameState.droneActive = false;
@@ -4691,7 +5018,7 @@ export function resetWorldState(keepPlayerPos = false) {
     policeCars.splice(i, 1);
   }
   for (let i = guards.length - 1; i >= 0; i--) {
-    if (guards[i].isPolice) {
+    if (guards[i].isPolice && !guards[i].isPrecinctGuard) {
       refs.worldGroup.remove(guards[i].mesh);
       disposeHierarchy(guards[i].mesh);
       guards.splice(i, 1);

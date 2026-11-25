@@ -33,6 +33,7 @@ import {
   stores,
   trafficLights,
   rescueCells,
+  jailPrisoners,
   steamPipes,
   remotePlayers,
   formatTime,
@@ -163,6 +164,36 @@ export function buildNetHackLabels() {
       42
     );
   });
+
+  // Profiler ctOS / NetHack (V) para prisioneiros NPCs e dispositivos das celas da Delegacia SFPD
+  jailPrisoners.forEach((pr) => {
+    registerTag(
+      () => pr.mesh.position.clone().add(new THREE.Vector3(0, 2.15, 0)),
+      () => `${pr.profile.name} | ${pr.profile.tag} | [E] CONVERSAR`,
+      28
+    );
+  });
+  if (refs.jailTerminalMesh) {
+    registerTag(
+      () => refs.jailTerminalMesh.position.clone().add(new THREE.Vector3(0, 0.85, 0)),
+      () => (gameState.jailGateLocked ? '[E] PAINEL CELA 01 // DESTRAVAR GRADE' : 'CELA 01 ABERTA'),
+      26
+    );
+  }
+  if (refs.jailCell2TerminalMesh) {
+    registerTag(
+      () => refs.jailCell2TerminalMesh.position.clone().add(new THREE.Vector3(0, 0.85, 0)),
+      () => (gameState.jailCell2Locked ? '[E] PAINEL CELA 02 // LIBERTAR DETENTOS' : 'CELA 02 ABERTA'),
+      26
+    );
+  }
+  if (refs.jailIntercomMesh) {
+    registerTag(
+      () => refs.jailIntercomMesh.position.clone().add(new THREE.Vector3(0, 0.65, 0)),
+      () => (gameState.isJailed ? '[E] INTERCOM SFPD // PAGAR FIANÇA ($500)' : ''),
+      16
+    );
+  }
 }
 
 export function updateNetHackLabels() {
@@ -1052,7 +1083,7 @@ export function renderTacticalMap() {
     { x: -52, z: 42, label: 'HOTEL SUÍTE [07]', color: '#d946ef' },
     { x: -240, z: -220, label: 'RESGATE 01 [NORTE]', color: '#00f0ff' },
     { x: 520, z: 340, label: 'RESGATE 02 [SUL-LESTE]', color: '#ffaa00' },
-    { x: 485, z: -245, label: 'DELEGACIA SFPD', color: '#38bdf8' },
+    { x: 502, z: -252, label: 'DELEGACIA SFPD', color: '#38bdf8' },
     { x: 435, z: -135, label: 'DOCA NORTE', color: '#00ff88' },
     { x: -210, z: -140, label: 'GARAGEM OESTE', color: '#00f0ff' },
     { x: 460, z: -40, label: 'DOCA LESTE', color: '#ffaa00' }
@@ -1882,6 +1913,202 @@ export function handleTacticalMapClick(e) {
   gameState.gpsWaypoint = { x: wx, z: wz };
   AudioManager.playKeyBeep();
   renderTacticalMap();
+}
+
+function ensureJailBanner() {
+  let banner = document.getElementById('jail-banner');
+  if (!banner && dom.hud) {
+    banner = document.createElement('div');
+    banner.id = 'jail-banner';
+    banner.className = 'hidden';
+    banner.style.cssText =
+      'position:fixed;top:68px;left:50%;transform:translateX(-50%);z-index:45;' +
+      'background:rgba(10,16,28,0.92);border:1.5px solid #38bdf8;box-shadow:0 0 18px rgba(56,189,248,0.35);' +
+      'padding:10px 20px;border-radius:6px;text-align:center;font-family:monospace;pointer-events:none;min-width:320px;';
+    const titleEl = document.createElement('div');
+    titleEl.id = 'jail-banner-title';
+    titleEl.style.cssText = 'color:#ffaa00;font-weight:700;font-size:15px;letter-spacing:1.2px;';
+    titleEl.textContent = 'DETENÇÃO SFPD // TEMPO RESTANTE: 05:00';
+    const subEl = document.createElement('div');
+    subEl.id = 'jail-banner-sub';
+    subEl.style.cssText = 'color:#7dd3fc;font-size:11px;margin-top:4px;letter-spacing:0.6px;';
+    subEl.textContent = 'FUGIR: DRONE [Q] PELO VÃO / NETHACK [V]+[E] NO PAINEL • FIANÇA ($500): INTERCOM [E]';
+    banner.appendChild(titleEl);
+    banner.appendChild(subEl);
+    dom.hud.appendChild(banner);
+  }
+  return banner;
+}
+
+export function arrestPlayer(reason = 'ABORDAGEM POLICIAL SFPD') {
+  if (
+    gameState.isJailed ||
+    gameState.mission === MISSION_STATE.GAMEOVER ||
+    gameState.mission === MISSION_STATE.VICTORY
+  ) {
+    return;
+  }
+
+  gameState.isJailed = true;
+  gameState.jailTimer = 300; // 5 minutos (300 segundos)
+  gameState.jailGateLocked = true;
+  gameState.weaponsConfiscated = true;
+
+  // Multa administrativa de até $250 + armas confiscadas temporariamente
+  const fine = Math.min(gameState.money, 250);
+  gameState.money -= fine;
+  updateMoneyHUD();
+
+  // Restaura HP e limpa alerta policial ativo
+  gameState.hp = gameState.maxHp || 100;
+  updateHpHUD();
+  gameState.wantedLevel = 0;
+  gameState.wantedCooldown = 0;
+  gameState.wantedStatus = 'DETIDO (SFPD)';
+  gameState.baseAlert = false;
+  gameState.detectionLevel = 0;
+  gameState.recentLethalShotTimer = 0;
+  updateWantedHUD();
+
+  if (dom.baseAlertBanner) dom.baseAlertBanner.classList.add('hidden');
+  if (dom.ctosRevealBanner) dom.ctosRevealBanner.classList.add('hidden');
+  if (dom.damageFlash) dom.damageFlash.classList.add('hidden');
+  if (dom.alertVignette) dom.alertVignette.classList.add('hidden');
+
+  // Sai de veículos, barco, drone ou câmera de segurança
+  gameState.drivingCar = null;
+  gameState.drivingBoat = null;
+  gameState.droneActive = false;
+  gameState.activeCamIndex = -1;
+  if (refs.droneGroup) refs.droneGroup.visible = false;
+  if (dom.droneHud) dom.droneHud.classList.add('hidden');
+  if (dom.cockpitHud) dom.cockpitHud.classList.add('hidden');
+  if (dom.cameraOverlay) dom.cameraOverlay.classList.add('hidden');
+  AudioManager.stopEngineSound();
+  updateVehicleHpHUD();
+
+  // Confisca visualmente a arma equipada enquanto preso
+  if (refs.playerParts?.weaponMount) {
+    refs.playerParts.weaponMount.visible = false;
+  }
+
+  // Teleporta para dentro da Cela 01 da Delegacia SFPD (X: 492.2, Z: -256.8)
+  if (refs.playerGroup) {
+    refs.playerGroup.visible = true;
+    refs.playerGroup.position.set(492.2, 0.02, -256.8);
+    refs.playerGroup.rotation.y = Math.PI * 0.5;
+  }
+  gameState.cameraYaw = -Math.PI * 0.5;
+  gameState.playerVelY = 0;
+  gameState.isGrounded = true;
+
+  // Tranca a grade eletrônica da Cela 01 e garante seu box de colisão ativo
+  if (refs.jailGateMesh) {
+    refs.jailGateMesh.position.z = refs.jailGateClosedZ ?? -257.0;
+    if (refs.jailGateMesh.userData?.lockLedMat) {
+      refs.jailGateMesh.userData.lockLedMat.color.setHex(0xff0055);
+    }
+  }
+  if (refs.jailGateCollider) {
+    refs.jailGateCollider.box.min.set(495.82, 0, -258.5);
+    refs.jailGateCollider.box.max.set(496.18, 3.3, -255.5);
+    if (!colliders.includes(refs.jailGateCollider)) {
+      colliders.push(refs.jailGateCollider);
+    }
+  }
+
+  // Policiais retornam para patrulha
+  guards.forEach((g) => {
+    if ((g.isPolice || g.isPrecinctGuard) && g.state === GUARD_STATE.COMBAT) {
+      g.state = GUARD_STATE.PATROL;
+      g.burstLeft = 0;
+    }
+  });
+
+  AudioManager.playGateMechanical();
+  AudioManager.playBaseAlertSiren();
+
+  const banner = ensureJailBanner();
+  if (banner) {
+    banner.classList.remove('hidden');
+    const titleEl = document.getElementById('jail-banner-title');
+    if (titleEl) titleEl.textContent = 'DETENÇÃO SFPD // TEMPO RESTANTE: 05:00';
+  }
+  if (dom.missionSub) {
+    dom.missionSub.textContent = `> BUSTED // ${reason} — PRESO NA CELA 01 (MULTA $${fine}, ARMAS CONFISCADAS)`;
+  }
+  saveProgress();
+}
+
+export function releasePlayerFromJail(message = 'LIBERADO PELA SFPD', isEscape = false) {
+  gameState.isJailed = false;
+  gameState.jailTimer = 0;
+  gameState.jailGateLocked = false;
+  gameState.weaponsConfiscated = false;
+
+  // Devolve as armas ao jogador
+  if (refs.playerParts?.weaponMount) {
+    refs.playerParts.weaponMount.visible = true;
+  }
+
+  // Abre a grade eletrônica da Cela 01 e remove o box de colisão
+  if (refs.jailGateMesh?.userData?.lockLedMat) {
+    refs.jailGateMesh.userData.lockLedMat.color.setHex(0x00ff88);
+  }
+  if (refs.jailGateCollider) {
+    const colIdx = colliders.indexOf(refs.jailGateCollider);
+    if (colIdx !== -1) colliders.splice(colIdx, 1);
+  }
+
+  const banner = document.getElementById('jail-banner');
+  if (banner) banner.classList.add('hidden');
+
+  if (isEscape) {
+    addWantedLevel(Math.max(0, 2 - gameState.wantedLevel), 'FUGA DA PRISÃO');
+  } else {
+    gameState.wantedLevel = 0;
+    gameState.wantedCooldown = 0;
+    gameState.wantedStatus = 'OCULTO';
+    updateWantedHUD();
+    // Se liberado legalmente (5 min ou fiança), posiciona na recepção da Delegacia
+    if (refs.playerGroup && refs.playerGroup.position.x < 496.5 && refs.playerGroup.position.z < -252.0) {
+      refs.playerGroup.position.set(502.5, 0.02, -246.5);
+    }
+    AudioManager.playTerminalSuccess();
+  }
+
+  if (dom.missionSub) {
+    dom.missionSub.textContent = `> ${message}`;
+  }
+  saveProgress();
+}
+
+export function updateJailHUD(dt) {
+  const banner = document.getElementById('jail-banner');
+  if (!gameState.isJailed) {
+    if (banner && !banner.classList.contains('hidden')) {
+      banner.classList.add('hidden');
+    }
+    return;
+  }
+
+  gameState.jailTimer = Math.max(0, gameState.jailTimer - dt);
+  const el = ensureJailBanner();
+  if (el) {
+    el.classList.remove('hidden');
+    const mins = Math.floor(gameState.jailTimer / 60);
+    const secs = Math.floor(gameState.jailTimer % 60);
+    const mm = String(mins).padStart(2, '0');
+    const ss = String(secs).padStart(2, '0');
+    const titleEl = document.getElementById('jail-banner-title');
+    if (titleEl) {
+      titleEl.textContent = `DETENÇÃO SFPD // TEMPO RESTANTE: ${mm}:${ss}`;
+    }
+  }
+
+  if (gameState.jailTimer <= 0) {
+    releasePlayerFromJail('PENA DE 5 MINUTOS CUMPRIDA // LIBERADO NA RECEPÇÃO SFPD', false);
+  }
 }
 
 export function triggerGameOver(

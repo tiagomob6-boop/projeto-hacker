@@ -600,6 +600,15 @@ export const refs = {
   vehicleDeliveryRing: null,
   vehicleDeliveryBeam: null,
   precinctTerminalMesh: null,
+  jailGateMesh: null,
+  jailGateCollider: null,
+  jailGateClosedZ: -257.0,
+  jailGateOpenZ: -253.8,
+  jailTerminalMesh: null,
+  jailIntercomMesh: null,
+  jailCell2GateMesh: null,
+  jailCell2GateCollider: null,
+  jailCell2TerminalMesh: null,
   onFirewallDisabled: null,
   onAcceptMission: null,
   onApplySkin: null,
@@ -674,6 +683,7 @@ export const trafficLights = [];   // Semáforos hackeáveis nos cruzamentos (V 
 export const supplyBoxes = [];     // Caixas de suprimentos (+$100 ou +25 HP) nos interiores acessíveis
 export const policeCars = [];      // Viaturas de reforço policial ctOS spawnadas dinamicamente
 export const rescueCells = [];     // Celas de contenção de prisioneiros (RESCUE_01, RESCUE_02)
+export const jailPrisoners = [];   // Prisioneiros NPCs nas celas da Delegacia SFPD
 export const steamPipes = [];      // Tubulações subterrâneas de vapor nas avenidas (V + E)
 export const multiFloorBuildings = []; // Descritores de pisos/escadas dos prédios abertos (2 a 5 andares)
 export const interiorGroups = [];  // Grupos de móveis/pickups internos para Interior Culling (> 95m)
@@ -735,6 +745,12 @@ export const gameState = {
   wantedStatus: 'OCULTO',
   ctosRevealTimer: 0,
   policeSpawnCooldown: 0,
+  isJailed: false,
+  jailTimer: 0,
+  jailGateLocked: true,
+  jailCell2Locked: true,
+  weaponsConfiscated: false,
+  recentLethalShotTimer: 0,
   mouseDown: false,
   netHackActive: false,
   activeCamIndex: -1, // -1 = câmera 3ª pessoa do jogador
@@ -862,6 +878,11 @@ export function getSurfaceHeight(x, z, currentY = null) {
     ((z >= 9 && z <= 23) || (z >= 34 && z <= 50))
   ) {
     return 0.19;
+  }
+  // Piso interno da Delegacia SFPD // ctOS PRECINCT (X: 488..516, Z: -262..-242)
+  if (x >= 488 && x <= 516 && z >= -262 && z <= -242) {
+    if (currentY !== null && currentY >= 8.2) return 9.05; // Heliponto no terraço
+    return 0.02;
   }
   return 0;
 }

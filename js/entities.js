@@ -41,6 +41,7 @@ import {
   supplyBoxes,
   policeCars,
   rescueCells,
+  jailPrisoners,
   steamPipes,
   interiorGroups,
   worldPickups,
@@ -74,7 +75,10 @@ import {
   updateHpHUD,
   updateVehicleHpHUD,
   updateWantedHUD,
-  addWantedLevel
+  addWantedLevel,
+  arrestPlayer,
+  releasePlayerFromJail,
+  updateJailHUD
 } from './ui.js';
 import {
   stunGuard,
@@ -1280,6 +1284,33 @@ export function handleInteractPress() {
       return;
     }
 
+    // 1d-2. Intercomunicador de Fiança ($500) na Cela 01 da Delegacia SFPD
+    if (gameState.isJailed && refs.jailIntercomMesh && pPos.distanceTo(refs.jailIntercomMesh.position) < 3.4) {
+      if (gameState.money >= 500) {
+        gameState.money -= 500;
+        updateMoneyHUD();
+        AudioManager.playTerminalSuccess();
+        releasePlayerFromJail('FIANÇA PAGA ($500) // LIBERADO PELA SFPD', false);
+      } else {
+        AudioManager.playKeyBeep();
+        if (dom.missionSub) {
+          dom.missionSub.textContent = '> SALDO INSUFICIENTE ($500 PARA FIANÇA)! USE DRONE [Q] OU NETHACK [V]+[E] NO PAINEL EXTERNO.';
+        }
+      }
+      return;
+    }
+
+    // 1d-3. Conversar com prisioneiros NPCs nas celas da Delegacia
+    for (const pr of jailPrisoners) {
+      if (pPos.distanceTo(pr.mesh.position) < 3.2) {
+        const line = pr.dialogues[pr.dialogueIndex % pr.dialogues.length];
+        pr.dialogueIndex += 1;
+        AudioManager.playKeyBeep();
+        if (dom.missionSub) dom.missionSub.textContent = `> ${line}`;
+        return;
+      }
+    }
+
     // 1e. Máquina de Café Expresso nos Bistrôs (+25 HP + boost de velocidade por 15s)
     for (const cm of coffeeMachines) {
       if (cm.cooldown <= 0 && pPos.distanceTo(cm.pos) < 3.2) {
@@ -1307,6 +1338,53 @@ export function handleInteractPress() {
   // 3. Checar caixas elétricas de distração (perto ou olhando na Visão NetHack)
   const camDir = new THREE.Vector3();
   refs.camera.getWorldDirection(camDir);
+
+  // 3a. Painel eletrônico da Cela 01 (Fuga Hacker via Drone [Q], Visão NetHack [V]+[E] ou a pé fora da cela)
+  if (refs.jailTerminalMesh && gameState.jailGateLocked) {
+    const distTerm = pPos.distanceTo(refs.jailTerminalMesh.position);
+    const toTerm = refs.jailTerminalMesh.position.clone().sub(refs.camera.position).normalize();
+    const viaDrone = gameState.droneActive && distTerm < 14.0;
+    const viaNetHack = gameState.netHackActive && distTerm < 18.0 && camDir.dot(toTerm) > 0.85;
+    const onFootOutside = !gameState.droneActive && !gameState.isJailed && distTerm < 3.6;
+    if (viaDrone || viaNetHack || onFootOutside) {
+      gameState.hacksUsed += 1;
+      AudioManager.playGateMechanical();
+      if (gameState.isJailed) {
+        releasePlayerFromJail('FUGA DA PRISÃO // PAINEL DA CELA 01 HACKEADO!', true);
+      } else {
+        gameState.jailGateLocked = false;
+        if (refs.jailGateMesh?.userData?.lockLedMat) refs.jailGateMesh.userData.lockLedMat.color.setHex(0x00ff88);
+        if (refs.jailGateCollider) {
+          const idx = colliders.indexOf(refs.jailGateCollider);
+          if (idx !== -1) colliders.splice(idx, 1);
+        }
+        addWantedLevel(1, 'INVASÃO SFPD');
+        if (dom.missionSub) dom.missionSub.textContent = '> CELA 01 DESTRAVADA REMOTAMENTE!';
+      }
+      return;
+    }
+  }
+
+  // 3a-2. Painel eletrônico da Cela 02 (liberta os detentos da Cela 02 via Drone [Q], NetHack [V]+[E] ou a pé)
+  if (refs.jailCell2TerminalMesh && gameState.jailCell2Locked) {
+    const distT2 = pPos.distanceTo(refs.jailCell2TerminalMesh.position);
+    const toT2 = refs.jailCell2TerminalMesh.position.clone().sub(refs.camera.position).normalize();
+    const viaDrone2 = gameState.droneActive && distT2 < 14.0;
+    const viaNetHack2 = gameState.netHackActive && distT2 < 18.0 && camDir.dot(toT2) > 0.85;
+    const onFoot2 = !gameState.droneActive && !gameState.isJailed && distT2 < 3.6;
+    if (viaDrone2 || viaNetHack2 || onFoot2) {
+      gameState.jailCell2Locked = false;
+      gameState.hacksUsed += 1;
+      if (refs.jailCell2GateMesh?.userData?.lockLedMat) refs.jailCell2GateMesh.userData.lockLedMat.color.setHex(0x00ff88);
+      if (refs.jailCell2GateCollider) {
+        const idx = colliders.indexOf(refs.jailCell2GateCollider);
+        if (idx !== -1) colliders.splice(idx, 1);
+      }
+      AudioManager.playGateMechanical();
+      if (dom.missionSub) dom.missionSub.textContent = '> CELA 02 DESTRAVADA // DETENTOS LIBERTADOS!';
+      return;
+    }
+  }
 
   for (const box of electricBoxes) {
     const distBox = pPos.distanceTo(box.mesh.position);
@@ -3151,6 +3229,9 @@ export function updatePedestrians(dt) {
 }
 
 export function updateGuards(dt) {
+  if (gameState.recentLethalShotTimer > 0) {
+    gameState.recentLethalShotTimer = Math.max(0, gameState.recentLethalShotTimer - dt);
+  }
   if (gameState.policeSpawnCooldown > 0) {
     gameState.policeSpawnCooldown = Math.max(0, gameState.policeSpawnCooldown - dt);
   }
@@ -3245,7 +3326,9 @@ export function updateGuards(dt) {
 
     let guardSeesPlayer = false;
     const isContractGuard =
-      g.isPolice || (gameState.mission !== MISSION_STATE.FREE_ROAM && g.missionKey === gameState.activeMissionKey);
+      !gameState.isJailed &&
+      ((g.isPolice && (!g.isPrecinctGuard || gameState.wantedLevel > 0 || gameState.baseAlert)) ||
+        (gameState.mission !== MISSION_STATE.FREE_ROAM && g.missionKey === gameState.activeMissionKey));
 
     if (isContractGuard && distToPlayer <= effectiveRange && distToPlayer > 0.1) {
       _tmpV2.divideScalar(distToPlayer);
@@ -3291,10 +3374,31 @@ export function updateGuards(dt) {
 
     // 2. Máquina de estados de movimentação e combate (Zero-GC com _tmpV6)
     if (g.state === GUARD_STATE.COMBAT) {
+      if (gameState.isJailed) {
+        g.state = GUARD_STATE.PATROL;
+        return;
+      }
+      const isArrestUnit =
+        (g.isPolice || g.isPrecinctGuard) &&
+        gameState.wantedLevel <= 2 &&
+        (gameState.recentLethalShotTimer || 0) <= 0;
+
       const targetPos = g.lastKnownPos || playerPos;
       const toTarget = _tmpV6.copy(targetPos).sub(g.mesh.position);
       toTarget.y = 0;
       const dist = toTarget.length();
+
+      // Abordagem policial não-letal: prende o jogador ao chegar a < 2.2m
+      if (
+        isArrestUnit &&
+        !gameState.drivingCar &&
+        !gameState.drivingBoat &&
+        distToPlayer < 2.2 &&
+        Math.abs(playerPos.y - g.mesh.position.y) < 1.8
+      ) {
+        arrestPlayer('ABORDAGEM POLICIAL SFPD');
+        return;
+      }
 
       if (dist > 0.1) {
         toTarget.normalize();
@@ -3304,8 +3408,9 @@ export function updateGuards(dt) {
         while (diff < -Math.PI) diff += Math.PI * 2;
         g.mesh.rotation.y += diff * Math.min(1, dt * 10);
 
-        if (!guardSeesPlayer || dist > 9.0) {
-          const moveStep = g.speed * 1.2 * dt;
+        const stopDist = isArrestUnit ? 1.6 : 9.0;
+        if (!guardSeesPlayer || dist > stopDist) {
+          const moveStep = g.speed * (isArrestUnit ? 1.32 : 1.2) * dt;
           const stepX = toTarget.x * moveStep;
           const stepZ = toTarget.z * moveStep;
           const gx = g.mesh.position.x;
@@ -3334,12 +3439,18 @@ export function updateGuards(dt) {
         }
       }
 
-      // Rajadas de tiro se tiver linha de visão limpa
+      // Disparo: Taser não-letal para patrulha de prisão (alerta <= 2 sem fogo letal); rajada letal para unidades táticas
       if (guardSeesPlayer) {
-        if (g.burstLeft > 0) {
+        if (isArrestUnit) {
+          g.fireCooldown -= dt;
+          if (g.fireCooldown <= 0 && distToPlayer <= 14.0) {
+            fireGuardBullet(g, playerCenter, true);
+            g.fireCooldown = 1.65;
+          }
+        } else if (g.burstLeft > 0) {
           g.burstTimer -= dt;
           if (g.burstTimer <= 0) {
-            fireGuardBullet(g, playerCenter);
+            fireGuardBullet(g, playerCenter, false);
             g.burstLeft -= 1;
             g.burstTimer = 0.14;
           }
@@ -3643,9 +3754,85 @@ export function updateInteractionsAndMission(dt) {
     sh.mesh.material.opacity = Math.min(0.85, sh.life * 0.6);
   }
 
-  // Prompt de caixas de suprimentos nos prédios abertos (+$100 / +$200 ou +25 HP), Café e Terminal SFPD
+  // Sistema de Prisão SFPD (timer de 5 minutos, animação das grades e prisioneiros NPCs)
+  updateJailHUD(dt);
+  if (refs.jailGateMesh) {
+    const targetZ = gameState.jailGateLocked ? (refs.jailGateClosedZ ?? -257.0) : (refs.jailGateOpenZ ?? -253.8);
+    refs.jailGateMesh.position.z += (targetZ - refs.jailGateMesh.position.z) * Math.min(1, dt * 6);
+  }
+  if (refs.jailCell2GateMesh) {
+    const targetZ2 = gameState.jailCell2Locked ? -247.1 : -244.0;
+    refs.jailCell2GateMesh.position.z += (targetZ2 - refs.jailCell2GateMesh.position.z) * Math.min(1, dt * 6);
+  }
+  for (let i = 0; i < jailPrisoners.length; i++) {
+    const pr = jailPrisoners[i];
+    if (!pr.mesh) continue;
+    const distSq = (pr.mesh.position.x - pPos.x) ** 2 + (pr.mesh.position.z - pPos.z) ** 2;
+    if (distSq > 95 * 95) continue;
+    if (pr.idleTimer > 0) {
+      pr.idleTimer -= dt;
+      pr.walkPhase += dt * 2.2;
+      pr.legL.rotation.x *= 0.85;
+      pr.legR.rotation.x *= 0.85;
+      pr.armL.rotation.x = Math.sin(pr.walkPhase) * 0.06;
+      pr.armR.rotation.x = -Math.sin(pr.walkPhase) * 0.06;
+      if (pr.head) pr.head.rotation.y = Math.sin(pr.walkPhase * 0.7) * 0.35;
+    } else {
+      const wp = pr.waypoints[pr.wpIndex];
+      _tmpV6.copy(wp).sub(pr.mesh.position);
+      _tmpV6.y = 0;
+      const dWp = _tmpV6.length();
+      if (dWp < 0.18) {
+        pr.wpIndex = (pr.wpIndex + 1) % pr.waypoints.length;
+        pr.idleTimer = 2.2 + (i % 3) * 0.9;
+      } else {
+        _tmpV6.divideScalar(dWp);
+        pr.mesh.position.x += _tmpV6.x * 1.15 * dt;
+        pr.mesh.position.z += _tmpV6.z * 1.15 * dt;
+        pr.mesh.rotation.y = Math.atan2(_tmpV6.x, _tmpV6.z);
+        pr.walkPhase += dt * 6.5;
+        const sw = Math.sin(pr.walkPhase) * 0.42;
+        pr.legL.rotation.x = sw;
+        pr.legR.rotation.x = -sw;
+        pr.armL.rotation.x = -sw * 0.65;
+        pr.armR.rotation.x = sw * 0.65;
+        if (pr.head) pr.head.rotation.y *= 0.9;
+      }
+    }
+  }
+
+  // Prompt de caixas de suprimentos nos prédios abertos (+$100 / +$200 ou +25 HP), Café, Celas e Terminal SFPD
+  if (!promptText && gameState.activeCamIndex < 0) {
+    if (refs.jailTerminalMesh && gameState.jailGateLocked) {
+      const distJT = activePos.distanceTo(refs.jailTerminalMesh.position);
+      if ((isDrone && distJT < 14.0) || (gameState.netHackActive && distJT < 18.0) || (!isDrone && !gameState.isJailed && distJT < 3.6)) {
+        promptText = gameState.isJailed
+          ? '[E] HACKEAR PAINEL DA CELA 01 (FUGA DA PRISÃO)'
+          : '[E] HACKEAR PAINEL DA CELA 01 (DESTRAVAR GRADE)';
+      }
+    }
+    if (!promptText && refs.jailCell2TerminalMesh && gameState.jailCell2Locked) {
+      const distJT2 = activePos.distanceTo(refs.jailCell2TerminalMesh.position);
+      if ((isDrone && distJT2 < 14.0) || (gameState.netHackActive && distJT2 < 18.0) || (!isDrone && !gameState.isJailed && distJT2 < 3.6)) {
+        promptText = '[E] HACKEAR PAINEL DA CELA 02 (LIBERTAR DETENTOS)';
+      }
+    }
+  }
   if (!isDrone && !promptText && gameState.activeCamIndex < 0) {
-    if (refs.precinctTerminalMesh && pPos.distanceTo(refs.precinctTerminalMesh.position) < 4.0) {
+    if (gameState.isJailed && refs.jailIntercomMesh && pPos.distanceTo(refs.jailIntercomMesh.position) < 3.4) {
+      promptText = gameState.money >= 500
+        ? '[E] PAGAR FIANÇA ($500) — LIBERAÇÃO IMEDIATA'
+        : '[E] INTERCOM FIANÇA ($500 — SALDO INSUFICIENTE)';
+    }
+    if (!promptText) {
+      for (const pr of jailPrisoners) {
+        if (pPos.distanceTo(pr.mesh.position) < 3.2) {
+          promptText = `[E] CONVERSAR COM ${pr.profile.name}`;
+          break;
+        }
+      }
+    }
+    if (!promptText && refs.precinctTerminalMesh && pPos.distanceTo(refs.precinctTerminalMesh.position) < 4.0) {
       promptText = '[E] HACKEAR TERMINAL SFPD (ZERAR NÍVEL DE PROCURADO)';
     }
     if (!promptText) {

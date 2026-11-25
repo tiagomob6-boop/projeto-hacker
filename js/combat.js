@@ -25,7 +25,7 @@ import {
   impactFlashes
 } from './state.js';
 import { AudioManager } from './audio.js';
-import { updateWeaponHUD, updateHpHUD, updateVehicleHpHUD, updateWantedHUD, triggerHitmarker, triggerGameOver } from './ui.js';
+import { updateWeaponHUD, updateHpHUD, updateVehicleHpHUD, updateWantedHUD, triggerHitmarker, triggerGameOver, arrestPlayer } from './ui.js';
 
 // Temporários reutilizáveis (Zero-GC no loop de projéteis)
 const _tmpVec1 = new THREE.Vector3();
@@ -37,6 +37,7 @@ const _tmpTrailPts = [new THREE.Vector3(), new THREE.Vector3()];
 const sharedPlayerBoltGeo = new THREE.BoxGeometry(0.1, 0.1, 0.55);
 const sharedGuardBulletGeo = new THREE.BoxGeometry(0.1, 0.1, 0.45);
 const sharedGuardBulletMat = new THREE.MeshBasicMaterial({ color: 0xff3300 });
+const sharedGuardTaserMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
 const sharedFlashGeo = new THREE.SphereGeometry(0.32, 8, 8);
 const sharedBoltMats = new Map();
 
@@ -73,8 +74,8 @@ export function selectWeapon(weaponType) {
   gameState.recoilTimer = 0.12;
 }
 
-export function damagePlayer(amount) {
-  if (gameState.mission === MISSION_STATE.GAMEOVER || gameState.mission === MISSION_STATE.VICTORY) return;
+export function damagePlayer(amount, isTaser = false) {
+  if (gameState.isJailed || gameState.mission === MISSION_STATE.GAMEOVER || gameState.mission === MISSION_STATE.VICTORY) return;
   gameState.hp = Math.max(0, gameState.hp - amount);
   gameState.damageFlashTimer = 0.22;
   if (dom.damageFlash) dom.damageFlash.classList.remove('hidden');
@@ -82,7 +83,14 @@ export function damagePlayer(amount) {
   updateHpHUD();
 
   if (gameState.hp <= 0) {
-    triggerGameOver('AGENTE ABATIDO', 'Você foi neutralizado pelo fogo hostil dos guardas da ctOS.');
+    if (
+      isTaser ||
+      (gameState.wantedLevel > 0 && gameState.wantedLevel <= 2 && (gameState.recentLethalShotTimer || 0) <= 0)
+    ) {
+      arrestPlayer(isTaser ? 'NEUTRALIZADO POR TASER SFPD' : 'CUSTÓDIA POLICIAL SFPD');
+    } else {
+      triggerGameOver('AGENTE ABATIDO', 'Você foi neutralizado pelo fogo hostil dos guardas da ctOS.');
+    }
   }
 }
 
@@ -205,12 +213,20 @@ export function damageGuard(guard, dmg) {
 }
 
 export function fireEquippedWeapon() {
-  if (gameState.isSwimming) return;
+  if (gameState.isSwimming || gameState.isJailed || gameState.weaponsConfiscated) return;
   if (gameState.equippedWeapon === WEAPON_TYPE.EMP) {
     fireEmpPulse();
     return;
   }
   if (gameState.weaponCooldown > 0) return;
+
+  if (
+    gameState.equippedWeapon === WEAPON_TYPE.PISTOL ||
+    gameState.equippedWeapon === WEAPON_TYPE.RIFLE ||
+    gameState.equippedWeapon === WEAPON_TYPE.SHOTGUN
+  ) {
+    gameState.recentLethalShotTimer = 12.0;
+  }
 
   const cfg = WEAPON_CONFIG[gameState.equippedWeapon];
   gameState.weaponCooldown = gameState.hasRapidReload ? cfg.cooldown * 0.55 : cfg.cooldown;
@@ -274,7 +290,7 @@ export function fireEquippedWeapon() {
 }
 
 export function fireEmpPulse() {
-  if (gameState.isSwimming) return;
+  if (gameState.isSwimming || gameState.isJailed || gameState.weaponsConfiscated) return;
   if (gameState.empCooldown > 0) return;
   gameState.empCooldown = WEAPON_CONFIG.EMP.cooldown;
   AudioManager.playEmpPulse();
@@ -533,7 +549,7 @@ export function updateGuardProjectiles(dt) {
       const playerHalfH = gameState.isCrouching ? 0.6 : 0.975;
       const playerCenterY = pPos.y + playerHalfH + 0.1;
       if (distPlayer < 0.72 && Math.abs(gp.pos.y - playerCenterY) <= playerHalfH) {
-        damagePlayer(12);
+        damagePlayer(gp.isTaser ? 28 : 12, !!gp.isTaser);
         refs.scene.remove(gp.mesh);
         guardProjectiles.splice(i, 1);
         continue;
@@ -644,7 +660,7 @@ export function updateEmpWaves(dt) {
   }
 }
 
-export function fireGuardBullet(guard, targetPos) {
+export function fireGuardBullet(guard, targetPos, isTaser = false) {
   const startPos = guard.mesh.position.clone().add(new THREE.Vector3(0, 1.25, 0));
   const dir = targetPos.clone().sub(startPos).normalize();
   // Pequena dispersão para permitir cobertura justa
@@ -653,7 +669,7 @@ export function fireGuardBullet(guard, targetPos) {
   dir.z += (Math.random() - 0.5) * 0.09;
   dir.normalize();
 
-  const bullet = new THREE.Mesh(sharedGuardBulletGeo, sharedGuardBulletMat);
+  const bullet = new THREE.Mesh(sharedGuardBulletGeo, isTaser ? sharedGuardTaserMat : sharedGuardBulletMat);
   bullet.position.copy(startPos);
   bullet.lookAt(startPos.clone().add(dir));
   refs.scene.add(bullet);
@@ -662,9 +678,11 @@ export function fireGuardBullet(guard, targetPos) {
     mesh: bullet,
     pos: startPos,
     dir,
-    speed: 32,
+    speed: isTaser ? 28 : 32,
+    isTaser,
     life: 1.4
   });
 
-  AudioManager.playGuardShot();
+  if (isTaser) AudioManager.playTaserShot();
+  else AudioManager.playGuardShot();
 }
