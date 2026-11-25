@@ -668,6 +668,15 @@ export function upsertRemotePlayer(packet) {
     applySkinToParts(parts, entry.skin);
     remotePlayers.set(packet.id, entry);
     playersMap.set(packet.id, entry);
+  } else if (packet.name && packet.name !== entry.name) {
+    entry.name = packet.name;
+    if (entry.nameSprite) {
+      entry.group.remove(entry.nameSprite);
+      if (entry.nameSprite.material?.map) entry.nameSprite.material.map.dispose();
+      if (entry.nameSprite.material) entry.nameSprite.material.dispose();
+      entry.nameSprite = createFloatingNameSprite(entry.name);
+      entry.group.add(entry.nameSprite);
+    }
   }
   if (packet.skin && packet.skin !== entry.skin) {
     entry.skin = packet.skin;
@@ -760,12 +769,21 @@ export function applyRemoteHack(payload) {
 }
 
 export function removeRemotePlayer(id) {
-  const entry = remotePlayers.get(id);
-  if (!entry) return;
-  refs.scene.remove(entry.group);
-  disposeHierarchy(entry.group);
-  remotePlayers.delete(id);
-  playersMap.delete(id);
+  if (id) {
+    const entry = remotePlayers.get(id);
+    if (!entry) return;
+    refs.scene.remove(entry.group);
+    disposeHierarchy(entry.group);
+    remotePlayers.delete(id);
+    playersMap.delete(id);
+  } else {
+    remotePlayers.forEach((entry) => {
+      refs.scene.remove(entry.group);
+      disposeHierarchy(entry.group);
+    });
+    remotePlayers.clear();
+    playersMap.clear();
+  }
 }
 
 export function applyPlayerSkin(skinId) {

@@ -1,19 +1,16 @@
 import { dom, refs, gameState } from './state.js';
 
 // ==========================================
-// MÓDULO DE REDE COOPERATIVO P2P (PEERJS VIA CDN)
+// MÓDULO DE REDE COOPERATIVO P2P (PEERJS UMD)
 // ==========================================
 
-// Configuração WebRTC com servidores STUN públicos do Google para ultrapassar NATs/firewalls
-const PEER_CONFIG = {
+// Configuração WebRTC com servidores STUN oficiais para ultrapassar NATs e firewalls
+const PEER_OPTIONS = {
   debug: 1,
   config: {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
-      { urls: 'stun:stun1.l.google.com:19302' },
-      { urls: 'stun:stun2.l.google.com:19302' },
-      { urls: 'stun:stun3.l.google.com:19302' },
-      { urls: 'stun:stun4.l.google.com:19302' }
+      { urls: 'stun:stun1.l.google.com:19302' }
     ]
   }
 };
@@ -26,11 +23,19 @@ function normalizeRoomCode(raw) {
   return code;
 }
 
+function getPeerConstructor() {
+  if (typeof window !== 'undefined' && window.Peer) {
+    return window.Peer;
+  }
+  return null;
+}
+
 export class NetworkManager {
   constructor() {
     this.mode = 'OFFLINE_SOLO'; // 'OFFLINE_SOLO' | 'COOP_WAITING' | 'COOP_CONNECTED'
     this.localId = 'local';
     this.roomCode = null;
+    this.remoteName = null;
     this.isHost = false;
     this.peer = null;
     this.peerAdapter = null; // PeerJS DataConnection ativa
@@ -60,9 +65,18 @@ export class NetworkManager {
     cbs.forEach((cb) => cb(payload));
   }
 
-  async _loadPeerJS() {
-    const mod = await import('https://esm.sh/peerjs@1.5.4');
-    return mod.Peer || mod.default;
+  async _resolvePeerClass() {
+    let PeerClass = getPeerConstructor();
+    if (PeerClass) return PeerClass;
+    // Se o script da CDN unpkg ainda não finalizou o download, aguarda até 2.5s
+    for (let i = 0; i < 25; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      PeerClass = getPeerConstructor();
+      if (PeerClass) return PeerClass;
+    }
+    // Fallback dinâmico caso CDN unpkg tenha falhado
+    const mod = await import('https://esm.sh/peerjs@1.5.4').catch(() => null);
+    return window.Peer || mod?.Peer || mod?.default || null;
   }
 
   _startHeartbeat() {
@@ -85,9 +99,16 @@ export class NetworkManager {
 
   async createRoom(retryCount = 0) {
     this.disconnect();
+    const PeerClass = await this._resolvePeerClass();
+    if (!PeerClass) {
+      this.emit('onStatusChange', { text: 'PEERJS NÃO DISPONÍVEL // VERIFIQUE SUA INTERNET', online: false, error: true });
+      return null;
+    }
+
     const code = `DEDSEC-${Math.floor(1000 + Math.random() * 9000)}`;
     this.roomCode = code;
     this.localId = code;
+    this.remoteName = null;
     this.isHost = true;
     gameState.localPlayerId = code;
     this.mode = 'COOP_WAITING';
@@ -96,8 +117,7 @@ export class NetworkManager {
     this.emit('onStatusChange', { text: `INICIALIZANDO SALA ${code}...`, online: false });
 
     try {
-      const PeerCtor = await this._loadPeerJS();
-      const peer = new PeerCtor(code, PEER_CONFIG);
+      const peer = new PeerClass(code, PEER_OPTIONS);
       this.peer = peer;
 
       peer.on('open', (id) => {
@@ -121,7 +141,7 @@ export class NetworkManager {
           return;
         }
         this.emit('onStatusChange', {
-          text: `ERRO PEERJS: ${err?.type || err?.message || 'falha'}`,
+          text: `ERRO PEERJS: ${err?.type || err?.message || 'falha na rede'}`,
           online: false,
           error: true
         });
@@ -130,7 +150,7 @@ export class NetworkManager {
       return code;
     } catch (err) {
       this.disconnect();
-      this.emit('onStatusChange', { text: 'ERRO AO CARREGAR PEERJS VIA CDN', online: false, error: true });
+      this.emit('onStatusChange', { text: `ERRO AO INICIALIZAR SALA: ${err?.message || 'falha'}`, online: false, error: true });
       return null;
     }
   }
@@ -142,34 +162,39 @@ export class NetworkManager {
       return false;
     }
     this.disconnect();
+    const PeerClass = await this._resolvePeerClass();
+    if (!PeerClass) {
+      this.emit('onStatusChange', { text: 'PEERJS NÃO DISPONÍVEL // VERIFIQUE SUA INTERNET', online: false, error: true });
+      return false;
+    }
+
     this.roomCode = code;
+    this.remoteName = null;
     this.isHost = false;
     this.mode = 'COOP_WAITING';
     gameState.networkMode = this.mode;
     this._updateModeButton();
     this.emit('onStatusChange', { text: `CONECTANDO À SALA ${code}...`, online: false });
 
-    // Timeout de 14s caso o host não esteja online ou o código seja inválido
+    // Timeout estrito de 10s caso a sala não exista ou esteja offline
     this.connectionTimeout = setTimeout(() => {
       if (this.mode !== 'COOP_CONNECTED') {
         this.disconnect();
         this.emit('onStatusChange', {
-          text: `TEMPO ESGOTADO // SALA ${code} NÃO RESPONDEU`,
+          text: `TEMPO ESGOTADO (10s) // SALA ${code} NÃO ENCONTRADA OU OFFLINE`,
           online: false,
           error: true
         });
       }
-    }, 14000);
+    }, 10000);
 
     try {
-      const PeerCtor = await this._loadPeerJS();
-      const peer = new PeerCtor(PEER_CONFIG);
+      const peer = new PeerClass(PEER_OPTIONS);
       this.peer = peer;
 
       peer.on('open', (id) => {
         this.localId = id;
         gameState.localPlayerId = id;
-        // Conexão garantida e ordenada para estabilidade do canal de jogo
         const conn = peer.connect(code, { reliable: true });
         this._attachConnection(conn);
       });
@@ -182,14 +207,14 @@ export class NetworkManager {
         const msg =
           err?.type === 'peer-unavailable'
             ? `SALA ${code} NÃO ENCONTRADA // VERIFIQUE O CÓDIGO`
-            : `FALHA AO CONECTAR: ${err?.type || err?.message || 'erro de rede'}`;
+            : `FALHA AO CONECTAR: ${err?.type || err?.message || 'sala offline ou erro de rede'}`;
         this.emit('onStatusChange', { text: msg, online: false, error: true });
       });
 
       return true;
-    } catch {
+    } catch (err) {
       this.disconnect();
-      this.emit('onStatusChange', { text: 'ERRO AO CARREGAR PEERJS VIA CDN', online: false, error: true });
+      this.emit('onStatusChange', { text: `ERRO AO CONECTAR: ${err?.message || 'falha'}`, online: false, error: true });
       return false;
     }
   }
@@ -206,23 +231,25 @@ export class NetworkManager {
       }
       this.mode = 'COOP_CONNECTED';
       gameState.networkMode = this.mode;
-      this._updateModeButton();
       this._startHeartbeat();
 
+      // Handshake imediato: HELLO + getLocalSyncPacket()
+      const syncPacket = this.getLocalSyncPacket();
+      this.broadcast('HELLO', syncPacket);
+      this.broadcast('onPlayerMove', syncPacket);
+
+      this._updateModeButton();
       this.emit('onStatusChange', {
         text: `● CO-OP CONECTADO // SALA ${this.roomCode}`,
         online: true,
         connected: true,
-        roomCode: this.roomCode
+        roomCode: this.roomCode,
+        remoteName: this.remoteName || 'PARCEIRO'
       });
-
-      // Dispara envio imediato do estado local para renderizar avatares na mesma hora
-      this.broadcast('onPlayerMove', this.getLocalSyncPacket());
     });
 
     conn.on('data', (data) => {
       if (!data) return;
-      // Trata keepalive silenciosamente
       if (data.type === 'PING') {
         try {
           conn.send({ type: 'PONG' });
@@ -232,8 +259,25 @@ export class NetworkManager {
       if (data.type === 'PONG') {
         return;
       }
-      if (data.payload && !this.remotePeerId && data.payload.id) {
-        this.remotePeerId = data.payload.id;
+      if (data.type === 'HELLO') {
+        if (data.payload?.name) {
+          this.remoteName = data.payload.name;
+        }
+        if (data.payload?.id) {
+          this.remotePeerId = data.payload.id;
+        }
+        this._updateModeButton();
+        this.emit('onPlayerMove', data.payload);
+        // Responde de volta para garantir troca mútua imediata
+        this.broadcast('onPlayerMove', this.getLocalSyncPacket());
+        return;
+      }
+      if (data.payload && data.payload.id) {
+        if (!this.remotePeerId) this.remotePeerId = data.payload.id;
+        if (data.payload.name && !this.remoteName) {
+          this.remoteName = data.payload.name;
+          this._updateModeButton();
+        }
       }
       this.handleIncomingPacket(data);
     });
@@ -248,6 +292,7 @@ export class NetworkManager {
         this.emit('onPeerDisconnected', this.remotePeerId);
         this.remotePeerId = null;
       }
+      this.remoteName = null;
       this.peerAdapter = null;
       this.mode = this.isHost && this.peer ? 'COOP_WAITING' : 'OFFLINE_SOLO';
       gameState.networkMode = this.mode;
@@ -311,6 +356,7 @@ export class NetworkManager {
       this.emit('onPeerDisconnected', this.remotePeerId);
       this.remotePeerId = null;
     }
+    this.remoteName = null;
     try {
       if (this.peerAdapter) this.peerAdapter.close();
     } catch {}
@@ -367,13 +413,24 @@ export class NetworkManager {
   }
 
   _updateModeButton() {
-    if (!dom.btnNetworkMode) return;
+    const btn = document.getElementById('hud-network-btn') || dom.btnNetworkMode;
+    if (!btn) return;
     if (this.mode === 'COOP_CONNECTED') {
-      dom.btnNetworkMode.textContent = `[CO-OP ONLINE // ${this.roomCode}]`;
+      const partner = this.remoteName || this.roomCode || 'ONLINE';
+      btn.textContent = `[MODO: CO-OP ONLINE // ${partner}]`;
+      btn.style.color = '#00ff88';
+      btn.style.borderColor = '#00ff88';
+      btn.style.textShadow = '0 0 8px rgba(0, 255, 136, 0.6)';
     } else if (this.mode === 'COOP_WAITING') {
-      dom.btnNetworkMode.textContent = `[CO-OP SALA // ${this.roomCode}]`;
+      btn.textContent = `[CO-OP SALA // ${this.roomCode}]`;
+      btn.style.color = '#00f0ff';
+      btn.style.borderColor = '#00f0ff';
+      btn.style.textShadow = '0 0 8px rgba(0, 240, 255, 0.5)';
     } else {
-      dom.btnNetworkMode.textContent = '[MODO: SOLO // CO-OP READY]';
+      btn.textContent = '[MODO: SOLO // CO-OP READY]';
+      btn.style.color = '';
+      btn.style.borderColor = '';
+      btn.style.textShadow = '';
     }
   }
 

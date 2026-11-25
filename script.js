@@ -293,8 +293,9 @@ function setupInputs() {
   if (dom.btnMute) {
     dom.btnMute.addEventListener('click', () => AudioManager.toggleMute());
   }
-  if (dom.btnNetworkMode) {
-    dom.btnNetworkMode.addEventListener('click', () => openCoopModal());
+  const hudNetBtn = document.getElementById('hud-network-btn') || dom.btnNetworkMode;
+  if (hudNetBtn) {
+    hudNetBtn.addEventListener('click', () => openCoopModal());
   }
   if (dom.btnRain) {
     dom.btnRain.addEventListener('click', () => toggleRain());
@@ -377,6 +378,9 @@ function animate() {
   updateProjectiles(dt);
   updateGuardProjectiles(dt);
   updateEmpWaves(dt);
+  // Atualiza e sincroniza jogadores remotos P2P em todos os frames de animação
+  updateRemotePlayers(dt);
+  networkManager.tick(dt);
 
   const isContract =
     gameState.mission === MISSION_STATE.INFILTRATE ||
@@ -398,8 +402,6 @@ function animate() {
     updatePedestrians(dt);
     updateGuards(dt);
     updateInteractionsAndMission(dt);
-    updateRemotePlayers(dt);
-    networkManager.tick(dt);
 
     // Atualiza minimapa Radar, controles mobile e etiquetas NetHack a 20 Hz (a cada 0.05s) para liberar CPU
     _hudTickAccum += dt;

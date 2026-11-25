@@ -1119,6 +1119,21 @@ export function renderTacticalMap() {
     ctx.arc(pp.x, pp.y, 5, 0, Math.PI * 2);
     ctx.fill();
   }
+
+  // Parceiros Co-op remotos no Mapa Tático (marcador azul vibrante + nome)
+  remotePlayers.forEach((entry) => {
+    const rp = toCanvas(entry.group.position.x, entry.group.position.z);
+    ctx.fillStyle = '#38bdf8';
+    ctx.beginPath();
+    ctx.arc(rp.x, rp.y, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 10px monospace';
+    ctx.fillText(`👥 ${entry.name || 'PARCEIRO'}`, rp.x + 8, rp.y + 4);
+  });
 }
 
 let _coopNoticeTimer = null;
@@ -1139,7 +1154,9 @@ export function openCoopModal() {
   if (!modal) return;
   gameState.coopModalOpen = true;
   modal.classList.remove('hidden');
-  if (document.pointerLockElement) document.exitPointerLock();
+  try {
+    if (document.pointerLockElement) document.exitPointerLock();
+  } catch {}
 }
 
 export function closeCoopModal() {
@@ -1160,10 +1177,20 @@ export function setupCoopUI(networkManager) {
   const btnDisc = document.getElementById('btn-coop-disconnect');
   const btnClose = document.getElementById('btn-close-coop');
   const btnEnter = document.getElementById('btn-coop-enter');
+  const btnTeleport = document.getElementById('btn-coop-teleport');
+  const btnGuideCoop = document.getElementById('btn-guide-open-coop');
+  const btnHudNetwork = document.getElementById('hud-network-btn') || dom.btnNetworkMode;
 
   let autoCloseTimer = null;
 
-  networkManager.on('onStatusChange', ({ text, online, roomCode, error, connected, disconnected }) => {
+  // Abertura do modal tanto pelo botão do HUD quanto pelo menu [H]
+  btnHudNetwork?.addEventListener('click', () => openCoopModal());
+  btnGuideCoop?.addEventListener('click', () => {
+    if (gameState.quickGuideOpen) toggleQuickGuide(false);
+    openCoopModal();
+  });
+
+  networkManager.on('onStatusChange', ({ text, online, roomCode, error, connected, disconnected, remoteName }) => {
     if (statusEl) {
       statusEl.textContent = text;
       statusEl.classList.toggle('online', !!online);
@@ -1179,8 +1206,9 @@ export function setupCoopUI(networkManager) {
 
     if (connected) {
       if (btnEnter) btnEnter.classList.remove('hidden');
+      if (btnTeleport) btnTeleport.classList.remove('hidden');
       if (statusEl) {
-        statusEl.textContent = '● CO-OP CONECTADO // ENTRANDO NO JOGO...';
+        statusEl.textContent = `● CO-OP CONECTADO // PARCEIRO: ${remoteName || 'ONLINE'}`;
       }
       showCoopHUDNotice(`DEDSEC CO-OP: AGENTE CONECTADO À SALA [${roomCode || networkManager.roomCode}]!`, 'success');
       clearTimeout(autoCloseTimer);
@@ -1191,9 +1219,26 @@ export function setupCoopUI(networkManager) {
       }, 1200);
     } else {
       if (btnEnter) btnEnter.classList.add('hidden');
+      if (btnTeleport) btnTeleport.classList.add('hidden');
       if (disconnected) {
         showCoopHUDNotice('DEDSEC ALERTA: CONEXÃO CO-OP ENCERRADA // MODO SOLO ATIVADO', 'warning');
       }
+    }
+  });
+
+  btnTeleport?.addEventListener('click', () => {
+    const entries = Array.from(remotePlayers.values());
+    if (entries.length > 0 && refs.playerGroup) {
+      const partner = entries[0];
+      const px = partner.group.position.x + 1.8;
+      const py = partner.group.position.y;
+      const pz = partner.group.position.z + 1.8;
+      refs.playerGroup.position.set(px, py, pz);
+      closeCoopModal();
+      showCoopHUDNotice(`TELEPORTADO ATÉ O AGENTE ${partner.name || 'PARCEIRO'}!`, 'success');
+      AudioManager.playKeyBeep();
+    } else {
+      showCoopHUDNotice('AGUARDANDO COORDENADAS DO PARCEIRO...', 'warning');
     }
   });
 
@@ -1236,6 +1281,7 @@ export function setupCoopUI(networkManager) {
     networkManager.disconnect();
     if (roomBox) roomBox.classList.add('hidden');
     if (btnEnter) btnEnter.classList.add('hidden');
+    if (btnTeleport) btnTeleport.classList.add('hidden');
   });
 
   btnClose?.addEventListener('click', () => {

@@ -494,7 +494,7 @@ export const dom = {
   hackFeedback: document.getElementById('hack-feedback'),
   terminalLogAction: document.getElementById('terminal-log-action'),
   btnMute: document.getElementById('btn-mute'),
-  btnNetworkMode: document.getElementById('btn-network-mode'),
+  btnNetworkMode: document.getElementById('hud-network-btn') || document.getElementById('btn-network-mode'),
   btnRain: document.getElementById('btn-rain'),
   hitmarker: document.getElementById('hitmarker'),
   tacticalMapModal: document.getElementById('tactical-map-modal'),

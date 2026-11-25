@@ -95,7 +95,7 @@
         </div>
         <div class="status-row">
           <span>REDE:</span>
-          <button id="btn-network-mode" class="mute-btn" type="button">[MODO: SOLO // CO-OP READY]</button>
+          <button id="hud-network-btn" class="mute-btn" type="button">[MODO: SOLO // CO-OP READY]</button>
         </div>
         <div class="status-row">
           <span>CONTROLE:</span>
@@ -486,6 +486,10 @@
       </div>
       <div class="guide-settings">
         <div class="guide-setting-item">
+          <span>MULTIPLAYER P2P (CO-OP):</span>
+          <button id="btn-guide-open-coop" type="button" class="cyber-btn small-btn cyan-btn">👥 ABRIR SALA CO-OP</button>
+        </div>
+        <div class="guide-setting-item">
           <span>SOMBRAS (PERFORMANCE):</span>
           <button id="btn-toggle-shadows" type="button" class="cyber-btn small-btn active">SOMBRAS: ON</button>
         </div>
@@ -563,6 +567,7 @@
       </div>
 
       <div class="modal-actions" style="margin-top:14px;display:flex;flex-direction:column;gap:8px;">
+        <button id="btn-coop-teleport" class="cyber-btn cyan-btn hidden" type="button">TELEPORTAR ATÉ PARCEIRO</button>
         <button id="btn-coop-enter" class="cyber-btn green-btn hidden" type="button">ENTRAR NO JOGO AGORA</button>
         <div style="display:flex;gap:8px;width:100%;">
           <button id="btn-coop-disconnect" class="cyber-btn secondary-btn hidden" style="flex:1;" type="button">DESCONECTAR</button>
@@ -572,6 +577,7 @@
     </div>
   </div>
 
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
   <script type="module" src="script.js"></script>
 </body>
 </html>
